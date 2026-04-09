@@ -1,0 +1,128 @@
+import SwiftUI
+
+/// Direct reports list — [Figma 15276-14308](https://www.figma.com/design/N4rPYxlp1AxdJWGSghlQXP/%F0%9F%93%B1-Time-tracking?node-id=15276-14308)
+struct DirectReportsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let people = TimeAttendanceMockData.directReportsInFigmaOrder
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                ForEach(Array(people.enumerated()), id: \.element.id) { index, employee in
+                    NavigationLink {
+                        EmployeeTimeTrackingDetailView(employee: employee)
+                    } label: {
+                        DirectReportRow(employee: employee)
+                    }
+                    .buttonStyle(.plain)
+
+                    if index < people.count - 1 {
+                        Rectangle()
+                            .fill(AppColors.separator)
+                            .frame(height: 1)
+                    }
+                }
+            }
+            .background(AppColors.surface)
+            .cornerRadius(8)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+        .background(AppColors.background)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(AppColors.surface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button { dismiss() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Back")
+                            .font(AppFonts.body())
+                    }
+                    .foregroundColor(AppColors.primaryDark)
+                }
+            }
+            ToolbarItem(placement: .principal) {
+                Text("Direct reports")
+                    .font(AppFonts.headline())
+                    .foregroundColor(AppColors.fontDefault)
+            }
+        }
+    }
+}
+
+// MARK: - Row (avatar, name, role; optional calendar badge — Figma)
+
+private struct DirectReportRow: View {
+    let employee: EmployeeAnomaly
+
+    private var showCalendarBadge: Bool {
+        employee.hasScheduleIcon
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                avatar
+                if showCalendarBadge {
+                    Image(systemName: "suitcase.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 18, height: 18)
+                        .background(AppColors.fontDefault)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(AppColors.surface, lineWidth: 0.5))
+                        .offset(x: 4, y: 4)
+                }
+            }
+            .frame(width: 50, height: 50)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(employee.name)
+                    .font(AppFonts.headline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                Text(employee.role)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+
+                if employee.anomalyType != .onTrack && !employee.hasScheduleIcon {
+                    Text(employee.anomalyType.rawValue)
+                        .font(AppFonts.caption1Strong())
+                        .foregroundColor(AppColors.fontSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(AppColors.lightBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .stroke(AppColors.separator, lineWidth: 1)
+                        )
+                        .cornerRadius(4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 16)
+        .padding(.vertical, 16)
+        .contentShape(Rectangle())
+    }
+
+    private var avatar: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hex: "E8E8ED"))
+                .frame(width: 50, height: 50)
+            Image(systemName: "person.fill")
+                .font(.system(size: 22))
+                .foregroundColor(AppColors.iconDefault)
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/steliosxenakis/projects/Workable-iOS -name \"*.swift\" -type f -exec wc -l {} +)",
+      "Bash(grep -r \"URLSession\\\\|Codable\\\\|API\\\\|network\\\\|fetch\" /Users/steliosxenakis/projects/Workable-iOS/Workable --include=*.swift)",
+      "WebFetch(domain:www.figma.com)",
+      "mcp__Figma__get_design_context",
+      "mcp__Figma__get_screenshot"
+    ]
+  }
+}
