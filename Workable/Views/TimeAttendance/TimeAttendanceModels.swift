@@ -238,6 +238,132 @@ struct FlowLayout: Layout {
     }
 }
 
+// MARK: - Anomaly Pill Style (Figma 15399-147313)
+
+enum AnomalyPillStyle {
+    case danger, warning, success, neutral
+
+    var pillBackground: Color {
+        switch self {
+        case .danger:  return AppColors.dangerBackground
+        case .warning: return AppColors.warningBackground
+        case .success: return AppColors.successBackground
+        case .neutral: return AppColors.background
+        }
+    }
+
+    var badgeBackground: Color {
+        switch self {
+        case .danger:  return AppColors.dangerBadge
+        case .warning: return AppColors.warningBadge
+        case .success: return AppColors.activeBackground
+        case .neutral: return AppColors.separator
+        }
+    }
+
+    var badgeTextColor: Color {
+        switch self {
+        case .danger:  return AppColors.dangerDefault
+        case .warning: return AppColors.warningDefault
+        case .success: return AppColors.primaryDark
+        case .neutral: return AppColors.fontDefault
+        }
+    }
+}
+
+extension AnomalyType {
+    var pillStyle: AnomalyPillStyle {
+        switch self {
+        case .noClockIn, .noClockInNorOut: return .danger
+        case .exceededWorkSchedule:        return .warning
+        case .onTrack:                     return .success
+        }
+    }
+}
+
+// MARK: - Anomaly Pill View (Figma 15399-147313)
+
+struct AnomalyPillView: View {
+    let label: String
+    let count: Int
+    let style: AnomalyPillStyle
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(AppFonts.subheadline())
+                .foregroundColor(AppColors.fontDefault)
+                .tracking(-0.24)
+
+            Text("\(count)")
+                .font(AppFonts.caption1Strong())
+                .foregroundColor(style.badgeTextColor)
+                .frame(minWidth: 14)
+                .padding(8)
+                .background(style.badgeBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(style.pillBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+// MARK: - On Leave Row (Figma 15399-147467)
+
+struct OnLeaveRowView: View {
+    let title: String
+    var avatarNames: [String] = []
+    var overflowCount: Int? = nil
+    var showChevron: Bool = true
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(AppFonts.subheadline())
+                .foregroundColor(AppColors.fontDefault)
+                .tracking(-0.24)
+
+            Spacer()
+
+            if !avatarNames.isEmpty {
+                HStack(spacing: 2) {
+                    ForEach(avatarNames, id: \.self) { name in
+                        Image(name)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 25, height: 25)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                    }
+                }
+            }
+
+            if let count = overflowCount {
+                Text("+\(count)")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .frame(height: 25)
+                    .background(AppColors.separator)
+                    .clipShape(RoundedRectangle(cornerRadius: 200, style: .continuous))
+            }
+
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.iconDefault)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(AppColors.lightBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 // MARK: - Anomaly Summary Pills (wireframe style — outlined)
 
 struct AnomalySummaryTagsView: View {

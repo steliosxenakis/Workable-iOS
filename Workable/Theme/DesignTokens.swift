@@ -30,12 +30,14 @@ enum AppColors {
 
     // Danger
     static let dangerDefault     = Color(light: "CC2C11", dark: "FF6B59")  // Danger ☀️500 ☽200
+    static let dangerBadge       = Color(light: "FFD2CF", dark: "5A1A0F")  // Danger ☀️100 ☽600
     static let dangerBackground  = Color(light: "FFF1F1", dark: "4A100A")  // Danger ☀️50  ☽700
 
     // Warning
     static let warningDefault    = Color(light: "BD5B01", dark: "FFD666")  // Warning ☀️500 ☽50
     static let warningIcon       = Color(light: "F07C0F", dark: "FFB420")  // Warning ☀️400 ☽300
     static let warningText       = Color(light: "FFB420", dark: "BD5B01")  // Warning ☀️300 ☽500
+    static let warningBadge      = Color(light: "FFF0B8", dark: "5C3200")  // Warning ☀️100 ☽600
     static let warningBackground = Color(light: "FFFADF", dark: "4A2400")  // Warning ☀️50  ☽700
 
     // Informative

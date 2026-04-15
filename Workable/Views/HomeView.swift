@@ -260,41 +260,13 @@ struct HomeView: View {
         .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
     }
 
-    private let attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] = [
-        ("No clock in", 3, [.noClockIn]),
-        ("No clock in and out", 2, [.noClockInNorOut]),
-        ("Exceeded work schedule", 3, [.exceededWorkSchedule]),
-        ("On track", 18, [.onTrack]),
-        ("Expected to work today", 26, [])
+    private let anomalyPills: [(label: String, count: Int, style: AnomalyPillStyle, filters: Set<AnomalyFilterCategory>)] = [
+        ("No clock in", 1, .danger, [.noClockIn]),
+        ("No clocks", 30, .danger, [.noClockInNorOut]),
+        ("Exceeds work schedule", 44, .warning, [.exceededWorkSchedule]),
+        ("On track", 1, .success, [.onTrack]),
+        ("Expected", 35, .neutral, []),
     ]
-
-    /// Figma 15353-17307 — opens full anomalies list
-    private var timeAttendanceStatusCard: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(attendanceStatusPills, id: \.label) { pill in
-                    NavigationLink {
-                        TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
-                    } label: {
-                        Text("\(pill.label) (\(pill.count))")
-                            .font(AppFonts.subheadStrong())
-                            .foregroundColor(AppColors.fontDefault)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(AppColors.iconInactive)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(AppColors.separator, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
 
     // MARK: - To-dos
 
@@ -321,11 +293,13 @@ struct HomeView: View {
 
     // MARK: - Today
 
+    /// Figma 15400-147627
     private var todaySection: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Today")
                     .font(.system(size: 22, weight: .semibold))
+                    .tracking(0.35)
                     .foregroundColor(AppColors.fontDefault)
 
                 Spacer()
@@ -335,48 +309,60 @@ struct HomeView: View {
                     .foregroundColor(AppColors.primaryDark)
                     .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
 
-            ForEach(todayEvents) { event in
-                todayEventRow(event)
+            VStack(alignment: .leading, spacing: 24) {
+                ForEach(todayEvents) { event in
+                    todayEventRow(event)
+                }
+
+                VStack(alignment: .leading, spacing: 16) {
+                    todayInfoRow(
+                        icon: "party.popper",
+                        iconColor: AppColors.betaDefault,
+                        iconBackground: AppColors.betaLightBackground,
+                        title: "Work anniversaries",
+                        value: "Smith, Johannes +3"
+                    )
+                    todayInfoRow(
+                        icon: "gift.fill",
+                        iconColor: Color(hex: "E9756D"),
+                        iconBackground: AppColors.dangerBackground,
+                        title: "Birthdays",
+                        value: "Doe, John +2"
+                    )
+                    todayInfoRow(
+                        icon: "sparkles",
+                        iconColor: Color(hex: "37B086"),
+                        iconBackground: AppColors.successBackground,
+                        title: "Holidays",
+                        value: "Christmas day"
+                    )
+                }
             }
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
-            todayInfoRow(
-                icon: "gift.fill",
-                iconColor: Color(hex: "E9756D"),
-                iconBackground: Color(hex: "F8ECEB"),
-                title: "Birthdays",
-                value: "Doe, John +2"
-            )
 
-            todayInfoRow(
-                icon: "sparkles",
-                iconColor: Color(hex: "37B086"),
-                iconBackground: Color(hex: "E8F4EF"),
-                title: "Holidays",
-                value: "Christmas day"
-            )
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
+            OnLeaveRowView(title: "No employees on leave")
 
-            onLeaveRow
-
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
-
-            timeAttendanceStatusCard
-                .padding(16)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(anomalyPills, id: \.label) { pill in
+                        NavigationLink {
+                            TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
+                        } label: {
+                            AnomalyPillView(label: pill.label, count: pill.count, style: pill.style)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
+        .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
     }
 
     private func todayEventRow(_ event: TodayEvent) -> some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(event.title)
                     .font(AppFonts.body())
                     .tracking(-0.41)
@@ -393,13 +379,11 @@ struct HomeView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16))
                     .foregroundColor(AppColors.iconDefault)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle().size(width: 32, height: 32))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
     private func todayInfoRow(
@@ -409,20 +393,20 @@ struct HomeView: View {
         title: String,
         value: String
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(iconBackground)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 40, height: 40)
                 Image(systemName: icon)
-                    .font(.system(size: 15))
+                    .font(.system(size: 20))
                     .foregroundColor(iconColor)
             }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AppFonts.footnote())
-                    .tracking(-0.08)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
                     .foregroundColor(AppColors.fontSecondary)
                 Text(value)
                     .font(AppFonts.body())
@@ -432,37 +416,6 @@ struct HomeView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
-    private var onLeaveRow: some View {
-        HStack {
-            Text("No employees on leave")
-                .font(AppFonts.body())
-                .tracking(-0.41)
-                .foregroundColor(AppColors.fontDefault)
-
-            Spacer()
-
-            HStack(spacing: -8) {
-                ForEach(["avatar-lucy", "avatar-abdi", "avatar-michael"], id: \.self) { name in
-                    Image(name)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 24, height: 24)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(AppColors.surface, lineWidth: 1.5))
-                }
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColors.iconDefault)
-                .padding(.leading, 6)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
     }
 
     // MARK: - Time Off
