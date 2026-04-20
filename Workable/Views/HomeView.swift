@@ -147,13 +147,9 @@ struct HomeView: View {
                         .tracking(-0.24)
                         .foregroundColor(AppColors.fontSecondary)
 
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(AppColors.iconInactive)
-                        .cornerRadius(10)
+                    Circle()
+                        .fill(AppColors.dangerBadge)
+                        .frame(width: 16, height: 16)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .regular))
@@ -260,13 +256,16 @@ struct HomeView: View {
         .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
     }
 
-    private let anomalyPills: [(label: String, count: Int, style: AnomalyPillStyle, filters: Set<AnomalyFilterCategory>)] = [
-        ("No clock in", 1, .danger, [.noClockIn]),
-        ("No clocks", 30, .danger, [.noClockInNorOut]),
-        ("Exceeds work schedule", 44, .warning, [.exceededWorkSchedule]),
-        ("On track", 1, .success, [.onTrack]),
-        ("Expected", 35, .neutral, []),
-    ]
+    private var anomalyPills: [(label: String, count: Int, style: AnomalyPillStyle, filters: Set<AnomalyFilterCategory>)] {
+        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
+        return [
+            ("No clock in",            eligible.filter { $0.anomalyType == .noClockIn }.count,            .danger,  [.noClockIn]),
+            ("No clock in nor out",    eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      .danger,  [.noClockInNorOut]),
+            ("Exceeds work schedule",  eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, .warning, [.exceededWorkSchedule]),
+            ("On track",               eligible.filter { $0.anomalyType == .onTrack }.count,              .success, [.onTrack]),
+            ("All",               eligible.count,                                                     .neutral, []),
+        ]
+    }
 
     // MARK: - To-dos
 
@@ -314,33 +313,7 @@ struct HomeView: View {
                 ForEach(todayEvents) { event in
                     todayEventRow(event)
                 }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    todayInfoRow(
-                        icon: "party.popper",
-                        iconColor: AppColors.betaDefault,
-                        iconBackground: AppColors.betaLightBackground,
-                        title: "Work anniversaries",
-                        value: "Smith, Johannes +3"
-                    )
-                    todayInfoRow(
-                        icon: "gift.fill",
-                        iconColor: Color(hex: "E9756D"),
-                        iconBackground: AppColors.dangerBackground,
-                        title: "Birthdays",
-                        value: "Doe, John +2"
-                    )
-                    todayInfoRow(
-                        icon: "sparkles",
-                        iconColor: Color(hex: "37B086"),
-                        iconBackground: AppColors.successBackground,
-                        title: "Holidays",
-                        value: "Christmas day"
-                    )
-                }
             }
-
-            OnLeaveRowView(title: "No employees on leave")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -353,6 +326,44 @@ struct HomeView: View {
                         .buttonStyle(.plain)
                     }
                 }
+            }
+
+            OnLeaveRowView(
+                title: "No employees on leave",
+                avatarNames: ["avatar-abdi", "avatar-emma", "avatar-tyler"],
+                overflowCount: 2,
+                showChevron: false
+            )
+
+            VStack(alignment: .leading, spacing: 16) {
+            /*    todayInfoRow(
+                    icon: "icon-rocket",
+                    iconColor: AppColors.betaDefault,
+                    iconBackground: AppColors.betaLightBackground,
+                    title: "New employees",
+                    value: "Jones, Samantha"
+                )
+                todayInfoRow(
+                    icon: "icon-hat",
+                    iconColor: AppColors.betaDefault,
+                    iconBackground: AppColors.betaLightBackground,
+                    title: "Work anniversaries",
+                    value: "Smith, Johannes +3"
+                )*/
+                todayInfoRow(
+                    icon: "icon-gift",
+                    iconColor: Color(hex: "E9756D"),
+                    iconBackground: AppColors.dangerBackground,
+                    title: "Birthdays",
+                    value: "Doe, John +2"
+                )
+                todayInfoRow(
+                    icon: "icon-pyro",
+                    iconColor: Color(hex: "37B086"),
+                    iconBackground: AppColors.successBackground ,
+                    title: "Holidays",
+                    value: "Christmas day"
+                )
             }
         }
         .padding(16)
@@ -398,8 +409,11 @@ struct HomeView: View {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(iconBackground)
                     .frame(width: 40, height: 40)
-                Image(systemName: icon)
-                    .font(.system(size: 20))
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
                     .foregroundColor(iconColor)
             }
 

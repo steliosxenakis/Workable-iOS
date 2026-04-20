@@ -96,15 +96,11 @@ private struct DirectReportRow: View {
                 if employee.anomalyType != .onTrack && !employee.hasScheduleIcon {
                     Text(employee.anomalyType.rawValue)
                         .font(AppFonts.caption1Strong())
-                        .foregroundColor(AppColors.fontSecondary)
+                        .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(AppColors.lightBackground)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(AppColors.separator, lineWidth: 1)
-                        )
-                        .cornerRadius(4)
+                        .background(employee.anomalyType.pillStyle.pillBackground)
+                        .clipShape(Capsule())
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,13 +112,23 @@ private struct DirectReportRow: View {
     }
 
     private var avatar: some View {
-        ZStack {
-            Circle()
-                .fill(Color(hex: "E8E8ED"))
-                .frame(width: 50, height: 50)
-            Image(systemName: "person.fill")
-                .font(.system(size: 22))
-                .foregroundColor(AppColors.iconDefault)
+        Group {
+            if let name = employee.avatarName {
+                Image(name)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "E8E8ED"))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(AppColors.iconDefault)
+                }
+            }
         }
     }
 }

@@ -148,17 +148,17 @@ enum TimeAttendanceMockData {
         .init(name: "Doe, Joanne",                     role: "Account Manager",         avatarName: "avatar-lucy",    anomalyType: .noClockInNorOut,       hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
         .init(name: "Carty, Joe",                      role: "Operations Engineer",     avatarName: "avatar-abdi",    anomalyType: .noClockIn,             hasScheduleIcon: true,  department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
         .init(name: "Gutmann, Elyssa",                 role: "Marketing Director",      avatarName: "avatar-michael", anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 9.5),
-        .init(name: "Wilhelham, Minnie Laris Julie",   role: "Sales Consultant",        avatarName: nil,              anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 10),
-        .init(name: "Nguyen, Mai",                     role: "Software Engineer",       avatarName: nil,              anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
+        .init(name: "Wilhelham, Minnie Laris Julie",   role: "Sales Consultant",        avatarName: "avatar-grace",   anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 10),
+        .init(name: "Nguyen, Mai",                     role: "Software Engineer",       avatarName: "avatar-sophia",  anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
         .init(name: "Petrov, Andrei",                  role: "QA Lead",                 avatarName: "avatar-tyler",   anomalyType: .exceededWorkSchedule,  hasScheduleIcon: true,  department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 11),
         .init(name: "Santos, Maria",                   role: "Customer Success Manager",avatarName: "avatar-lucy",    anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 7.5),
-        .init(name: "Müller, Hans",                    role: "Finance Analyst",         avatarName: nil,              anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 6),
+        .init(name: "Müller, Hans",                    role: "Finance Analyst",         avatarName: "avatar-jamal",   anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 6),
         .init(name: "Chen, Wei",                       role: "Product Designer",        avatarName: "avatar-abdi",    anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 9),
-        .init(name: "Okafor, Chidi",                   role: "DevOps Engineer",         avatarName: nil,              anomalyType: .noClockInNorOut,       hasScheduleIcon: true,  department: "Engineering", workplace: "Remote",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Okafor, Chidi",                   role: "DevOps Engineer",         avatarName: "avatar-zoe",     anomalyType: .noClockInNorOut,       hasScheduleIcon: true,  department: "Engineering", workplace: "Remote",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
         .init(name: "Johansson, Erik",                 role: "Sales Director",          avatarName: "avatar-michael", anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 8),
-        .init(name: "Patel, Priya",                    role: "HR Business Partner",     avatarName: nil,              anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 7),
+        .init(name: "Patel, Priya",                    role: "HR Business Partner",     avatarName: "avatar-priya",   anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 7),
         .init(name: "Kim, Soo-Jin",                    role: "Content Strategist",      avatarName: "avatar-lucy",    anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 10.5),
-        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: nil,              anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: "avatar-sarah",   anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0),
     ]
 
     /// Order matches Figma Direct reports (15276-14308).
@@ -358,7 +358,7 @@ struct OnLeaveRowView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        .frame(height: 47)
         .background(AppColors.lightBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
@@ -431,19 +431,20 @@ struct AnomalyFilterBar: View {
                             if isSelected { selectedFilters.remove(filter) }
                             else { selectedFilters.insert(filter) }
                         } label: {
-                            Text("\(filter.rawValue) (\(count))")
-                                .font(AppFonts.subheadStrong())
-                                .foregroundColor(isSelected ? AppColors.fontDefault : AppColors.fontSecondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .fill(isSelected ? AppColors.lightBackground : AppColors.surface)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                        .stroke(isSelected ? AppColors.fontSecondary : AppColors.separator, lineWidth: 1)
-                                )
+                            HStack(spacing: isSelected ? 8 : 4) {
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(AppColors.primaryDark)
+                                }
+                                Text("\(filter.rawValue) (\(count))")
+                                    .font(AppFonts.subheadStrong())
+                                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(height: 40)
+                            .background(isSelected ? AppColors.activeBackground : AppColors.background)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }
@@ -543,6 +544,9 @@ struct EmployeeAnomalyRow: View {
         employee.anomalyType.textColor
     }
 
+    var onBellTapped: (() -> Void)? = nil
+    @Binding var isNotified: Bool
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             avatarView
@@ -559,15 +563,11 @@ struct EmployeeAnomalyRow: View {
                 if employee.anomalyType != .onTrack {
                     Text(employee.anomalyType.rawValue)
                         .font(AppFonts.caption1Strong())
-                        .foregroundColor(AppColors.fontSecondary)
+                        .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(AppColors.lightBackground)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(AppColors.separator, lineWidth: 1)
-                        )
-                        .cornerRadius(4)
+                        .background(employee.anomalyType.pillStyle.pillBackground)
+                        .clipShape(Capsule())
                 }
 
                 AnomalyProgressBar(
@@ -575,7 +575,48 @@ struct EmployeeAnomalyRow: View {
                     workedHours: employee.workedHours,
                     anomalyType: employee.anomalyType
                 )
-                .padding(.trailing, 16)
+            }
+
+            Spacer()
+
+            if employee.anomalyType != .onTrack {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isNotified.toggle()
+                    }
+                    onBellTapped?()
+                } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(isNotified ? AppColors.primaryDark : AppColors.primaryDark)
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(isNotified ? AppColors.successBackground : .white)
+                                    .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                            )
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(.white.opacity(0.6), lineWidth: 0.5)
+                            )
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .frame(width: 38, height: 38)
+                            )
+
+                        if isNotified {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.primaryDark)
+                                .background(Circle().fill(AppColors.successBackground).frame(width: 12, height: 12))
+                                .offset(x: 4, y: 4)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -584,13 +625,21 @@ struct EmployeeAnomalyRow: View {
 
     private var avatarView: some View {
         ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: "E8E8ED"))
+            if let name = employee.avatarName {
+                Image(name)
+                    .resizable()
+                    .scaledToFill()
                     .frame(width: 48, height: 48)
-                Image(systemName: "person.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(AppColors.iconDefault)
+                    .clipShape(Circle())
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "E8E8ED"))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(AppColors.iconDefault)
+                }
             }
 
             if employee.hasScheduleIcon {
@@ -638,7 +687,13 @@ private struct AnomalyProgressBar: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 8) {
+            Text(hoursLabel)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(AppColors.fontSecondary)
+                .tracking(-0.07)
+                .fixedSize()
+
             GeometryReader { geo in
                 let trackWidth = geo.size.width
                 let scheduledWidth = trackWidth / maxRatio
@@ -646,29 +701,25 @@ private struct AnomalyProgressBar: View {
 
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(AppColors.separator)
+                        .fill(AppColors.informativeBackground)
                         .frame(width: scheduledWidth, height: 4)
 
                     if filledWidth > 0 {
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.fontSecondary)
+                            .fill(AppColors.informativeDefault)
                             .frame(width: min(filledWidth, scheduledWidth), height: 4)
                     }
 
                     if fillRatio > 1.0 {
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.fontSecondary.opacity(0.4))
+                            .fill(AppColors.warningText)
                             .frame(width: filledWidth - scheduledWidth, height: 4)
                             .offset(x: scheduledWidth)
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .center)
             }
             .frame(height: 4)
-
-            Text(hoursLabel)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.07)
         }
     }
 }
@@ -683,7 +734,7 @@ struct TimeAttendanceAnomaliesListContent: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
                     NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
-                        EmployeeAnomalyRow(employee: employee)
+                        EmployeeAnomalyRow(employee: employee, isNotified: .constant(false))
                     }
                     .buttonStyle(.plain)
                     if index < employees.count - 1 {

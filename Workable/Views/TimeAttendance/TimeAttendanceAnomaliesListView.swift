@@ -2,7 +2,7 @@ import SwiftUI
 
 struct TimeAttendanceAnomaliesListView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab: Int = 3
+    @State private var selectedTab: Int = 1
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
     init(initialFilters: Set<AnomalyFilterCategory> = []) {
@@ -13,8 +13,10 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var searchText = ""
     @State private var selectedDate = Date()
     @State private var showSearchRow = true
+    @State private var nudgedEmployees: Set<UUID> = []
+    @State private var allNudged = false
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Time & attendance"]
+    private let tabs = ["Events", "Time tracking", "On leave", "Celebrations"]
     private let employees = TimeAttendanceMockData.employees
 
     private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"])
@@ -52,17 +54,48 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            tabBar
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                tabBar
 
-            Group {
-                switch selectedTab {
-                case 0:  placeholderTab("Events")
-                case 1:  placeholderTab("Celebrations")
-                case 2:  onLeaveContent
-                case 3:  timeAttendanceContent
-                default: Spacer()
+                Group {
+                    switch selectedTab {
+                    case 0:  placeholderTab("Events")
+                    case 1:  timeAttendanceContent
+                    case 2:  onLeaveContent
+                    case 3:  placeholderTab("Celebrations")
+                    default: Spacer()
+                    }
                 }
+            }
+
+            if selectedTab == 1 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        allNudged.toggle()
+                        if !allNudged { nudgedEmployees.removeAll() }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: allNudged ? "checkmark.circle.fill" : "bell")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text(allNudged ? "Nudged" : "Nudge all")
+                            .font(AppFonts.subheadStrong())
+                    }
+                    .foregroundColor(AppColors.primaryDark)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial)
+                    .background(.white.opacity(0.7))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(.white.opacity(0.5), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 90)
             }
         }
         .background(AppColors.background)
@@ -181,7 +214,16 @@ struct TimeAttendanceAnomaliesListView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
                     NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
-                        EmployeeAnomalyRow(employee: employee)
+                        EmployeeAnomalyRow(
+                            employee: employee,
+                            isNotified: Binding(
+                                get: { nudgedEmployees.contains(employee.id) || allNudged },
+                                set: { newValue in
+                                    if newValue { nudgedEmployees.insert(employee.id) }
+                                    else { nudgedEmployees.remove(employee.id); allNudged = false }
+                                }
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                     if index < employees.count - 1 {
@@ -226,13 +268,21 @@ struct TimeAttendanceAnomaliesListView: View {
     private func onLeaveCard(_ card: OnLeaveCard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "E8E8ED"))
+                if let avatarName = card.avatarName {
+                    Image(avatarName)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 30, height: 30)
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.iconDefault)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: "E8E8ED"))
+                            .frame(width: 30, height: 30)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(AppColors.iconDefault)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -327,6 +377,7 @@ private struct OnLeaveCard: Identifiable {
     let id = UUID()
     let name: String
     let role: String
+    let avatarName: String?
     let entries: [LeaveEntry]
 }
 
@@ -346,26 +397,26 @@ private struct ScrollOffsetKey: PreferenceKey {
 private enum OnLeaveMockData {
     static let sections: [OnLeaveSection] = [
         OnLeaveSection(title: "Direct reports", cards: [
-            OnLeaveCard(name: "Gutmann, Elyssa", role: "Account Manager", entries: [
+            OnLeaveCard(name: "Gutmann, Elyssa", role: "Account Manager", avatarName: "avatar-michael", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 - 18 Jan 2023", isPending: false)
             ])
         ]),
         OnLeaveSection(title: "Manager", cards: [
-            OnLeaveCard(name: "Carty, Joe", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Carty, Joe", role: "Operations Engineer", avatarName: "avatar-abdi", entries: [
                 LeaveEntry(type: .unpaidTimeOff, dateRange: "6 Jan 2023 (18:00) - 6 Jan 2023 (19:00)", isPending: true),
                 LeaveEntry(type: .sickLeave, dateRange: "6 Jan 2023 (20:00) - 6 Jan 2023 (21:00)", isPending: true)
             ])
         ]),
         OnLeaveSection(title: "Teammates", cards: [
-            OnLeaveCard(name: "Laren, John", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Laren, John", role: "Operations Engineer", avatarName: "avatar-tyler", entries: [
                 LeaveEntry(type: .sickLeave, dateRange: "6 Jan 2023 (first half)", isPending: false)
             ])
         ]),
         OnLeaveSection(title: "Other employees", cards: [
-            OnLeaveCard(name: "Wilhelham, Minnie Laris Julie", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Wilhelham, Minnie Laris Julie", role: "Operations Engineer", avatarName: "avatar-grace", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 (half day) - 21 Jan 2023 (half day)", isPending: false)
             ]),
-            OnLeaveCard(name: "Kovarek, Tomas", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Kovarek, Tomas", role: "Operations Engineer", avatarName: "avatar-tyler", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 (first half)", isPending: false)
             ])
         ])
