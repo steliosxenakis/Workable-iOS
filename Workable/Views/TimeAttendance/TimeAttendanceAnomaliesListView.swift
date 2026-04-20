@@ -14,7 +14,7 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var selectedDate = Date()
     @State private var showSearchRow = true
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Time & attendance"]
+    private let tabs = ["Events", "Celebrations", "On leave", "Attendance"]
     private let employees = TimeAttendanceMockData.employees
 
     private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"])
@@ -66,7 +66,7 @@ struct TimeAttendanceAnomaliesListView: View {
             }
         }
         .background(AppColors.background)
-        .navigationTitle("7 April 2025")
+        .navigationTitle("7 May 2025")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(AppColors.surface, for: .navigationBar)

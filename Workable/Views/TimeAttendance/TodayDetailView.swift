@@ -8,7 +8,7 @@ struct TodayDetailView: View {
     @State private var selectedEntity: String?
     @State private var searchText = ""
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Time & Attendance"]
+    private let tabs = ["Events", "Celebrations", "On leave", "Attendance"]
     private let employees = TimeAttendanceMockData.employees
 
     init(initialTab: Int = 0, initialFilters: Set<AnomalyFilterCategory> = []) {

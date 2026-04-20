@@ -3,9 +3,9 @@ import SwiftUI
 // MARK: - Anomaly Type
 
 enum AnomalyType: String, CaseIterable, Identifiable {
-    case noClockIn = "No clock in"
-    case noClockInNorOut = "No clock in nor out"
-    case exceededWorkSchedule = "Exceeded work schedule"
+    case noClockIn = "Missed clocks"
+    case noClockInNorOut = "Missed clock-in"
+    case exceededWorkSchedule = "Missed clock-out"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -36,9 +36,9 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 // MARK: - Filter Categories (drill-in list)
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
-    case noClockIn = "No clock in"
-    case noClockInNorOut = "No clock in nor out"
-    case exceededWorkSchedule = "Exceeded work schedule"
+    case noClockIn = "Missed clocks"
+    case noClockInNorOut = "Missed clock-ins"
+    case exceededWorkSchedule = "Missed clock-outs"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -46,8 +46,9 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
     var matchingTypes: Set<AnomalyType> {
         switch self {
         case .noClockIn:              return [.noClockIn]
-        case .noClockInNorOut:        return [.noClockInNorOut]
         case .exceededWorkSchedule:   return [.exceededWorkSchedule]
+            
+        case .noClockInNorOut:        return [.noClockInNorOut]
         case .onTrack:                return [.onTrack]
         }
     }

@@ -261,11 +261,11 @@ struct HomeView: View {
     }
 
     private let attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] = [
-        ("No clock in", 3, [.noClockIn]),
-        ("No clock in and out", 2, [.noClockInNorOut]),
-        ("Exceeded work schedule", 3, [.exceededWorkSchedule]),
+        ("Missed clocks", 3, [.noClockIn]),
+        ("Missed clock-ins", 2, [.noClockInNorOut]),
+        ("Missed clock-outs", 3, [.exceededWorkSchedule]),
         ("On track", 18, [.onTrack]),
-        ("Expected to work today", 26, [])
+        ("All", 26, [])
     ]
 
     /// Figma 15353-17307 — opens full anomalies list
