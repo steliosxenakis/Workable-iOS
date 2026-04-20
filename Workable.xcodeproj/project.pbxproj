@@ -31,6 +31,7 @@
 		A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */; };
 		A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000064 /* PersonalTimeTrackingView.swift */; };
 		A10000000000000000000065 /* DirectReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000066 /* DirectReportsView.swift */; };
+		A10000000000000000000070 /* TodayWidgetVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000071 /* TodayWidgetVariants.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +60,7 @@
 		A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTrackingWeekCalendarContent.swift; sourceTree = "<group>"; };
 		A10000000000000000000064 /* PersonalTimeTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalTimeTrackingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000066 /* DirectReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectReportsView.swift; sourceTree = "<group>"; };
+		A10000000000000000000071 /* TodayWidgetVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetVariants.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +122,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000041 /* HomeView.swift */,
+				A10000000000000000000071 /* TodayWidgetVariants.swift */,
 				A10000000000000000000043 /* RootView.swift */,
 				A10000000000000000000008 /* CandidatesBrowserView.swift */,
 				A1000000000000000000001E /* Components */,
@@ -251,6 +254,7 @@
 				A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */,
 				A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */,
 				A10000000000000000000065 /* DirectReportsView.swift in Sources */,
+				A10000000000000000000070 /* TodayWidgetVariants.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

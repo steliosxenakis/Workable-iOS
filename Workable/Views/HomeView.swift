@@ -12,10 +12,7 @@ struct HomeView: View {
         case job(JobItem)
     }
 
-    private let todayEvents: [TodayEvent] = [
-        TodayEvent(title: "Call with John Doe",             time: "10:30 - 11:00", subtitle: "Software Engineer"),
-        TodayEvent(title: "Interview with Elissa McArthur", time: "9:30 - 10:00",  subtitle: "Product Designer")
-    ]
+    private let todayData = TodayWidgetData.mock
 
     private let jobs: [JobItem] = [
         JobItem(title: "Software Engineer",  details: "Engineering · Hybrid · Athens, Greece", candidateCount: 14),
@@ -44,7 +41,7 @@ struct HomeView: View {
 
                     // ── Remaining cards ──
                     VStack(spacing: 12) {
-                        todaySection
+                        TodayWidgetSwitcher(data: todayData)
                         timeOffSection
                         jobsSection
                         candidatesSection
@@ -256,17 +253,6 @@ struct HomeView: View {
         .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
     }
 
-    private var anomalyPills: [(label: String, count: Int, style: AnomalyPillStyle, filters: Set<AnomalyFilterCategory>)] {
-        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
-        return [
-            ("No clock in",            eligible.filter { $0.anomalyType == .noClockIn }.count,            .danger,  [.noClockIn]),
-            ("No clock in nor out",    eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      .danger,  [.noClockInNorOut]),
-            ("Exceeds work schedule",  eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, .warning, [.exceededWorkSchedule]),
-            ("On track",               eligible.filter { $0.anomalyType == .onTrack }.count,              .success, [.onTrack]),
-            ("All",               eligible.count,                                                     .neutral, []),
-        ]
-    }
-
     // MARK: - To-dos
 
     /// Figma 15353-17276: empty state
@@ -287,148 +273,6 @@ struct HomeView: View {
                 .background(AppColors.surface)
                 .cornerRadius(16)
                 .padding(.horizontal, 16)
-        }
-    }
-
-    // MARK: - Today
-
-    /// Figma 15400-147627
-    private var todaySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Today")
-                    .font(.system(size: 22, weight: .semibold))
-                    .tracking(0.35)
-                    .foregroundColor(AppColors.fontDefault)
-
-                Spacer()
-
-                Button("View all") {}
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(AppColors.primaryDark)
-                    .buttonStyle(.plain)
-            }
-
-            VStack(alignment: .leading, spacing: 24) {
-                ForEach(todayEvents) { event in
-                    todayEventRow(event)
-                }
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(anomalyPills, id: \.label) { pill in
-                        NavigationLink {
-                            TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
-                        } label: {
-                            AnomalyPillView(label: pill.label, count: pill.count, style: pill.style)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            OnLeaveRowView(
-                title: "No employees on leave",
-                avatarNames: ["avatar-abdi", "avatar-emma", "avatar-tyler"],
-                overflowCount: 2,
-                showChevron: false
-            )
-
-            VStack(alignment: .leading, spacing: 16) {
-            /*    todayInfoRow(
-                    icon: "icon-rocket",
-                    iconColor: AppColors.betaDefault,
-                    iconBackground: AppColors.betaLightBackground,
-                    title: "New employees",
-                    value: "Jones, Samantha"
-                )
-                todayInfoRow(
-                    icon: "icon-hat",
-                    iconColor: AppColors.betaDefault,
-                    iconBackground: AppColors.betaLightBackground,
-                    title: "Work anniversaries",
-                    value: "Smith, Johannes +3"
-                )*/
-                todayInfoRow(
-                    icon: "icon-gift",
-                    iconColor: Color(hex: "E9756D"),
-                    iconBackground: AppColors.dangerBackground,
-                    title: "Birthdays",
-                    value: "Doe, John +2"
-                )
-                todayInfoRow(
-                    icon: "icon-pyro",
-                    iconColor: Color(hex: "37B086"),
-                    iconBackground: AppColors.successBackground ,
-                    title: "Holidays",
-                    value: "Christmas day"
-                )
-            }
-        }
-        .padding(16)
-        .background(AppColors.surface)
-        .cornerRadius(16)
-    }
-
-    private func todayEventRow(_ event: TodayEvent) -> some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(event.title)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-
-                Text("\(event.time) · \(event.subtitle)")
-                    .font(AppFonts.subheadline())
-                    .tracking(-0.24)
-                    .foregroundColor(AppColors.fontSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button {} label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
-                    .foregroundColor(AppColors.iconDefault)
-                    .frame(width: 16, height: 16)
-                    .contentShape(Rectangle().size(width: 32, height: 32))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func todayInfoRow(
-        icon: String,
-        iconColor: Color,
-        iconBackground: Color,
-        title: String,
-        value: String
-    ) -> some View {
-        HStack(spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(iconBackground)
-                    .frame(width: 40, height: 40)
-                Image(icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(AppFonts.subheadline())
-                    .tracking(-0.24)
-                    .foregroundColor(AppColors.fontSecondary)
-                Text(value)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-            }
-
-            Spacer()
         }
     }
 
@@ -627,13 +471,6 @@ struct HomeView: View {
 // MARK: - Local models
 
 private extension HomeView {
-    struct TodayEvent: Identifiable {
-        let id = UUID()
-        let title: String
-        let time: String
-        let subtitle: String
-    }
-
     struct JobItem: Identifiable, Hashable {
         let id = UUID()
         let title: String
