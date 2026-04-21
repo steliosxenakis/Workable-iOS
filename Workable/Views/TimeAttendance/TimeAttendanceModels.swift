@@ -112,11 +112,17 @@ struct DayHours {
 // MARK: - Mock Data
 
 enum TimeAttendanceMockData {
-    static let summaryItems: [AnomalySummaryItem] = [
-        .init(label: "Missed clocks", count: 4, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
-        .init(type: .exceededWorkSchedule, count: 3),
-        .init(type: .onTrack, count: 18),
-    ]
+    static var summaryItems: [AnomalySummaryItem] {
+        let eligible = employees.filter { !$0.hasScheduleIcon }
+        let missedClocks = eligible.filter { $0.anomalyType == .noClockIn || $0.anomalyType == .noClockInNorOut }.count
+        let exceeded = eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count
+        let onTrack = eligible.filter { $0.anomalyType == .onTrack }.count
+        return [
+            .init(label: "Missed clocks", count: missedClocks, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
+            .init(type: .exceededWorkSchedule, count: exceeded),
+            .init(type: .onTrack, count: onTrack),
+        ]
+    }
 
     static let departments = ["Engineering", "Marketing", "Sales", "Operations"]
     static let entities = ["Workable Inc.", "Workable EU", "Workable UK"]

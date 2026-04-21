@@ -260,13 +260,15 @@ struct HomeView: View {
         .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
     }
 
-    private let attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] = [
-        ("Missed clocks", 3, [.noClockIn]),
-        ("Missed clock-ins", 2, [.noClockInNorOut]),
-        ("Missed clock-outs", 3, [.exceededWorkSchedule]),
-        ("On track", 18, [.onTrack]),
-        ("All", 26, [])
-    ]
+    private var attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] {
+        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
+        return [
+            ("Missed clocks",     eligible.filter { $0.anomalyType == .noClockIn }.count,            [.noClockIn]),
+            ("Missed clock-ins",  eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      [.noClockInNorOut]),
+            ("Missed clock-outs", eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, [.exceededWorkSchedule]),
+            ("On track",          eligible.filter { $0.anomalyType == .onTrack }.count,              [.onTrack]),
+        ]
+    }
 
     /// Figma 15353-17307 — opens full anomalies list
     private var timeAttendanceStatusCard: some View {
