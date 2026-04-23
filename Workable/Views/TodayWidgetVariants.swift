@@ -118,48 +118,9 @@ enum TodayWidgetVersion: String, CaseIterable, Identifiable {
 
 struct TodayWidgetSwitcher: View {
     let data: TodayWidgetData
-    @State private var selectedVersion: TodayWidgetVersion = .figma
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(TodayWidgetVersion.allCases) { version in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) { selectedVersion = version }
-                        } label: {
-                            Text(version.rawValue)
-                                .font(AppFonts.subheadStrong())
-                                .foregroundColor(selectedVersion == version ? AppColors.surface : AppColors.fontSecondary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .background(selectedVersion == version ? AppColors.fontDefault : AppColors.separator.opacity(0.6))
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            .padding(.vertical, 10)
-            .background(AppColors.lightBackground)
-            .cornerRadius(16, corners: [.topLeft, .topRight])
-
-            Group {
-                switch selectedVersion {
-                case .figma:     TodayWidgetFigma(data: data)
-                case .classic:   TodayWidgetClassic(data: data)
-                case .compact:   TodayWidgetCompact(data: data)
-                case .cardGrid:  TodayWidgetCardGrid(data: data)
-                case .rich:      TodayWidgetRich(data: data)
-                case .timeline:  TodayWidgetTimeline(data: data)
-                case .magazine:  TodayWidgetMagazine(data: data)
-                case .bento:     TodayWidgetBento(data: data)
-                case .dashboard: TodayWidgetDashboard(data: data)
-                }
-            }
-            .animation(.easeInOut(duration: 0.25), value: selectedVersion)
-        }
+        TodayWidgetFigma(data: data)
     }
 }
 
@@ -332,49 +293,58 @@ struct TodayWidgetFigma: View {
                 }
             }
 
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: 8) {
+                HStack {
                     Text(data.onLeaveTitle)
                         .font(AppFonts.subheadline())
                         .tracking(-0.24)
                         .foregroundColor(AppColors.fontDefault)
+                    Spacer()
                     AvatarStack(names: data.onLeaveAvatars, overflow: data.onLeaveOverflow)
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 11)
+                .padding(.vertical, 12)
                 .background(AppColors.lightBackground)
                 .cornerRadius(16)
 
-                VStack(alignment: .leading, spacing: 8) {
+                HStack {
                     Text("Attendance")
                         .font(AppFonts.subheadline())
                         .tracking(-0.24)
                         .foregroundColor(AppColors.fontDefault)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        AttendanceBadge(
-                            count: data.issueCount,
-                            label: "Issues",
-                            badgeColor: Color(light: "FFD2CF", dark: "5A1A0F"),
-                            textColor: AppColors.dangerDefault,
-                            labelColor: AppColors.dangerDefault
-                        )
-                        AttendanceBadge(
-                            count: data.onTrackCount,
-                            label: "On track",
-                            badgeColor: AppColors.activeBackground,
-                            textColor: AppColors.primaryDark,
-                            labelColor: AppColors.fontDefault
-                        )
+                    Spacer()
+                    HStack(spacing: 8) {
+                        NavigationLink {
+                            TimeAttendanceAnomaliesListView(initialFilters: [.noClockIn, .noClockInNorOut, .exceededWorkSchedule])
+                        } label: {
+                            Text("\(data.issueCount) Issues")
+                                .font(AppFonts.caption1Strong())
+                                .foregroundColor(AppColors.dangerDefault)
+                                .padding(.horizontal, 6)
+                                .frame(height: 25)
+                                .background(Color(light: "FFD2CF", dark: "5A1A0F"))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        NavigationLink {
+                            TimeAttendanceAnomaliesListView(initialFilters: [.onTrack])
+                        } label: {
+                            Text("\(data.onTrackCount) On track")
+                                .font(AppFonts.caption1Strong())
+                                .foregroundColor(AppColors.fontSecondary)
+                                .padding(.horizontal, 6)
+                                .frame(height: 25)
+                                .background(AppColors.separator)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 11)
+                .padding(.vertical, 12)
                 .background(AppColors.lightBackground)
                 .cornerRadius(16)
             }
-            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(AppColors.surface)

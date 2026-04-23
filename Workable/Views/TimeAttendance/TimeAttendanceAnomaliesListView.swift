@@ -13,8 +13,10 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var searchText = ""
     @State private var selectedDate = Date()
     @State private var showSearchRow = true
-    @State private var nudgedEmployees: Set<UUID> = []
-    @State private var allNudged = false
+    @State private var notifiedEmployees: Set<UUID> = []
+    @State private var allNotified = false
+    @State private var isSelecting = false
+    @State private var selectedForNotification: Set<UUID> = []
 
     private let tabs = ["Events", "Time tracking", "On leave", "Celebrations"]
     private let employees = TimeAttendanceMockData.employees
@@ -70,31 +72,80 @@ struct TimeAttendanceAnomaliesListView: View {
             }
 
             if selectedTab == 1 {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        allNudged.toggle()
-                        if !allNudged { nudgedEmployees.removeAll() }
+                HStack(spacing: 12) {
+                    if isSelecting && !selectedForNotification.isEmpty {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                for id in selectedForNotification {
+                                    notifiedEmployees.insert(id)
+                                }
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Notify \(selectedForNotification.count)")
+                                    .font(AppFonts.subheadStrong())
+                            }
+                            .foregroundColor(AppColors.primaryDark)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .background(.white.opacity(0.7))
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                            .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+                        }
+                        .buttonStyle(.plain)
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: allNudged ? "checkmark.circle.fill" : "bell")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text(allNudged ? "Nudged" : "Nudge all")
-                            .font(AppFonts.subheadStrong())
+
+                    if !isSelecting {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isSelecting = true
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("Select")
+                                    .font(AppFonts.subheadStrong())
+                            }
+                            .foregroundColor(AppColors.primaryDark)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .background(.white.opacity(0.7))
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                            .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .foregroundColor(AppColors.primaryDark)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial)
-                    .background(.white.opacity(0.7))
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(.white.opacity(0.5), lineWidth: 0.5)
-                    )
-                    .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+
+                    if isSelecting {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        } label: {
+                            Text("Cancel")
+                                .font(AppFonts.subheadStrong())
+                                .foregroundColor(AppColors.fontSecondary)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(.ultraThinMaterial)
+                                .background(.white.opacity(0.7))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                                .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
                 .padding(.bottom, 90)
             }
         }
@@ -213,19 +264,45 @@ struct TimeAttendanceAnomaliesListView: View {
 
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
-                    NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
-                        EmployeeAnomalyRow(
-                            employee: employee,
-                            isNotified: Binding(
-                                get: { nudgedEmployees.contains(employee.id) || allNudged },
-                                set: { newValue in
-                                    if newValue { nudgedEmployees.insert(employee.id) }
-                                    else { nudgedEmployees.remove(employee.id); allNudged = false }
+                    if isSelecting {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                if selectedForNotification.contains(employee.id) {
+                                    selectedForNotification.remove(employee.id)
+                                } else {
+                                    selectedForNotification.insert(employee.id)
                                 }
+                            }
+                        } label: {
+                            HStack(spacing: 0) {
+                                let isSelected = selectedForNotification.contains(employee.id)
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.separator)
+                                    .padding(.leading, 16)
+
+                                EmployeeAnomalyRow(
+                                    employee: employee,
+                                    isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified)
+                                )
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
+                            EmployeeAnomalyRow(
+                                employee: employee,
+                                isNotified: Binding(
+                                    get: { notifiedEmployees.contains(employee.id) || allNotified },
+                                    set: { newValue in
+                                        if newValue { notifiedEmployees.insert(employee.id) }
+                                        else { notifiedEmployees.remove(employee.id); allNotified = false }
+                                    }
+                                )
                             )
-                        )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     if index < employees.count - 1 {
                         Rectangle()
                             .fill(AppColors.separator)
