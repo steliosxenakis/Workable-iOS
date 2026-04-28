@@ -84,15 +84,17 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.primaryDark)
-                    .overlay {
-                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                            .labelsHidden()
-                            .colorMultiply(.clear)
-                    }
-                    .fixedSize()
+                if selectedTab != 3 {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18))
+                        .foregroundColor(AppColors.primaryDark)
+                        .overlay {
+                            DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                                .labelsHidden()
+                                .colorMultiply(.clear)
+                        }
+                        .fixedSize()
+                }
             }
         }
     }

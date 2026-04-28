@@ -3,9 +3,11 @@ import SwiftUI
 // MARK: - Anomaly Type
 
 enum AnomalyType: String, CaseIterable, Identifiable {
-    case noClockIn = "Missed clocks"
+    case noClockIn = "No attendance"
     case noClockInNorOut = "Missed clock-in"
-    case exceededWorkSchedule = "Missed clock-out"
+    case exceededWorkSchedule = "Exceeded work hours"
+    /// Scheduled to work today; shift has not started — not an anomaly.
+    case scheduleNotStarted = "Schedule not started"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -16,6 +18,8 @@ enum AnomalyType: String, CaseIterable, Identifiable {
             return AppColors.dangerDefault
         case .exceededWorkSchedule:
             return AppColors.warningDefault
+        case .scheduleNotStarted:
+            return AppColors.informativeDefault
         case .onTrack:
             return AppColors.successDefault
         }
@@ -27,6 +31,8 @@ enum AnomalyType: String, CaseIterable, Identifiable {
             return AppColors.dangerBackground
         case .exceededWorkSchedule:
             return AppColors.warningBackground
+        case .scheduleNotStarted:
+            return AppColors.informativeBackground
         case .onTrack:
             return AppColors.successBackground
         }
@@ -36,9 +42,9 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 // MARK: - Filter Categories (drill-in list)
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
-    case noClockIn = "Missed clocks"
     case noClockInNorOut = "Missed clock-ins"
-    case exceededWorkSchedule = "Missed clock-outs"
+    case exceededWorkSchedule = "Exceeded work hours"
+    case noClockIn = "No attendance"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -46,9 +52,8 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
     var matchingTypes: Set<AnomalyType> {
         switch self {
         case .noClockIn:              return [.noClockIn]
-        case .exceededWorkSchedule:   return [.exceededWorkSchedule]
-            
         case .noClockInNorOut:        return [.noClockInNorOut]
+        case .exceededWorkSchedule:   return [.exceededWorkSchedule]
         case .onTrack:                return [.onTrack]
         }
     }
@@ -118,7 +123,7 @@ enum TimeAttendanceMockData {
         let exceeded = eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count
         let onTrack = eligible.filter { $0.anomalyType == .onTrack }.count
         return [
-            .init(label: "Missed clocks", count: missedClocks, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
+            .init(label: "No attendance", count: missedClocks, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
             .init(type: .exceededWorkSchedule, count: exceeded),
             .init(type: .onTrack, count: onTrack),
         ]
@@ -166,6 +171,8 @@ enum TimeAttendanceMockData {
         .init(name: "Patel, Priya",                    role: "HR Business Partner",     avatarName: nil,              anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 7),
         .init(name: "Kim, Soo-Jin",                    role: "Content Strategist",      avatarName: "avatar-lucy",    anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 10.5),
         .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: nil,              anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Barnes, Alex",                    role: "Product Manager",         avatarName: "avatar-michael", anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Engineering", workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Lindqvist, Nora",                 role: "UX Researcher",           avatarName: "avatar-emma",    anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
     ]
 
     /// Order matches Figma Direct reports (15276-14308).
@@ -415,15 +422,6 @@ struct AnomalyFilterBar: View {
 struct EmployeeAnomalyRow: View {
     let employee: EmployeeAnomaly
 
-    private var progress: Double {
-        guard employee.scheduledHours > 0 else { return 0 }
-        return min(employee.workedHours / employee.scheduledHours, 1.5)
-    }
-
-    private var barColor: Color {
-        employee.anomalyType.textColor
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             avatarView
@@ -437,7 +435,7 @@ struct EmployeeAnomalyRow: View {
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
 
-                if employee.anomalyType != .onTrack {
+                if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted {
                     Text(employee.anomalyType.rawValue)
                         .font(AppFonts.caption1Strong())
                         .foregroundColor(AppColors.fontSecondary)
@@ -451,12 +449,14 @@ struct EmployeeAnomalyRow: View {
                         .cornerRadius(4)
                 }
 
-                AnomalyProgressBar(
-                    scheduledHours: employee.scheduledHours,
-                    workedHours: employee.workedHours,
-                    anomalyType: employee.anomalyType
-                )
-                .padding(.trailing, 16)
+                if employee.anomalyType != .scheduleNotStarted {
+                    AnomalyProgressBar(
+                        scheduledHours: employee.scheduledHours,
+                        workedHours: employee.workedHours,
+                        anomalyType: employee.anomalyType
+                    )
+                    .padding(.trailing, 16)
+                }
             }
         }
         .padding(.horizontal, 16)

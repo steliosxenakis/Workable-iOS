@@ -53,10 +53,12 @@ struct TodayDetailView: View {
                     .foregroundColor(AppColors.fontDefault)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {} label: {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 18))
-                        .foregroundColor(AppColors.primaryDark)
+                if selectedTab != 3 {
+                    Button {} label: {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 18))
+                            .foregroundColor(AppColors.primaryDark)
+                    }
                 }
             }
         }

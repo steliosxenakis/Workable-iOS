@@ -263,10 +263,9 @@ struct HomeView: View {
     private var attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] {
         let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
         return [
-            ("Missed clocks",     eligible.filter { $0.anomalyType == .noClockIn }.count,            [.noClockIn]),
             ("Missed clock-ins",  eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      [.noClockInNorOut]),
-            ("Missed clock-outs", eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, [.exceededWorkSchedule]),
-            ("On track",          eligible.filter { $0.anomalyType == .onTrack }.count,              [.onTrack]),
+            ("Exceeded work hours", eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, [.exceededWorkSchedule]),
+            ("No attendance",     eligible.filter { $0.anomalyType == .noClockIn }.count,            [.noClockIn]),
         ]
     }
 

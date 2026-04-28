@@ -75,9 +75,9 @@ struct TodayWidgetData {
         anomalyPills: {
             let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
             return [
-                TodayAnomalyPill(label: "Missed clocks",            count: eligible.filter { $0.anomalyType == .noClockIn }.count,            style: .danger,  filters: [.noClockIn]),
                 TodayAnomalyPill(label: "Missed clock-ins",         count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      style: .danger,  filters: [.noClockInNorOut]),
-                TodayAnomalyPill(label: "Missed clock-outs",        count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
+                TodayAnomalyPill(label: "Exceeded work hours",        count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
+                TodayAnomalyPill(label: "No attendance",            count: eligible.filter { $0.anomalyType == .noClockIn }.count,            style: .danger,  filters: [.noClockIn]),
                 TodayAnomalyPill(label: "On track",                  count: eligible.filter { $0.anomalyType == .onTrack }.count,              style: .success, filters: [.onTrack]),
                 TodayAnomalyPill(label: "Expected to work today",    count: eligible.count,                                                    style: .neutral, filters: []),
             ]
@@ -759,7 +759,7 @@ struct TodayWidgetTimeline: View {
         }
         let dangerCount = data.anomalyPills.filter { $0.style == .danger }.reduce(0) { $0 + $1.count }
         if dangerCount > 0 {
-            nodes.append(TimelineNode(time: "—", title: "\(dangerCount) attendance issues", subtitle: "Missed clock-ins & clocks", kind: .anomaly))
+            nodes.append(TimelineNode(time: "—", title: "\(dangerCount) attendance issues", subtitle: "Missed clock-ins & no attendance", kind: .anomaly))
         }
         nodes.append(TimelineNode(time: "16:00", title: "Shift ends", subtitle: nil, kind: .shift))
 
