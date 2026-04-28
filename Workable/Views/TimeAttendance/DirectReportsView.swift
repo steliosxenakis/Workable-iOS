@@ -93,7 +93,7 @@ private struct DirectReportRow: View {
                     .foregroundColor(AppColors.fontSecondary)
                     .tracking(-0.24)
 
-                if employee.anomalyType != .onTrack && !employee.hasScheduleIcon {
+                if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted && !employee.hasScheduleIcon {
                     Text(employee.anomalyType.rawValue)
                         .font(AppFonts.caption1Strong())
                         .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)

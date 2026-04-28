@@ -18,6 +18,8 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var isSelecting = false
     @State private var selectedForNotification: Set<UUID> = []
 
+    @AppStorage("scheduleHoursBarStyle") private var scheduleBarStyleRaw = ScheduleHoursBarStyle.classic.rawValue
+
     private let tabs = ["Events", "Time tracking", "On leave", "Celebrations"]
     private let employees = TimeAttendanceMockData.employees
 
@@ -213,6 +215,8 @@ struct TimeAttendanceAnomaliesListView: View {
 
     private var timeAttendanceContent: some View {
         VStack(spacing: 0) {
+            scheduleHoursBarPicker
+
             AnomalyFilterBar(
                 selectedFilters: $selectedFilters,
                 selectedDepartment: $selectedDepartment,
@@ -253,6 +257,30 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
         }
+    }
+
+    /// Compare three layouts for worked-vs-scheduled visualization on employee rows (persisted).
+    private var scheduleHoursBarPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Worked hours bar")
+                .font(AppFonts.caption1())
+                .foregroundColor(AppColors.fontSecondary)
+
+            Picker("", selection: Binding(
+                get: { ScheduleHoursBarStyle(rawValue: scheduleBarStyleRaw) ?? .classic },
+                set: { scheduleBarStyleRaw = $0.rawValue }
+            )) {
+                ForEach(ScheduleHoursBarStyle.allCases) { style in
+                    Text(style.pickerTitle).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surface)
+        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
     }
 
     private func employeeSection(title: String, employees: [EmployeeAnomaly]) -> some View {

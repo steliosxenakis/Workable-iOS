@@ -3,9 +3,11 @@ import SwiftUI
 // MARK: - Anomaly Type
 
 enum AnomalyType: String, CaseIterable, Identifiable {
-    case noClockIn = "No clock in"
-    case noClockInNorOut = "No clock in nor out"
-    case exceededWorkSchedule = "Exceeded work schedule"
+    case noClockIn = "No attendance"
+    case noClockInNorOut = "Missed clock-in"
+    case exceededWorkSchedule = "Exceeded work hours"
+    /// Scheduled today; shift not started — not an anomaly.
+    case scheduleNotStarted = "Schedule not started"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -16,6 +18,8 @@ enum AnomalyType: String, CaseIterable, Identifiable {
             return AppColors.dangerDefault
         case .exceededWorkSchedule:
             return AppColors.warningDefault
+        case .scheduleNotStarted:
+            return AppColors.informativeDefault
         case .onTrack:
             return AppColors.successDefault
         }
@@ -27,6 +31,8 @@ enum AnomalyType: String, CaseIterable, Identifiable {
             return AppColors.dangerBackground
         case .exceededWorkSchedule:
             return AppColors.warningBackground
+        case .scheduleNotStarted:
+            return AppColors.informativeBackground
         case .onTrack:
             return AppColors.successBackground
         }
@@ -36,9 +42,9 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 // MARK: - Filter Categories (drill-in list)
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
-    case noClockIn = "No clock in"
-    case noClockInNorOut = "No clock in nor out"
-    case exceededWorkSchedule = "Exceeded work schedule"
+    case noClockInNorOut = "Missed clock-ins"
+    case exceededWorkSchedule = "Exceeded work hours"
+    case noClockIn = "No attendance"
     case onTrack = "On track"
 
     var id: String { rawValue }
@@ -111,11 +117,17 @@ struct DayHours {
 // MARK: - Mock Data
 
 enum TimeAttendanceMockData {
-    static let summaryItems: [AnomalySummaryItem] = [
-        .init(label: "Missed clocks", count: 4, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
-        .init(type: .exceededWorkSchedule, count: 3),
-        .init(type: .onTrack, count: 18),
-    ]
+    static var summaryItems: [AnomalySummaryItem] {
+        let eligible = employees.filter { !$0.hasScheduleIcon }
+        let missedClocks = eligible.filter { $0.anomalyType == .noClockIn || $0.anomalyType == .noClockInNorOut }.count
+        let exceeded = eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count
+        let onTrack = eligible.filter { $0.anomalyType == .onTrack }.count
+        return [
+            .init(label: "No attendance", count: missedClocks, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
+            .init(type: .exceededWorkSchedule, count: exceeded),
+            .init(type: .onTrack, count: onTrack),
+        ]
+    }
 
     static let departments = ["Engineering", "Marketing", "Sales", "Operations"]
     static let entities = ["Workable Inc.", "Workable EU", "Workable UK"]
@@ -148,7 +160,7 @@ enum TimeAttendanceMockData {
         .init(name: "Doe, Joanne",                     role: "Account Manager",         avatarName: "avatar-lucy",    anomalyType: .noClockInNorOut,       hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
         .init(name: "Carty, Joe",                      role: "Operations Engineer",     avatarName: "avatar-abdi",    anomalyType: .noClockIn,             hasScheduleIcon: true,  department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
         .init(name: "Gutmann, Elyssa",                 role: "Marketing Director",      avatarName: "avatar-michael", anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 9.5),
-        .init(name: "Wilhelham, Minnie Laris Julie",   role: "Sales Consultant",        avatarName: "avatar-grace",   anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 10),
+        .init(name: "Wilhelham, Minnie Laris Julie",   role: "Sales Consultant",        avatarName: nil,              anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 10),
         .init(name: "Nguyen, Mai",                     role: "Software Engineer",       avatarName: "avatar-sophia",  anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
         .init(name: "Petrov, Andrei",                  role: "QA Lead",                 avatarName: "avatar-tyler",   anomalyType: .exceededWorkSchedule,  hasScheduleIcon: true,  department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 11),
         .init(name: "Santos, Maria",                   role: "Customer Success Manager",avatarName: "avatar-lucy",    anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 7.5),
@@ -158,7 +170,9 @@ enum TimeAttendanceMockData {
         .init(name: "Johansson, Erik",                 role: "Sales Director",          avatarName: "avatar-michael", anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 8),
         .init(name: "Patel, Priya",                    role: "HR Business Partner",     avatarName: "avatar-priya",   anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 7),
         .init(name: "Kim, Soo-Jin",                    role: "Content Strategist",      avatarName: "avatar-lucy",    anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 10.5),
-        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: "avatar-sarah",   anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: nil,              anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Barnes, Alex",                    role: "Product Manager",         avatarName: "avatar-michael", anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Engineering", workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0),
+        .init(name: "Lindqvist, Nora",                 role: "UX Researcher",           avatarName: "avatar-emma",    anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0),
     ]
 
     /// Order matches Figma Direct reports (15276-14308).
@@ -276,6 +290,7 @@ extension AnomalyType {
         switch self {
         case .noClockIn, .noClockInNorOut: return .danger
         case .exceededWorkSchedule:        return .warning
+        case .scheduleNotStarted:          return .neutral
         case .onTrack:                     return .success
         }
     }
@@ -535,15 +550,6 @@ struct AnomalyFilterBar: View {
 struct EmployeeAnomalyRow: View {
     let employee: EmployeeAnomaly
 
-    private var progress: Double {
-        guard employee.scheduledHours > 0 else { return 0 }
-        return min(employee.workedHours / employee.scheduledHours, 1.5)
-    }
-
-    private var barColor: Color {
-        employee.anomalyType.textColor
-    }
-
     var onBellTapped: (() -> Void)? = nil
     @Binding var isNotified: Bool
 
@@ -560,7 +566,7 @@ struct EmployeeAnomalyRow: View {
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
 
-                if employee.anomalyType != .onTrack {
+                if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted {
                     Text(employee.anomalyType.rawValue)
                         .font(AppFonts.caption1Strong())
                         .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
@@ -570,16 +576,18 @@ struct EmployeeAnomalyRow: View {
                         .clipShape(Capsule())
                 }
 
-                AnomalyProgressBar(
-                    scheduledHours: employee.scheduledHours,
-                    workedHours: employee.workedHours,
-                    anomalyType: employee.anomalyType
-                )
+                if employee.anomalyType != .scheduleNotStarted {
+                    ScheduleHoursBar(
+                        scheduledHours: employee.scheduledHours,
+                        workedHours: employee.workedHours,
+                        anomalyType: employee.anomalyType
+                    )
+                }
             }
 
             Spacer()
 
-            if employee.anomalyType != .onTrack {
+            if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isNotified.toggle()
@@ -651,75 +659,6 @@ struct EmployeeAnomalyRow: View {
                     .clipShape(Circle())
                     .offset(x: 2, y: 2)
             }
-        }
-    }
-}
-
-// MARK: - Anomaly Progress Bar
-
-private struct AnomalyProgressBar: View {
-    let scheduledHours: Double
-    let workedHours: Double
-    let anomalyType: AnomalyType
-
-    private var fillRatio: Double {
-        guard scheduledHours > 0 else { return 0 }
-        return workedHours / scheduledHours
-    }
-
-    private var barColor: Color {
-        anomalyType.textColor
-    }
-
-    private var hoursLabel: String {
-        if workedHours == 0 { return "0h / \(formatted(scheduledHours))h" }
-        return "\(formatted(workedHours))h / \(formatted(scheduledHours))h"
-    }
-
-    private func formatted(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", value)
-            : String(format: "%.1f", value)
-    }
-
-    private var maxRatio: Double {
-        fillRatio > 1.0 ? min(fillRatio, 1.5) : 1.0
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(hoursLabel)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.07)
-                .fixedSize()
-
-            GeometryReader { geo in
-                let trackWidth = geo.size.width
-                let scheduledWidth = trackWidth / maxRatio
-                let filledWidth = trackWidth * min(fillRatio, maxRatio) / maxRatio
-
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(AppColors.informativeBackground)
-                        .frame(width: scheduledWidth, height: 4)
-
-                    if filledWidth > 0 {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.informativeDefault)
-                            .frame(width: min(filledWidth, scheduledWidth), height: 4)
-                    }
-
-                    if fillRatio > 1.0 {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.warningText)
-                            .frame(width: filledWidth - scheduledWidth, height: 4)
-                            .offset(x: scheduledWidth)
-                    }
-                }
-                .frame(maxHeight: .infinity, alignment: .center)
-            }
-            .frame(height: 4)
         }
     }
 }
