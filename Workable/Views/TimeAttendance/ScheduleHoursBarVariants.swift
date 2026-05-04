@@ -6,14 +6,26 @@ enum ScheduleHoursBarStyle: String, CaseIterable, Identifiable {
     case classic
     case dualMetrics
     case shiftBand
+    /// Capsule family — see `HoursBalanceCapsuleModel` (±hours vs schedule).
+    case differenceChip
+    case capsuleLeading
+    case capsuleInline
+    case capsuleStacked
+    /// Single tinted line: scheduled vs worked + delta text (no capsule chrome).
+    case compactLine
 
     var id: String { rawValue }
 
     var pickerTitle: String {
         switch self {
-        case .classic:       return "Classic"
-        case .dualMetrics:   return "Dual"
-        case .shiftBand:     return "Band"
+        case .classic:          return "Classic bar"
+        case .dualMetrics:      return "Dual metrics"
+        case .shiftBand:        return "Shift band"
+        case .differenceChip:   return "Δ Capsule · trailing"
+        case .capsuleLeading:   return "Δ Capsule · leading"
+        case .capsuleInline:    return "Δ Capsule · inline"
+        case .capsuleStacked:   return "Δ Capsule · stacked"
+        case .compactLine:      return "One line"
         }
     }
 }
@@ -50,6 +62,16 @@ struct ScheduleHoursBar: View {
                 DualScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
             case .shiftBand:
                 ShiftBandScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+            case .differenceChip:
+                DifferenceChipScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+            case .capsuleLeading:
+                CapsuleLeadingScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+            case .capsuleInline:
+                CapsuleInlineScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+            case .capsuleStacked:
+                CapsuleStackedScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+            case .compactLine:
+                CompactLineScheduleHoursBar(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
             }
         }
     }
@@ -62,6 +84,92 @@ private enum HoursFormat {
         value.truncatingRemainder(dividingBy: 1) == 0
             ? String(format: "%.0f", value)
             : String(format: "%.1f", value)
+    }
+}
+
+// MARK: - Hours balance capsule (single source of truth for ±Δ UI)
+
+/// Computes visibility, colors, and labels for the worked-vs-scheduled **difference capsule**.
+/// All capsule-based row layouts should use this — only composition changes between styles.
+struct HoursBalanceCapsuleModel {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    var gapHours: Double {
+        workedHours - scheduledHours
+    }
+
+    /// When `false`, capsule layouts render empty space (same rules everywhere).
+    var showsCapsule: Bool {
+        if anomalyType == .scheduleNotStarted { return false }
+        if anomalyType == .onTrack, abs(gapHours) < 0.05 { return false }
+        return true
+    }
+
+    private var isAttendanceIssue: Bool {
+        switch anomalyType {
+        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+            return true
+        case .onTrack, .scheduleNotStarted:
+            return false
+        }
+    }
+
+    var foregroundColor: Color {
+        if isAttendanceIssue {
+            return AppColors.dangerDefault
+        }
+        if anomalyType == .onTrack {
+            return AppColors.successDefault
+        }
+        return AppColors.fontSecondary
+    }
+
+    var chipBackground: Color {
+        if isAttendanceIssue {
+            return AppColors.dangerBackground.opacity(0.65)
+        }
+        if anomalyType == .onTrack {
+            return AppColors.successBackground.opacity(0.55)
+        }
+        return AppColors.lightBackground
+    }
+
+    var gapDisplayText: String {
+        if anomalyType == .noClockInNorOut {
+            return "0h"
+        }
+        let g = gapHours
+        if abs(g) < 0.05 {
+            return "0h"
+        }
+        let mag = HoursFormat.format(abs(g))
+        return g > 0 ? "+\(mag)h" : "−\(mag)h"
+    }
+
+    var accessibilitySummary: String {
+        "\(anomalyType.rawValue). Hours balance \(gapDisplayText)."
+    }
+
+    /// Small “worked / scheduled” pair for inline & stacked compositions.
+    var hoursRatioSubtitle: String {
+        "\(HoursFormat.format(workedHours))h / \(HoursFormat.format(scheduledHours))h"
+    }
+}
+
+struct HoursBalanceCapsuleBadge: View {
+    let model: HoursBalanceCapsuleModel
+
+    var body: some View {
+        Text(model.gapDisplayText)
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .tracking(-0.2)
+            .foregroundStyle(model.foregroundColor)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(model.chipBackground)
+            .clipShape(Capsule())
     }
 }
 
@@ -253,8 +361,161 @@ private struct ShiftBandScheduleHoursBar: View {
     }
 }
 
+// MARK: - 4a) Difference chip — trailing capsule (baseline capsule layout)
+
+private struct DifferenceChipScheduleHoursBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var model: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+    }
+
+    var body: some View {
+        Group {
+            if model.showsCapsule {
+                HStack {
+                    Spacer(minLength: 0)
+                    HoursBalanceCapsuleBadge(model: model)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(model.accessibilitySummary)
+            }
+        }
+    }
+}
+
+// MARK: - 4b) Capsule · leading
+
+private struct CapsuleLeadingScheduleHoursBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var model: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+    }
+
+    var body: some View {
+        Group {
+            if model.showsCapsule {
+                HStack {
+                    HoursBalanceCapsuleBadge(model: model)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(model.accessibilitySummary)
+            }
+        }
+    }
+}
+
+// MARK: - 4c) Capsule · inline (hours ratio + Δ on one line)
+
+private struct CapsuleInlineScheduleHoursBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var model: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+    }
+
+    var body: some View {
+        Group {
+            if model.showsCapsule {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(model.hoursRatioSubtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(AppColors.fontSecondary)
+                        .tracking(-0.06)
+                    Spacer(minLength: 8)
+                    HoursBalanceCapsuleBadge(model: model)
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(model.hoursRatioSubtitle). \(model.accessibilitySummary)")
+            }
+        }
+    }
+}
+
+// MARK: - 4d) Capsule · stacked (ratio above, Δ capsule below — right aligned)
+
+private struct CapsuleStackedScheduleHoursBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var model: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(scheduledHours: scheduledHours, workedHours: workedHours, anomalyType: anomalyType)
+    }
+
+    var body: some View {
+        Group {
+            if model.showsCapsule {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text(model.hoursRatioSubtitle)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(AppColors.fontSecondary)
+                        .tracking(-0.06)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    HoursBalanceCapsuleBadge(model: model)
+                }
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(model.hoursRatioSubtitle). \(model.accessibilitySummary)")
+            }
+        }
+    }
+}
+
+// MARK: - 5) Compact line — numbers only, tinted by anomaly
+
+private struct CompactLineScheduleHoursBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var delta: Double {
+        workedHours - scheduledHours
+    }
+
+    private var line: String {
+        let s = HoursFormat.format(scheduledHours)
+        let w = HoursFormat.format(workedHours)
+        if anomalyType == .scheduleNotStarted {
+            return "Scheduled \(s)h · shift not started"
+        }
+        if workedHours <= 0.001 && scheduledHours > 0 {
+            return "Scheduled \(s)h · no time logged"
+        }
+        if abs(delta) < 0.05 {
+            return "\(w)h worked · \(s)h scheduled · on schedule"
+        }
+        let sign = delta > 0 ? "+" : "−"
+        let mag = HoursFormat.format(abs(delta))
+        return "\(w)h worked · \(s)h scheduled · \(sign)\(mag)h"
+    }
+
+    var body: some View {
+        Text(line)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(anomalyType.textColor)
+            .tracking(-0.08)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel("\(anomalyType.rawValue). \(line)")
+    }
+}
+
 #if DEBUG
-#Preview("Schedule hours — 3 styles") {
+#Preview("Schedule hours — all styles") {
     let emp = TimeAttendanceMockData.employees.first(where: { $0.anomalyType == .exceededWorkSchedule }) ?? TimeAttendanceMockData.employees[0]
     ScrollView {
         VStack(alignment: .leading, spacing: 24) {

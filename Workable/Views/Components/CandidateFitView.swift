@@ -97,6 +97,7 @@ struct CandidateFitView: View {
         HStack(spacing: 12) {
             AvatarWithScoreView(
                 matchScore: candidate.matchScore,
+                agentIsReviewing: candidate.agentIsReviewing,
                 imageName: candidate.avatarName,
                 avatarURL: candidate.avatarURL
             )
@@ -110,7 +111,9 @@ struct CandidateFitView: View {
                 Text("\(candidate.role) · Sourced")
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

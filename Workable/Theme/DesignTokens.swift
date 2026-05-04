@@ -47,6 +47,9 @@ enum AppColors {
     // AI
     static let aiDefault    = Color(light: "8736DC", dark: "C096ED")   // AI ☀️500 ☽200
     static let aiBackground = Color(light: "FBF4FF", dark: "2E1054")   // AI ☀️50  ☽700
+    /// Score pill on candidate fit summary (Figma ai/100 + ai/600 on `23609:132236`).
+    static let aiFitPillFill = Color(light: "EDD5FF", dark: "4A2780")
+    static let aiFitPillText = Color(light: "6509BF", dark: "E8D4FF")
 
     // Beta
     static let betaDefault         = Color(light: "107191", dark: "80D6E8") // BETA ☀️500 ☽100

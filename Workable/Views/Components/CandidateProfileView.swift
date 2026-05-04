@@ -4,11 +4,11 @@ import UIKit
 struct CandidateProfileView: View {
     let candidate: Candidate
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab = 0
+    @State private var selectedTab: Int
     @State private var showActionMenu = false
     @State private var showEmailTemplateSheet = false
     @State private var showCreateEvent = false
-    
+    @State private var showCandidateFitSheet = false
     private enum ProfileAction: CaseIterable {
         case sendEmail, sendText, createEvent, phoneCall, facetime
 
@@ -31,6 +31,12 @@ struct CandidateProfileView: View {
             case .facetime:     return "video.fill"
             }
         }
+    }
+
+    /// `0` — Timeline, `1` — Profile (segmented control).
+    init(candidate: Candidate, initialSelectedTab: Int = 0) {
+        self.candidate = candidate
+        _selectedTab = State(initialValue: initialSelectedTab)
     }
     
     private struct ProfileTimelineItem: Identifiable {
@@ -162,6 +168,13 @@ struct CandidateProfileView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showCandidateFitSheet) {
+            CandidateFitView(candidate: candidate)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(20)
                 .presentationBackground(AppColors.surface)
         }
     }
@@ -349,20 +362,79 @@ struct CandidateProfileView: View {
         .padding(.vertical, 16)
     }
     
-    // MARK: - Profile Content (Placeholder)
+    // MARK: - Profile Content
     
     private var profileContent: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             Rectangle()
                 .fill(AppColors.separator)
                 .frame(height: 1)
+
+            if let fitScore = candidate.matchScore {
+                Button {
+                    showCandidateFitSheet = true
+                } label: {
+                    CandidateFitProfileBanner(
+                        matchScore: fitScore,
+                        missingMustHaves: candidate.fitMissingMustHaves ?? 2
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.top, 24)
+                .padding(.bottom, 8)
+                .accessibilityHint("Opens candidate fit details")
+            }
+
+            profileSectionRow(title: "Email", value: "Not available yet")
+            profileDivider
+            profileSectionRow(title: "Phone", value: "Not available yet")
+            profileDivider
+            profileSectionRow(title: "Source", value: candidate.source)
+            profileDivider
             
-            Text("Profile details")
-                .font(AppFonts.subheadline())
-                .foregroundColor(AppColors.fontSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 32)
+            if let location = candidate.location, !location.isEmpty {
+                profileSectionRow(title: "Location", value: location)
+                profileDivider
+            }
+            
+            if let tags = candidate.tags, !tags.isEmpty {
+                profileSectionRow(title: "Tags", value: tags)
+                profileDivider
+            }
+            
+            profileSectionRow(title: "Role", value: candidate.role)
+            profileDivider
+            profileSectionRow(title: "Stage", value: candidate.stageInfo)
+            
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: 32)
         }
+    }
+    
+    private var profileDivider: some View {
+        Rectangle()
+            .fill(AppColors.separator)
+            .frame(height: 1)
+            .padding(.leading, 16)
+    }
+    
+    private func profileSectionRow(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontSecondary)
+            Text(value)
+                .font(AppFonts.body())
+                .tracking(-0.41)
+                .foregroundColor(AppColors.fontDefault)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }
 

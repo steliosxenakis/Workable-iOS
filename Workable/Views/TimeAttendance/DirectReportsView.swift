@@ -67,7 +67,7 @@ private struct DirectReportRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
                 avatar
                 if showCalendarBadge {
@@ -83,7 +83,7 @@ private struct DirectReportRow: View {
             }
             .frame(width: 50, height: 50)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(employee.name)
                     .font(AppFonts.headline())
                     .foregroundColor(AppColors.fontDefault)
@@ -93,15 +93,7 @@ private struct DirectReportRow: View {
                     .foregroundColor(AppColors.fontSecondary)
                     .tracking(-0.24)
 
-                if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted && !employee.hasScheduleIcon {
-                    Text(employee.anomalyType.rawValue)
-                        .font(AppFonts.caption1Strong())
-                        .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(employee.anomalyType.pillStyle.pillBackground)
-                        .clipShape(Capsule())
-                }
+                EmployeeAnomalyStatusPills(employee: employee)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

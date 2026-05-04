@@ -12,32 +12,41 @@ struct JobHeaderView: View {
     }
     
     var body: some View {
+        Group {
+            if let onTap {
+                Button(action: onTap) {
+                    headerLabel
+                }
+                .buttonStyle(.plain)
+            } else {
+                headerLabel
+            }
+        }
+    }
+
+    private var headerLabel: some View {
         VStack(alignment: .leading, spacing: 4) {
             // iOS/Headline — Semibold 17px, Oxford Blue #333E49
             Text(title)
                 .font(AppFonts.headline())
                 .foregroundColor(AppColors.oxfordBlue)
-            
-            HStack(spacing: 4) {
-                // iOS/Subhead 15px, font-secondary
+
+            HStack(alignment: .center, spacing: 8) {
                 Text(subtitle)
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                
-                Spacer(minLength: 0)
-                
-                // Icon 16px Small-arrow-right
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                 Image(systemName: "chevron.right")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(AppColors.fontSecondary)
             }
         }
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .onTapGesture {
-            onTap?()
-        }
     }
 }

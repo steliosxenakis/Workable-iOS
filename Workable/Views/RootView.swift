@@ -10,7 +10,9 @@ struct RootView: View {
                 case .home:
                     HomeView()
                 case .jobs:
-                    CandidatesBrowserView()
+                    NavigationStack {
+                        CandidatesBrowserView()
+                    }
                 default:
                     HomeView()
                 }

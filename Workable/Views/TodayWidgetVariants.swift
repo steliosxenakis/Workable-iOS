@@ -67,11 +67,22 @@ struct TodayWidgetData {
     let onLeaveOverflow: Int
     let celebrations: [TodayCelebration]
 
+    /// Issue total for the Issues chip — from employee mock data (not tied to visible anomaly pills).
     var issueCount: Int {
-        anomalyPills.filter { $0.style == .danger || $0.style == .warning }.reduce(0) { $0 + $1.count }
+        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
+        return eligible.filter {
+            switch $0.anomalyType {
+            case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+                return true
+            default:
+                return false
+            }
+        }.count
     }
+
     var onTrackCount: Int {
-        anomalyPills.first(where: { $0.style == .success })?.count ?? 0
+        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
+        return eligible.filter { $0.anomalyType == .onTrack }.count
     }
 
     static let mock = TodayWidgetData(
@@ -84,7 +95,6 @@ struct TodayWidgetData {
             return [
                 TodayAnomalyPill(label: "Missed clock-ins",         count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      style: .danger,  filters: [.noClockInNorOut]),
                 TodayAnomalyPill(label: "Exceeded work hours",      count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
-                TodayAnomalyPill(label: "No attendance",          count: eligible.filter { $0.anomalyType == .noClockIn }.count,            style: .danger,  filters: [.noClockIn]),
                 TodayAnomalyPill(label: "On track",                  count: eligible.filter { $0.anomalyType == .onTrack }.count,              style: .success, filters: [.onTrack]),
                 TodayAnomalyPill(label: "Expected to work today",    count: eligible.count,                                                    style: .neutral, filters: []),
             ]

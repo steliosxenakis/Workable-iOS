@@ -545,6 +545,73 @@ struct AnomalyFilterBar: View {
 
 }
 
+// MARK: - Shared anomaly pills (time-tracking list & direct reports)
+
+/// Issue / hour capsules aligned with `EmployeeAnomalyRow` — single source for list UIs.
+struct EmployeeAnomalyStatusPills: View {
+    let employee: EmployeeAnomaly
+
+    private var hoursCapsuleModel: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(
+            scheduledHours: employee.scheduledHours,
+            workedHours: employee.workedHours,
+            anomalyType: employee.anomalyType
+        )
+    }
+
+    var body: some View {
+        Group {
+            switch employee.anomalyType {
+            case .noClockIn:
+                if employee.hasScheduleIcon {
+                    EmptyView()
+                } else {
+                    Text(employee.anomalyType.rawValue)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppColors.dangerDefault)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 6)
+                        .background(AppColors.dangerBackground)
+                        .clipShape(Capsule())
+                }
+
+            case .noClockInNorOut, .exceededWorkSchedule:
+                let model = hoursCapsuleModel
+                HStack(alignment: .center, spacing: 8) {
+                    if model.showsCapsule {
+                        Text(model.gapDisplayText)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .tracking(-0.2)
+                            .foregroundColor(AppColors.dangerDefault)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 6)
+                            .background(AppColors.dangerBackground)
+                            .clipShape(Capsule())
+                    }
+
+                    Text(employee.anomalyType.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppColors.fontSecondary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 6)
+                        .background(AppColors.lightBackground)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(AppColors.separator.opacity(0.35), lineWidth: 0.5)
+                        )
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(model.showsCapsule ? model.accessibilitySummary : employee.anomalyType.rawValue)
+
+            case .onTrack, .scheduleNotStarted:
+                EmptyView()
+            }
+        }
+    }
+}
+
 // MARK: - Employee Anomaly Row
 
 struct EmployeeAnomalyRow: View {
@@ -552,6 +619,9 @@ struct EmployeeAnomalyRow: View {
 
     var onBellTapped: (() -> Void)? = nil
     @Binding var isNotified: Bool
+
+    @State private var bellRingRotation: Double = 0
+    @State private var bellRingScale: CGFloat = 1
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -566,23 +636,7 @@ struct EmployeeAnomalyRow: View {
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
 
-                if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted {
-                    Text(employee.anomalyType.rawValue)
-                        .font(AppFonts.caption1Strong())
-                        .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(employee.anomalyType.pillStyle.pillBackground)
-                        .clipShape(Capsule())
-                }
-
-                if employee.anomalyType != .scheduleNotStarted {
-                    ScheduleHoursBar(
-                        scheduledHours: employee.scheduledHours,
-                        workedHours: employee.workedHours,
-                        anomalyType: employee.anomalyType
-                    )
-                }
+                EmployeeAnomalyStatusPills(employee: employee)
             }
 
             Spacer()
@@ -594,41 +648,64 @@ struct EmployeeAnomalyRow: View {
                     }
                     onBellTapped?()
                 } label: {
-                    ZStack(alignment: .bottomTrailing) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(isNotified ? AppColors.primaryDark : AppColors.primaryDark)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(isNotified ? AppColors.successBackground : .white)
-                                    .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-                            )
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(.white.opacity(0.6), lineWidth: 0.5)
-                            )
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .frame(width: 38, height: 38)
-                            )
-
-                        if isNotified {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primaryDark)
-                                .background(Circle().fill(AppColors.successBackground).frame(width: 12, height: 12))
-                                .offset(x: 4, y: 4)
+                    Image(systemName: isNotified ? "bell.fill" : "bell")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.primaryDark)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(isNotified ? AppColors.successBackground : .white)
+                                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                        )
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(.white.opacity(0.6), lineWidth: 0.5)
+                        )
+                        .background(
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 38, height: 38)
+                        )
+                        .scaleEffect(bellRingScale)
+                        .rotationEffect(.degrees(bellRingRotation))
+                }
+                .buttonStyle(.plain)
+                .onChange(of: isNotified) { newValue in
+                    if newValue {
+                        playBellNotifyMicroanimation()
+                    } else {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            bellRingRotation = 0
+                            bellRingScale = 1
                         }
                     }
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    private func playBellNotifyMicroanimation() {
+        bellRingRotation = -14
+        bellRingScale = 0.94
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.42)) {
+            bellRingRotation = 11
+            bellRingScale = 1.09
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.62)) {
+                bellRingRotation = -5
+                bellRingScale = 1.02
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                bellRingRotation = 0
+                bellRingScale = 1
+            }
+        }
     }
 
     private var avatarView: some View {

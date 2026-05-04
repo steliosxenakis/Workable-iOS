@@ -18,6 +18,13 @@ struct FiltersOverlayView: View {
     @State private var excludeAiAssistedSelected = false
     
     let resultsCount: Int
+    /// Job row subtitle, e.g. `Title · details` from the candidates browser.
+    let jobSummary: String
+
+    init(resultsCount: Int, jobSummary: String = "Software Engineer · Engineering · Hybrid · Amsterdam / London / Prag...") {
+        self.resultsCount = resultsCount
+        self.jobSummary = jobSummary
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -29,7 +36,7 @@ struct FiltersOverlayView: View {
                         showCandidatesRow
                         divider
                         pickerRow(title: "Department", subtitle: "Any")
-                        pickerRow(title: "Job", subtitle: "Software Engineer · Engineering · Hybrid · Amsterdam / London / Prag...")
+                        pickerRow(title: "Job", subtitle: jobSummary)
                         pickerRow(title: "Pipeline stage", subtitle: "Any")
                         savedCandidatesRow
                         jobFitSection

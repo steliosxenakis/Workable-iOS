@@ -18,8 +18,6 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var isSelecting = false
     @State private var selectedForNotification: Set<UUID> = []
 
-    @AppStorage("scheduleHoursBarStyle") private var scheduleBarStyleRaw = ScheduleHoursBarStyle.classic.rawValue
-
     private let tabs = ["Events", "Time tracking", "On leave", "Celebrations"]
     private let employees = TimeAttendanceMockData.employees
 
@@ -57,6 +55,17 @@ struct TimeAttendanceAnomaliesListView: View {
         filteredEmployees.filter { !directReportNames.contains($0.name) }
     }
 
+    /// IDs visible with current filters & search — used for select all / deselect all.
+    private var selectableEmployeeIDs: Set<UUID> {
+        Set(filteredEmployees.map(\.id))
+    }
+
+    private var allFilteredEmployeesSelected: Bool {
+        let ids = selectableEmployeeIDs
+        guard !ids.isEmpty else { return false }
+        return ids.isSubset(of: selectedForNotification)
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
@@ -75,6 +84,32 @@ struct TimeAttendanceAnomaliesListView: View {
 
             if selectedTab == 1 {
                 HStack(spacing: 12) {
+                    if isSelecting && !filteredEmployees.isEmpty {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                let ids = selectableEmployeeIDs
+                                if allFilteredEmployeesSelected {
+                                    selectedForNotification.subtract(ids)
+                                } else {
+                                    selectedForNotification.formUnion(ids)
+                                }
+                            }
+                        } label: {
+                            Text(allFilteredEmployeesSelected ? "Deselect all" : "Select all")
+                                .font(AppFonts.subheadStrong())
+                                .foregroundColor(AppColors.primaryDark)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(.ultraThinMaterial)
+                                .background(.white.opacity(0.7))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                                .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Selects or clears everyone in the current list and filters.")
+                    }
+
                     if isSelecting && !selectedForNotification.isEmpty {
                         Button {
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -215,8 +250,6 @@ struct TimeAttendanceAnomaliesListView: View {
 
     private var timeAttendanceContent: some View {
         VStack(spacing: 0) {
-            scheduleHoursBarPicker
-
             AnomalyFilterBar(
                 selectedFilters: $selectedFilters,
                 selectedDepartment: $selectedDepartment,
@@ -257,30 +290,6 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
         }
-    }
-
-    /// Compare three layouts for worked-vs-scheduled visualization on employee rows (persisted).
-    private var scheduleHoursBarPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Worked hours bar")
-                .font(AppFonts.caption1())
-                .foregroundColor(AppColors.fontSecondary)
-
-            Picker("", selection: Binding(
-                get: { ScheduleHoursBarStyle(rawValue: scheduleBarStyleRaw) ?? .classic },
-                set: { scheduleBarStyleRaw = $0.rawValue }
-            )) {
-                ForEach(ScheduleHoursBarStyle.allCases) { style in
-                    Text(style.pickerTitle).tag(style)
-                }
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppColors.surface)
-        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
     }
 
     private func employeeSection(title: String, employees: [EmployeeAnomaly]) -> some View {
