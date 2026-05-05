@@ -19,19 +19,22 @@
 		A10000000000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* Assets.xcassets */; };
 		A10000000000000000000030 /* IPhoneFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000031 /* IPhoneFrameView.swift */; };
 		A10000000000000000000032 /* FiltersOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000033 /* FiltersOverlayView.swift */; };
+		A10000000000000000000076 /* AgentStatusSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000077 /* AgentStatusSheet.swift */; };
 		A10000000000000000000034 /* CandidateFitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000035 /* CandidateFitView.swift */; };
 		A10000000000000000000036 /* CandidateProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000037 /* CandidateProfileView.swift */; };
+		A10000000000000000000074 /* CandidateFitProfileBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000075 /* CandidateFitProfileBanner.swift */; };
 		A10000000000000000000040 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000041 /* HomeView.swift */; };
 		A10000000000000000000042 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000043 /* RootView.swift */; };
 		A10000000000000000000050 /* TimeAttendanceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000051 /* TimeAttendanceModels.swift */; };
 		A10000000000000000000052 /* TimeAttendanceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000053 /* TimeAttendanceWidget.swift */; };
 		A10000000000000000000054 /* TimeAttendanceAnomaliesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000055 /* TimeAttendanceAnomaliesListView.swift */; };
+		A10000000000000000000073 /* ScheduleHoursBarVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000072 /* ScheduleHoursBarVariants.swift */; };
 		A10000000000000000000056 /* TodayDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000057 /* TodayDetailView.swift */; };
 		A10000000000000000000060 /* EmployeeTimeTrackingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000059 /* EmployeeTimeTrackingDetailView.swift */; };
 		A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */; };
 		A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000064 /* PersonalTimeTrackingView.swift */; };
 		A10000000000000000000065 /* DirectReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000066 /* DirectReportsView.swift */; };
-		A10000000000000000000070 /* TodayWidgetVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000071 /* TodayWidgetVariants.swift */; };
+		A10000000000000000000069 /* TodayWidgetVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000006A /* TodayWidgetVariants.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,19 +51,22 @@
 		A10000000000000000000015 /* Workable.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Workable.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000031 /* IPhoneFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneFrameView.swift; sourceTree = "<group>"; };
 		A10000000000000000000033 /* FiltersOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FiltersOverlayView.swift; sourceTree = "<group>"; };
+		A10000000000000000000077 /* AgentStatusSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusSheet.swift; sourceTree = "<group>"; };
 		A10000000000000000000035 /* CandidateFitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateFitView.swift; sourceTree = "<group>"; };
 		A10000000000000000000037 /* CandidateProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateProfileView.swift; sourceTree = "<group>"; };
+		A10000000000000000000075 /* CandidateFitProfileBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CandidateFitProfileBanner.swift; sourceTree = "<group>"; };
 		A10000000000000000000041 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A10000000000000000000043 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A10000000000000000000051 /* TimeAttendanceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttendanceModels.swift; sourceTree = "<group>"; };
 		A10000000000000000000053 /* TimeAttendanceWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttendanceWidget.swift; sourceTree = "<group>"; };
 		A10000000000000000000055 /* TimeAttendanceAnomaliesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttendanceAnomaliesListView.swift; sourceTree = "<group>"; };
+		A10000000000000000000072 /* ScheduleHoursBarVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleHoursBarVariants.swift; sourceTree = "<group>"; };
 		A10000000000000000000057 /* TodayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayDetailView.swift; sourceTree = "<group>"; };
 		A10000000000000000000059 /* EmployeeTimeTrackingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmployeeTimeTrackingDetailView.swift; sourceTree = "<group>"; };
 		A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTrackingWeekCalendarContent.swift; sourceTree = "<group>"; };
 		A10000000000000000000064 /* PersonalTimeTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalTimeTrackingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000066 /* DirectReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectReportsView.swift; sourceTree = "<group>"; };
-		A10000000000000000000071 /* TodayWidgetVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetVariants.swift; sourceTree = "<group>"; };
+		A1000000000000000000006A /* TodayWidgetVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetVariants.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -122,7 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000041 /* HomeView.swift */,
-				A10000000000000000000071 /* TodayWidgetVariants.swift */,
+				A1000000000000000000006A /* TodayWidgetVariants.swift */,
 				A10000000000000000000043 /* RootView.swift */,
 				A10000000000000000000008 /* CandidatesBrowserView.swift */,
 				A1000000000000000000001E /* Components */,
@@ -135,6 +141,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000051 /* TimeAttendanceModels.swift */,
+				A10000000000000000000072 /* ScheduleHoursBarVariants.swift */,
 				A10000000000000000000053 /* TimeAttendanceWidget.swift */,
 				A10000000000000000000055 /* TimeAttendanceAnomaliesListView.swift */,
 				A10000000000000000000057 /* TodayDetailView.swift */,
@@ -152,8 +159,10 @@
 				A1000000000000000000000A /* CandidateCardView.swift */,
 				A1000000000000000000000C /* FilterBarView.swift */,
 				A10000000000000000000033 /* FiltersOverlayView.swift */,
+				A10000000000000000000077 /* AgentStatusSheet.swift */,
 				A10000000000000000000035 /* CandidateFitView.swift */,
 				A10000000000000000000037 /* CandidateProfileView.swift */,
+				A10000000000000000000075 /* CandidateFitProfileBanner.swift */,
 				A10000000000000000000031 /* IPhoneFrameView.swift */,
 				A1000000000000000000000E /* JobHeaderView.swift */,
 				A10000000000000000000010 /* NavBarView.swift */,
@@ -242,11 +251,15 @@
 				A10000000000000000000011 /* TabBarView.swift in Sources */,
 				A10000000000000000000030 /* IPhoneFrameView.swift in Sources */,
 				A10000000000000000000032 /* FiltersOverlayView.swift in Sources */,
+				A10000000000000000000076 /* AgentStatusSheet.swift in Sources */,
 				A10000000000000000000034 /* CandidateFitView.swift in Sources */,
 				A10000000000000000000036 /* CandidateProfileView.swift in Sources */,
+				A10000000000000000000074 /* CandidateFitProfileBanner.swift in Sources */,
 				A10000000000000000000040 /* HomeView.swift in Sources */,
+				A10000000000000000000069 /* TodayWidgetVariants.swift in Sources */,
 				A10000000000000000000042 /* RootView.swift in Sources */,
 				A10000000000000000000050 /* TimeAttendanceModels.swift in Sources */,
+				A10000000000000000000073 /* ScheduleHoursBarVariants.swift in Sources */,
 				A10000000000000000000052 /* TimeAttendanceWidget.swift in Sources */,
 				A10000000000000000000054 /* TimeAttendanceAnomaliesListView.swift in Sources */,
 				A10000000000000000000056 /* TodayDetailView.swift in Sources */,
@@ -254,7 +267,6 @@
 				A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */,
 				A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */,
 				A10000000000000000000065 /* DirectReportsView.swift in Sources */,
-				A10000000000000000000070 /* TodayWidgetVariants.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
