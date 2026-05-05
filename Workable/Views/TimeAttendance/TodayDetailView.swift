@@ -3,17 +3,11 @@ import SwiftUI
 struct TodayDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab: Int
-    @State private var selectedFilters: Set<AnomalyFilterCategory>
-    @State private var selectedDepartment: String?
-    @State private var selectedEntity: String?
-    @State private var searchText = ""
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Attendance"]
-    private let employees = TimeAttendanceMockData.employees
+    private let tabs = ["Events", "Celebrations", "On leave"]
 
-    init(initialTab: Int = 0, initialFilters: Set<AnomalyFilterCategory> = []) {
+    init(initialTab: Int = 0) {
         _selectedTab = State(initialValue: initialTab)
-        _selectedFilters = State(initialValue: initialFilters)
     }
 
     var body: some View {
@@ -25,7 +19,6 @@ struct TodayDetailView: View {
                 case 0:  eventsTab
                 case 1:  celebrationsTab
                 case 2:  onLeaveTab
-                case 3:  timeTrackingTab
                 default: Spacer()
                 }
             }
@@ -53,12 +46,10 @@ struct TodayDetailView: View {
                     .foregroundColor(AppColors.fontDefault)
             }
             ToolbarItem(placement: .navigationBarTrailing) {
-                if selectedTab != 3 {
-                    Button {} label: {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 18))
-                            .foregroundColor(AppColors.primaryDark)
-                    }
+                Button {} label: {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18))
+                        .foregroundColor(AppColors.primaryDark)
                 }
             }
         }
@@ -169,52 +160,6 @@ struct TodayDetailView: View {
                 Spacer()
             }
             .padding(16)
-        }
-    }
-
-    // MARK: - Time Tracking Tab
-
-    private var filteredEmployees: [EmployeeAnomaly] {
-        var result = employees.filtered(by: selectedFilters, department: selectedDepartment, entity: selectedEntity)
-        if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter {
-                $0.name.lowercased().contains(query) ||
-                $0.role.lowercased().contains(query)
-            }
-        }
-        return result
-    }
-
-    private var timeTrackingTab: some View {
-        VStack(spacing: 0) {
-            AnomalyFilterBar(selectedFilters: $selectedFilters, selectedDepartment: $selectedDepartment, selectedEntity: $selectedEntity, searchText: $searchText)
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(AppColors.iconDefault)
-                TextField("Search employees", text: $searchText)
-                    .font(AppFonts.body())
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(AppColors.iconDefault)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(10)
-            .background(AppColors.lightBackground)
-            .cornerRadius(10)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(AppColors.surface)
-
-            TimeAttendanceAnomaliesListContent(
-                employees: filteredEmployees
-            )
-            .padding(.horizontal, 16)
         }
     }
 }

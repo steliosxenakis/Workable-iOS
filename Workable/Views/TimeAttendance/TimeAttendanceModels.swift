@@ -290,13 +290,50 @@ struct AnomalySummaryTagsView: View {
     }
 }
 
+// MARK: - Department / Entity filters (shared menu content)
+
+struct DepartmentEntityFilterMenuContent: View {
+    @Binding var selectedDepartment: String?
+    @Binding var selectedEntity: String?
+
+    var body: some View {
+        Section("Department") {
+            Button("All") { selectedDepartment = nil }
+            ForEach(TimeAttendanceMockData.departments, id: \.self) { dept in
+                Button {
+                    selectedDepartment = dept
+                } label: {
+                    if selectedDepartment == dept {
+                        Label(dept, systemImage: "checkmark")
+                    } else {
+                        Text(dept)
+                    }
+                }
+            }
+        }
+        Section("Entities") {
+            Button("All") { selectedEntity = nil }
+            ForEach(TimeAttendanceMockData.entities, id: \.self) { entity in
+                Button {
+                    selectedEntity = entity
+                } label: {
+                    if selectedEntity == entity {
+                        Label(entity, systemImage: "checkmark")
+                    } else {
+                        Text(entity)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Anomaly Filter Bar (horizontal scrolling chips)
 
 struct AnomalyFilterBar: View {
     @Binding var selectedFilters: Set<AnomalyFilterCategory>
-    @Binding var selectedDepartment: String?
-    @Binding var selectedEntity: String?
     @Binding var searchText: String
+    @FocusState.Binding var searchFieldFocused: Bool
     var filterCounts: [AnomalyFilterCategory: Int] = [:]
     var isSearchRowVisible: Bool = true
 
@@ -304,12 +341,35 @@ struct AnomalyFilterBar: View {
         AnomalyFilterCategory.allCases
     }
 
-    private var hasActiveContextFilters: Bool {
-        selectedDepartment != nil || selectedEntity != nil
-    }
-
     var body: some View {
         VStack(spacing: 0) {
+            if isSearchRowVisible {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.iconDefault)
+                    TextField("Search", text: $searchText)
+                        .font(AppFonts.subheadline())
+                        .focused($searchFieldFocused)
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.iconDefault)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(AppColors.lightBackground)
+                .cornerRadius(10)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(sortedFilters, id: \.self) { filter in
@@ -337,78 +397,8 @@ struct AnomalyFilterBar: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
-            }
-
-            if isSearchRowVisible {
-                HStack(spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.iconDefault)
-                        TextField("Search", text: $searchText)
-                            .font(AppFonts.subheadline())
-                        if !searchText.isEmpty {
-                            Button { searchText = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AppColors.iconDefault)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(AppColors.lightBackground)
-                    .cornerRadius(10)
-
-                    Menu {
-                        Section("Department") {
-                            Button("All") { selectedDepartment = nil }
-                            ForEach(TimeAttendanceMockData.departments, id: \.self) { dept in
-                                Button {
-                                    selectedDepartment = dept
-                                } label: {
-                                    if selectedDepartment == dept {
-                                        Label(dept, systemImage: "checkmark")
-                                    } else {
-                                        Text(dept)
-                                    }
-                                }
-                            }
-                        }
-                        Section("Entities") {
-                            Button("All") { selectedEntity = nil }
-                            ForEach(TimeAttendanceMockData.entities, id: \.self) { entity in
-                                Button {
-                                    selectedEntity = entity
-                                } label: {
-                                    if selectedEntity == entity {
-                                        Label(entity, systemImage: "checkmark")
-                                    } else {
-                                        Text(entity)
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(hasActiveContextFilters ? AppColors.primaryDark : AppColors.fontSecondary)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(hasActiveContextFilters ? AppColors.activeBackground : AppColors.lightBackground)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(hasActiveContextFilters ? AppColors.primaryDark : AppColors.separator, lineWidth: 1)
-                            )
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, isSearchRowVisible ? 4 : 12)
+                .padding(.bottom, 12)
             }
         }
         .background(AppColors.surface)

@@ -176,7 +176,7 @@ struct TodayWidgetClassic: View {
                 HStack(spacing: 12) {
                     ForEach(data.anomalyPills) { pill in
                         NavigationLink {
-                            TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
+                            AttendanceAnomaliesStandaloneView(initialFilters: pill.filters)
                         } label: {
                             todayPillView(label: pill.label, count: pill.count, style: pill.style)
                         }
@@ -369,7 +369,7 @@ struct TodayWidgetCompact: View {
                 }
                 Spacer()
                 NavigationLink {
-                    TimeAttendanceAnomaliesListView(initialFilters: [])
+                    AttendanceAnomaliesStandaloneView(initialFilters: [])
                 } label: {
                     Text("View all")
                         .font(AppFonts.caption1Strong())

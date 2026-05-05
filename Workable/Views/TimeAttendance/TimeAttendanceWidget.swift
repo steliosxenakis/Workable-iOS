@@ -12,7 +12,7 @@ struct TimeAttendanceWidget: View {
                 }
 
                 NavigationLink {
-                    TimeAttendanceAnomaliesListView()
+                    AttendanceAnomaliesStandaloneView()
                 } label: {
                     VStack(spacing: 2) {
                         Text("View")
@@ -38,7 +38,7 @@ struct TimeAttendanceWidget: View {
             .padding(.vertical, 12)
         }
         .navigationDestination(item: $selectedItem) { item in
-            TimeAttendanceAnomaliesListView(initialFilters: item.matchingFilters)
+            AttendanceAnomaliesStandaloneView(initialFilters: item.matchingFilters)
         }
     }
 }

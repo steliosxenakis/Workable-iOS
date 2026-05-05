@@ -36,6 +36,10 @@ struct HomeView: View {
                     // ── Time tracking card (Figma 15353-17275) ──
                     timeTrackingCard
                         .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+
+                    timeAttendanceStatusCard
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 12)
 
                     // ── To-dos (empty state per Figma) ──
@@ -275,7 +279,7 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 ForEach(attendanceStatusPills, id: \.label) { pill in
                     NavigationLink {
-                        TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
+                        AttendanceAnomaliesStandaloneView(initialFilters: pill.filters)
                     } label: {
                         Text("\(pill.label) (\(pill.count))")
                             .font(AppFonts.subheadStrong())
@@ -364,12 +368,6 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
 
             onLeaveRow
-
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
-
-            timeAttendanceStatusCard
-                .padding(16)
         }
         .background(AppColors.surface)
         .cornerRadius(16)
