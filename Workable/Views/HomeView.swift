@@ -38,10 +38,6 @@ struct HomeView: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
 
-                    timeAttendanceStatusCard
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-
                     // ── To-dos (empty state per Figma) ──
                     todosSection
                         .padding(.bottom, 12)
@@ -368,6 +364,10 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
 
             onLeaveRow
+
+            timeAttendanceStatusCard
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
         }
         .background(AppColors.surface)
         .cornerRadius(16)
