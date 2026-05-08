@@ -1,18 +1,41 @@
 import SwiftUI
 
+enum CandidateSortOption: String, CaseIterable, Identifiable {
+    case newestFirst = "Newest first"
+    case oldestFirst = "Oldest first"
+    case aiStatusAndScore = "AI status & score"
+
+    var id: String { rawValue }
+}
+
 struct FilterBarView: View {
     @State private var showFilters = false
+    @Binding var selectedSort: CandidateSortOption
     var resultsCount: Int = 136
     
     var body: some View {
         HStack {
-            HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 20))
-                    .foregroundColor(AppColors.fontSecondary)
-                Text("Newest first")
-                    .font(AppFonts.headline())
-                    .foregroundColor(AppColors.fontSecondary)
+            Menu {
+                ForEach(CandidateSortOption.allCases) { option in
+                    Button {
+                        selectedSort = option
+                    } label: {
+                        if selectedSort == option {
+                            Label(option.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(option.rawValue)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.system(size: 20))
+                        .foregroundColor(AppColors.fontSecondary)
+                    Text(selectedSort.rawValue)
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.fontSecondary)
+                }
             }
             
             Spacer()

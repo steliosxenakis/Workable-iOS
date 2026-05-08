@@ -18,6 +18,8 @@ struct Candidate: Identifiable, Equatable, Hashable {
     let fitMissingMustHaves: Int?
     /// Agent is on the “review” step — show an animated shimmer on the match halo.
     let agentIsReviewing: Bool
+    /// Candidate fit evaluation has started but score is not ready yet.
+    let fitEvaluationInProgress: Bool
 
     init(
         id: UUID = UUID(),
@@ -31,7 +33,8 @@ struct Candidate: Identifiable, Equatable, Hashable {
         avatarName: String? = nil,
         avatarURL: URL? = nil,
         fitMissingMustHaves: Int? = nil,
-        agentIsReviewing: Bool = false
+        agentIsReviewing: Bool = false,
+        fitEvaluationInProgress: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -45,5 +48,6 @@ struct Candidate: Identifiable, Equatable, Hashable {
         self.avatarURL = avatarURL
         self.fitMissingMustHaves = fitMissingMustHaves
         self.agentIsReviewing = agentIsReviewing
+        self.fitEvaluationInProgress = fitEvaluationInProgress
     }
 }

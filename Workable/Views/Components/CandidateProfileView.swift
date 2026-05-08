@@ -3,20 +3,38 @@ import UIKit
 
 struct CandidateProfileView: View {
     let candidate: Candidate
+    /// Temporary switch to hide the candidate timeline until finalized.
+    private let showsCandidateTimeline = true
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(DisqualifyConfirmationSheet.suppressConfirmationAppStorageKey) private var suppressDisqualifyConfirmation = false
     @State private var selectedTab: Int
-    @State private var showActionMenu = false
+    @State private var showProfileContactMenu = false
+    @State private var showOverflowActionMenu = false
+    @State private var showSendEmailConfirmation = false
+    @State private var showSendTextConfirmation = false
+    @State private var showCreateEventConfirmation = false
     @State private var showEmailTemplateSheet = false
     @State private var showCreateEvent = false
     @State private var showCandidateFitSheet = false
-    private enum ProfileAction: CaseIterable {
-        case sendEmail, sendText, createEvent, phoneCall, facetime
+    @State private var showMoveToJobConfirmation = false
+    @State private var showDisqualifyConfirmation = false
+    @State private var generatedMatchScore: Int?
+    @State private var generatedMissingMustHaves: Int?
+    @State private var isEvaluatingFit = false
+    @State private var shouldAutoStartFitEvaluation = false
+    /// Contact shortcuts on the **person** toolbar icon (original wireframe menu).
+    private enum ProfileContactAction: CaseIterable {
+        case sendEmail
+        case sendText
+        case createEvent
+        case phoneCall
+        case facetime
 
         var label: String {
             switch self {
             case .sendEmail:    return "Send an email"
             case .sendText:     return "Send a text message"
-            case .createEvent:  return "Create event"
+            case .createEvent:  return "Schedule event"
             case .phoneCall:    return "Phone call"
             case .facetime:     return "Facetime"
             }
@@ -33,10 +51,62 @@ struct CandidateProfileView: View {
         }
     }
 
+    /// Full candidate actions on the **⋯** toolbar icon.
+    private enum OverflowMenuAction: CaseIterable {
+        case comment
+        case evaluate
+        case moveToPhoneScreen
+        case saveCandidate
+        case share
+        case copyToJob
+        case moveToJob
+        case editCandidate
+        case stopAgentActions
+        case disqualify
+
+        var label: String {
+            switch self {
+            case .comment:             return "Comment"
+            case .evaluate:            return "Evaluate"
+            case .moveToPhoneScreen:   return "Move to Phone Screen"
+            case .saveCandidate:       return "Save candidate"
+            case .share:               return "Share"
+            case .copyToJob:           return "Copy to job"
+            case .moveToJob:           return "Move to job"
+            case .editCandidate:       return "Edit candidate"
+            case .stopAgentActions:    return "Stop Agent actions"
+            case .disqualify:          return "Disqualify"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .comment:             return "bubble.left"
+            case .evaluate:            return "bubble.left.and.bubble.right"
+            case .moveToPhoneScreen:   return "arrow.right"
+            case .saveCandidate:       return "bookmark"
+            case .share:               return "square.and.arrow.up"
+            case .copyToJob:           return "doc.on.doc"
+            case .moveToJob:           return "arrow.turn.down.right"
+            case .editCandidate:       return "pencil"
+            case .stopAgentActions:    return "stop.fill"
+            case .disqualify:          return "hand.raised.fill"
+            }
+        }
+
+        var isDestructive: Bool {
+            if case .disqualify = self { return true }
+            return false
+        }
+    }
+
     /// `0` — Timeline, `1` — Profile (segmented control).
     init(candidate: Candidate, initialSelectedTab: Int = 0) {
         self.candidate = candidate
         _selectedTab = State(initialValue: initialSelectedTab)
+        _generatedMatchScore = State(initialValue: candidate.matchScore)
+        _generatedMissingMustHaves = State(initialValue: candidate.fitMissingMustHaves)
+        _shouldAutoStartFitEvaluation = State(initialValue: candidate.fitEvaluationInProgress && candidate.matchScore == nil)
     }
     
     private struct ProfileTimelineItem: Identifiable {
@@ -47,23 +117,8 @@ struct CandidateProfileView: View {
     }
     
     private var profileTimelineItems: [ProfileTimelineItem] {
-        let candidateInitials: String = {
-            let parts = candidate.name.split(separator: " ").map(String.init)
-            if parts.count >= 2,
-               let f = parts[0].first,
-               let l = parts[1].first {
-                return "\(f)\(l)".uppercased()
-            }
-            return String(candidate.name.prefix(2)).uppercased()
-        }()
         return [
-            ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "opened", title: "\(candidate.name) opened the email", time: "1 day ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "screen", title: "Phone screen scheduled", time: "3 days ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "reply", title: "\(candidate.name) replied to screening questions", time: "5 days ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "stage", title: "Moved to Sourced stage", time: "1 week ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "applied", title: "Applied via careers site", time: "2 weeks ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "sourced", title: "Sourced from LinkedIn", time: "2 weeks ago", actorInitials: "NS")
+            ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS")
         ]
     }
     
@@ -75,10 +130,21 @@ struct CandidateProfileView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         profileHeader
-                        tabSwitcher
-                        
-                        if selectedTab == 0 {
-                            timelineContent
+
+                        if isReviewingCandidate {
+                            reviewingCandidateBanner
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+
+                        if showsCandidateTimeline {
+                            tabSwitcher
+
+                            if selectedTab == 0 {
+                                timelineContent
+                            } else {
+                                profileContent
+                            }
                         } else {
                             profileContent
                         }
@@ -88,72 +154,23 @@ struct CandidateProfileView: View {
             }
             .background(AppColors.surface)
             
-            if showActionMenu {
+            if showProfileContactMenu || showOverflowActionMenu {
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                            showActionMenu = false
+                            showProfileContactMenu = false
+                            showOverflowActionMenu = false
                         }
                     }
-                
-                VStack(spacing: 0) {
-                    ForEach(Array(ProfileAction.allCases.enumerated()), id: \.offset) { index, action in
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                showActionMenu = false
-                            }
-                            switch action {
-                            case .sendEmail:
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    showEmailTemplateSheet = true
-                                }
-                            case .createEvent:
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    showCreateEvent = true
-                                }
-                            default:
-                                break
-                            }
-                        } label: {
-                            HStack {
-                                Text(action.label)
-                                    .font(.system(size: 17, weight: .regular))
-                                    .tracking(-0.41)
-                                    .foregroundColor(AppColors.fontDefault)
-                                Spacer()
-                                Image(systemName: action.icon)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(AppColors.iconDefault)
-                            }
-                            .padding(.horizontal, 16)
-                            .frame(height: 48)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
 
-                        if index < ProfileAction.allCases.count - 1 {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(height: 0.5)
-                        }
-                    }
+                if showProfileContactMenu {
+                    profileContactMenuPanel
                 }
-                .background(.ultraThinMaterial)
-                .background(Color.white.opacity(0.5))
-                .cornerRadius(8)
-                .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
-                )
-                .frame(width: 240)
-                .padding(.top, 50)
-                .padding(.trailing, 16)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
-                    removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
-                ))
+
+                if showOverflowActionMenu {
+                    overflowActionMenuPanel
+                }
             }
         }
         .sheet(isPresented: $showEmailTemplateSheet) {
@@ -163,12 +180,51 @@ struct CandidateProfileView: View {
                 .presentationCornerRadius(10)
                 .presentationBackground(AppColors.surface)
         }
+        .sheet(isPresented: $showSendEmailConfirmation) {
+            SendEmailConfirmationSheet(candidate: candidate) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showEmailTemplateSheet = true
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showSendTextConfirmation) {
+            SendTextConfirmationSheet(candidate: candidate, onSendText: performSendTextAction)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showTextMessageCompose) {
+            ComposeTextMessageView(
+                candidateName: candidate.name,
+                candidatePhone: "+3069282893"
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
+        }
         .sheet(isPresented: $showCreateEvent) {
             CreateEventView(candidateName: candidate.name, candidateRole: candidate.role)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(10)
                 .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showCreateEventConfirmation) {
+            CreateEventConfirmationSheet(candidate: candidate) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showCreateEvent = true
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
         }
         .sheet(isPresented: $showCandidateFitSheet) {
             CandidateFitView(candidate: candidate)
@@ -177,6 +233,36 @@ struct CandidateProfileView: View {
                 .presentationCornerRadius(20)
                 .presentationBackground(AppColors.surface)
         }
+        .sheet(isPresented: $showMoveToJobConfirmation) {
+            MoveToJobConfirmationSheet(candidate: candidate, onConfirm: {})
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showDisqualifyConfirmation) {
+            DisqualifyConfirmationSheet(candidate: candidate, onDisqualify: performDisqualifyAction)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .onAppear {
+            if shouldAutoStartFitEvaluation {
+                shouldAutoStartFitEvaluation = false
+                startFitEvaluation()
+            }
+        }
+    }
+
+    private func performDisqualifyAction() {
+        // TODO: Wire disqualify API / navigation when available.
+    }
+
+    @State private var showTextMessageCompose = false
+
+    private func performSendTextAction() {
+        showTextMessageCompose = true
     }
     
     // MARK: - Nav Bar
@@ -200,7 +286,8 @@ struct CandidateProfileView: View {
             HStack(spacing: 24) {
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showActionMenu.toggle()
+                        showOverflowActionMenu = false
+                        showProfileContactMenu.toggle()
                     }
                 } label: {
                     Image("icon-person-lines")
@@ -209,16 +296,25 @@ struct CandidateProfileView: View {
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                         .foregroundColor(AppColors.primaryDark)
+                        .padding(14)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                
-                Button {} label: {
+
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showProfileContactMenu = false
+                        showOverflowActionMenu.toggle()
+                    }
+                } label: {
                     Image("icon-menu-dots-horizontal")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                         .foregroundColor(AppColors.primaryDark)
+                        .padding(14)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -229,12 +325,139 @@ struct CandidateProfileView: View {
         .padding(.bottom, 8)
         .background(AppColors.surface)
     }
-    
+
+    private var profileContactMenuPanel: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(ProfileContactAction.allCases.enumerated()), id: \.offset) { index, action in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        showProfileContactMenu = false
+                    }
+                    switch action {
+                    case .sendEmail:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showSendEmailConfirmation = true
+                        }
+                    case .sendText:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showSendTextConfirmation = true
+                        }
+                    case .createEvent:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showCreateEventConfirmation = true
+                        }
+                    default:
+                        break
+                    }
+                } label: {
+                    HStack {
+                        Text(action.label)
+                            .font(.system(size: 17, weight: .regular))
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        Image(systemName: action.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.iconDefault)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if index < ProfileContactAction.allCases.count - 1 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(height: 0.5)
+                }
+            }
+        }
+        .background(.ultraThinMaterial)
+        .background(Color.white.opacity(0.5))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
+        )
+        .frame(width: 240)
+        .padding(.top, 50)
+        .padding(.trailing, 16)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+            removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
+        ))
+    }
+
+    private var overflowActionMenuPanel: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(OverflowMenuAction.allCases.enumerated()), id: \.offset) { index, action in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        showOverflowActionMenu = false
+                    }
+                    switch action {
+                    case .moveToJob:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showMoveToJobConfirmation = true
+                        }
+                    case .disqualify:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showDisqualifyConfirmation = true
+                        }
+                    default:
+                        break
+                    }
+                } label: {
+                    HStack {
+                        Text(action.label)
+                            .font(.system(size: 17, weight: .regular))
+                            .tracking(-0.41)
+                            .foregroundColor(action.isDestructive ? AppColors.dangerDefault : AppColors.fontDefault)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        Image(systemName: action.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(action.isDestructive ? AppColors.dangerDefault : AppColors.iconDefault)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if index < OverflowMenuAction.allCases.count - 1 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(height: 0.5)
+                }
+            }
+        }
+        .background(.ultraThinMaterial)
+        .background(Color.white.opacity(0.5))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.top, 50)
+        .padding(.trailing, 16)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+            removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
+        ))
+    }
+
     // MARK: - Profile Header
-    
+
     private var profileHeader: some View {
         VStack(spacing: 8) {
             profileAvatar
+                .opacity(isReviewingCandidate ? 0.8 : 1.0)
                 .padding(.bottom, 4)
             
             VStack(spacing: 2) {
@@ -370,21 +593,7 @@ struct CandidateProfileView: View {
                 .fill(AppColors.separator)
                 .frame(height: 1)
 
-            if let fitScore = candidate.matchScore {
-                Button {
-                    showCandidateFitSheet = true
-                } label: {
-                    CandidateFitProfileBanner(
-                        matchScore: fitScore,
-                        missingMustHaves: candidate.fitMissingMustHaves ?? 2
-                    )
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 24)
-                .padding(.bottom, 8)
-                .accessibilityHint("Opens candidate fit details")
-            }
+            candidateFitSection
 
             profileSectionRow(title: "Email", value: "Not available yet")
             profileDivider
@@ -410,6 +619,159 @@ struct CandidateProfileView: View {
             Rectangle()
                 .fill(Color.clear)
                 .frame(height: 32)
+        }
+    }
+
+    private var candidateFitSection: some View {
+        Group {
+            if let fitScore = generatedMatchScore {
+                CandidateFitProfileBanner(
+                    matchScore: fitScore,
+                    missingMustHaves: generatedMissingMustHaves ?? 2,
+                    onOpenDetails: { showCandidateFitSheet = true }
+                )
+                .accessibilityHint("Score opens full fit. Chevron expands or collapses the summary.")
+            } else if isEvaluatingFit {
+                evaluatingBanner
+            } else {
+                startEvaluationBanner
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 24)
+        .padding(.bottom, 8)
+    }
+
+    private var isReviewingCandidate: Bool {
+        candidate.agentIsReviewing || candidate.fitEvaluationInProgress
+    }
+
+    private struct AgentBannerState: Identifiable {
+        let id: Int
+        let boldPrefix: String
+        let body: String
+    }
+
+    private let agentBannerStates: [AgentBannerState] = [
+        AgentBannerState(id: 0, boldPrefix: "Agent is active: ", body: "Waiting for reply on interest email. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 1, boldPrefix: "Agent is active: ", body: "Waiting for reply about missing details. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 2, boldPrefix: "Agent is active: ", body: "Waiting for reply to follow-up email. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 3, boldPrefix: "Agent is active: ", body: "Waiting for reply to follow-up email. Expires in 6 days, 2 days until chat initiation."),
+        AgentBannerState(id: 4, boldPrefix: "Agent status: ", body: "Chat in progress. Expires in 6 days."),
+        AgentBannerState(id: 5, boldPrefix: "Agent review completed: ", body: "Candidate requests human communication"),
+    ]
+
+    @State private var agentBannerIndex = 0
+
+    private var reviewingCandidateBanner: some View {
+        let state = agentBannerStates[agentBannerIndex]
+        return VStack(alignment: .leading, spacing: 10) {
+            (Text(state.boldPrefix)
+                .font(AppFonts.subheadStrong())
+            + Text(state.body)
+                .font(AppFonts.subheadline()))
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontDefault)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.informativeBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                agentBannerIndex = (agentBannerIndex + 1) % agentBannerStates.count
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                .onEnded { value in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if value.translation.width < 0 {
+                            agentBannerIndex = min(agentBannerIndex + 1, agentBannerStates.count - 1)
+                        } else if value.translation.width > 0 {
+                            agentBannerIndex = max(agentBannerIndex - 1, 0)
+                        }
+                    }
+                }
+        )
+    }
+
+    private var startEvaluationBanner: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("Candidate fit")
+                    .font(AppFonts.headline())
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.fontDefault)
+
+                Spacer(minLength: 8)
+
+                Text("?")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(AppColors.background)
+                    .clipShape(Capsule())
+            }
+            .padding(.bottom, 12)
+
+            Text("The Agent hasn't evaluated this candidate. Start processing candidates and discover who's the best fit for this role.")
+                .font(AppFonts.subheadline())
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 16)
+
+            Button {
+                startFitEvaluation()
+            } label: {
+                Text("Start evaluation")
+                    .font(AppFonts.headline())
+                    .tracking(-0.41)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(AppColors.surface)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+    }
+
+    private var evaluatingBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(AppColors.primaryDark)
+                Text("Evaluating candidate fit...")
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(AppColors.fontDefault)
+            }
+
+            Text("We are analyzing must-haves and profile strengths.")
+                .font(AppFonts.subheadline())
+                .foregroundColor(AppColors.fontSecondary)
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+    }
+
+    private func startFitEvaluation() {
+        guard !isEvaluatingFit else { return }
+        isEvaluatingFit = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            generatedMatchScore = 70
+            generatedMissingMustHaves = generatedMissingMustHaves ?? 2
+            isEvaluatingFit = false
         }
     }
     

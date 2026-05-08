@@ -82,6 +82,26 @@ final class CandidatesBrowserViewModel: ObservableObject {
             tags: nil,
             stageInfo: "Sourced stage · Uploaded 1 day ago",
             avatarName: "avatar-michael"
+        ),
+        Candidate(
+            name: "Cindy Sawyers",
+            role: "Software Engineer",
+            location: "Athens, Attiki, Greece",
+            source: "Workable Agent",
+            tags: "#new profile",
+            stageInfo: "Sourced stage · Uploaded 6 days ago",
+            avatarName: "avatar-lucy"
+        ),
+        Candidate(
+            name: "Liam Foster",
+            role: "Software Engineer, Back-end",
+            location: "London, United Kingdom",
+            source: "Workable Agent",
+            matchScore: 62,
+            tags: "#evaluation",
+            stageInfo: "Sourced stage · Uploaded 7 days ago",
+            avatarName: "avatar-tyler",
+            fitEvaluationInProgress: true
         )
     ]
 
@@ -193,6 +213,7 @@ struct CandidatesBrowserView: View {
     @StateObject private var viewModel: CandidatesBrowserViewModel
     @State private var presentedSheet: PresentedSheet? = nil
     @State private var agentStatusSheetHeight: CGFloat = 380
+    @State private var selectedSortOption: CandidateSortOption = .aiStatusAndScore
     @State private var profileCandidate: Candidate? = nil
     @State private var profileInitialTab: Int = 0
     @Environment(\.dismiss) private var dismiss
@@ -217,7 +238,10 @@ struct CandidatesBrowserView: View {
                         dismiss()
                     }
 
-                    FilterBarView(resultsCount: viewModel.resultsCount)
+                    FilterBarView(
+                        selectedSort: $selectedSortOption,
+                        resultsCount: viewModel.resultsCount
+                    )
                 }
                 .background(AppColors.surface)
                 .zIndex(2)
@@ -244,11 +268,11 @@ struct CandidatesBrowserView: View {
                         .padding(.horizontal, 16)
 
                         VStack(spacing: 8) {
-                            ForEach(viewModel.candidates) { candidate in
+                            ForEach(sortedCandidates) { candidate in
                                 CandidateCardView(
                                     candidate: candidate,
                                     onAvatarTap: candidate.matchScore != nil
-                                        ? { presentedSheet = .agentStatus(candidate) }
+                                        ? { presentedSheet = .candidateFit(candidate) }
                                         : nil,
                                     onCardTap: {
                                         profileInitialTab = 0
@@ -312,6 +336,49 @@ struct CandidatesBrowserView: View {
                     agentStatusSheetHeight = 380
                 }
             }
+    }
+
+    private var sortedCandidates: [Candidate] {
+        switch selectedSortOption {
+        case .newestFirst:
+            return viewModel.candidates.sorted {
+                uploadAgeInDays(from: $0.stageInfo) < uploadAgeInDays(from: $1.stageInfo)
+            }
+        case .oldestFirst:
+            return viewModel.candidates.sorted {
+                uploadAgeInDays(from: $0.stageInfo) > uploadAgeInDays(from: $1.stageInfo)
+            }
+        case .aiStatusAndScore:
+            return viewModel.candidates.sorted { lhs, rhs in
+                let lhsPriority = aiStatusPriority(for: lhs)
+                let rhsPriority = aiStatusPriority(for: rhs)
+                if lhsPriority != rhsPriority {
+                    return lhsPriority > rhsPriority
+                }
+                if (lhs.matchScore ?? -1) != (rhs.matchScore ?? -1) {
+                    return (lhs.matchScore ?? -1) > (rhs.matchScore ?? -1)
+                }
+                return uploadAgeInDays(from: lhs.stageInfo) < uploadAgeInDays(from: rhs.stageInfo)
+            }
+        }
+    }
+
+    private func aiStatusPriority(for candidate: Candidate) -> Int {
+        if candidate.agentIsReviewing || candidate.fitEvaluationInProgress { return 0 }
+        if candidate.matchScore == nil { return 0 }
+        return 1
+    }
+
+    private func uploadAgeInDays(from stageInfo: String) -> Int {
+        let lowered = stageInfo.lowercased()
+        guard let uploadedRange = lowered.range(of: "uploaded ") else { return .max }
+        let suffix = lowered[uploadedRange.upperBound...]
+        let parts = suffix.split(separator: " ")
+        guard let first = parts.first, let value = Int(first) else { return .max }
+        if suffix.contains("week") {
+            return value * 7
+        }
+        return value
     }
 }
 

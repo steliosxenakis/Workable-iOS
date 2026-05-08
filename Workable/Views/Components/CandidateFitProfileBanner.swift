@@ -4,6 +4,7 @@ import SwiftUI
 struct CandidateFitProfileBanner: View {
     let matchScore: Int
     let missingMustHaves: Int
+    var onOpenDetails: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,9 +16,13 @@ struct CandidateFitProfileBanner: View {
 
                 Spacer(minLength: 8)
 
-                scorePill
+                Button(action: onOpenDetails) {
+                    scorePill
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("View candidate fit details")
             }
-            .padding(.vertical, 12)
+            .padding(.bottom, 12)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Missing \(missingMustHaves) must-haves")
@@ -36,6 +41,9 @@ struct CandidateFitProfileBanner: View {
         .background(AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture { onOpenDetails() }
+        .accessibilityAddTraits(.isButton)
     }
 
     private var scorePill: some View {
@@ -97,7 +105,10 @@ struct CandidateFitProfileBanner: View {
 }
 
 #Preview {
-    CandidateFitProfileBanner(matchScore: 50, missingMustHaves: 2)
-        .padding()
-        .background(AppColors.background)
+    VStack(spacing: 24) {
+        CandidateFitProfileBanner(matchScore: 70, missingMustHaves: 2)
+        CandidateFitProfileBanner(matchScore: 70, missingMustHaves: 2, onOpenDetails: {})
+    }
+    .padding()
+    .background(AppColors.background)
 }

@@ -135,6 +135,8 @@ struct HomeView: View {
 
     // MARK: - Team Chips
 
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+
     private var teamChips: some View {
         HStack(spacing: 8) {
             NavigationLink(value: DashboardRoute.directReports) {
@@ -144,9 +146,11 @@ struct HomeView: View {
                         .tracking(-0.24)
                         .foregroundColor(AppColors.fontSecondary)
 
-                    Circle()
-                        .fill(AppColors.dangerBadge)
-                        .frame(width: 16, height: 16)
+                    if showsAttendanceIssuesUI {
+                        Circle()
+                            .fill(AppColors.dangerBadge)
+                            .frame(width: 16, height: 16)
+                    }
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .regular))

@@ -3,6 +3,7 @@ import SwiftUI
 /// Direct reports list — [Figma 15276-14308](https://www.figma.com/design/N4rPYxlp1AxdJWGSghlQXP/%F0%9F%93%B1-Time-tracking?node-id=15276-14308)
 struct DirectReportsView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
 
     private let people = TimeAttendanceMockData.directReportsInFigmaOrder
 
@@ -13,7 +14,7 @@ struct DirectReportsView: View {
                     NavigationLink {
                         EmployeeTimeTrackingDetailView(employee: employee)
                     } label: {
-                        DirectReportRow(employee: employee)
+                        DirectReportRow(employee: employee, showAnomalyPills: showsAttendanceIssuesUI)
                     }
                     .buttonStyle(.plain)
 
@@ -61,6 +62,7 @@ struct DirectReportsView: View {
 
 private struct DirectReportRow: View {
     let employee: EmployeeAnomaly
+    var showAnomalyPills: Bool = true
 
     private var showCalendarBadge: Bool {
         employee.hasScheduleIcon
@@ -93,7 +95,9 @@ private struct DirectReportRow: View {
                     .foregroundColor(AppColors.fontSecondary)
                     .tracking(-0.24)
 
-                EmployeeAnomalyStatusPills(employee: employee)
+                if showAnomalyPills {
+                    EmployeeAnomalyStatusPills(employee: employee)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

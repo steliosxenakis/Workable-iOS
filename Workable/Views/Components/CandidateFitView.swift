@@ -98,6 +98,7 @@ struct CandidateFitView: View {
             AvatarWithScoreView(
                 matchScore: candidate.matchScore,
                 agentIsReviewing: candidate.agentIsReviewing,
+                fitEvaluationInProgress: candidate.fitEvaluationInProgress,
                 imageName: candidate.avatarName,
                 avatarURL: candidate.avatarURL
             )

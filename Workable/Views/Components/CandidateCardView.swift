@@ -11,6 +11,7 @@ struct CandidateCardView: View {
                 AvatarWithScoreView(
                     matchScore: candidate.matchScore,
                     agentIsReviewing: candidate.agentIsReviewing,
+                    fitEvaluationInProgress: candidate.fitEvaluationInProgress,
                     imageName: candidate.avatarName,
                     avatarURL: candidate.avatarURL,
                     onTap: onAvatarTap
@@ -92,6 +93,7 @@ struct CandidateCardView: View {
 struct AvatarWithScoreView: View {
     let matchScore: Int?
     var agentIsReviewing: Bool = false
+    var fitEvaluationInProgress: Bool = false
     let imageName: String?
     let avatarURL: URL?
     var onTap: (() -> Void)?
@@ -104,12 +106,14 @@ struct AvatarWithScoreView: View {
     init(
         matchScore: Int?,
         agentIsReviewing: Bool = false,
+        fitEvaluationInProgress: Bool = false,
         imageName: String? = nil,
         avatarURL: URL? = nil,
         onTap: (() -> Void)? = nil
     ) {
         self.matchScore = matchScore
         self.agentIsReviewing = agentIsReviewing
+        self.fitEvaluationInProgress = fitEvaluationInProgress
         self.imageName = imageName
         self.avatarURL = avatarURL
         self.onTap = onTap
@@ -119,24 +123,26 @@ struct AvatarWithScoreView: View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
                 ZStack {
-                    // Track ring (light separator)
-                    Circle()
-                        .stroke(AppColors.separator, lineWidth: ringWidth)
-                        .frame(width: avatarSize, height: avatarSize)
+                    // Track ring (light separator) — only when there's a score
+                    if matchScore != nil {
+                        Circle()
+                            .stroke(AppColors.separator, lineWidth: ringWidth)
+                            .frame(width: avatarSize, height: avatarSize)
+                    }
 
                     // Purple progress arc proportional to match score
-                    if let score = matchScore {
+                    if let score = matchScore, !(agentIsReviewing || fitEvaluationInProgress) {
                         Circle()
                             .trim(from: 0, to: CGFloat(score) / 100)
                             .stroke(
-                                AppColors.aiDefault.opacity(agentIsReviewing ? 0.38 : 1),
+                                AppColors.aiDefault,
                                 style: StrokeStyle(lineWidth: ringWidth, lineCap: .round)
                             )
                             .frame(width: avatarSize, height: avatarSize)
                             .rotationEffect(.degrees(90))
                     }
 
-                    if agentIsReviewing, matchScore != nil {
+                    if (agentIsReviewing || fitEvaluationInProgress), matchScore != nil {
                         reviewingHaloShimmer(color: AppColors.aiDefault)
                     }
 
@@ -169,6 +175,7 @@ struct AvatarWithScoreView: View {
                     .frame(width: avatarSize - ringWidth * 2 - 2,
                            height: avatarSize - ringWidth * 2 - 2)
                     .clipShape(Circle())
+                    .opacity((agentIsReviewing || fitEvaluationInProgress) ? 0.6 : 1)
                 }
                 
                 if let score = matchScore {
@@ -185,6 +192,7 @@ struct AvatarWithScoreView: View {
                     .cornerRadius(8)
                     .offset(y: 10)
                 }
+
             }
         }
         .frame(width: avatarSize)
@@ -206,7 +214,7 @@ struct AvatarWithScoreView: View {
 
     private var accessibilityLabel: String {
         var base = matchScore.map { "Candidate fit: \($0) percent. Tap to view details." } ?? "View candidate fit"
-        if agentIsReviewing { base += " Agent is reviewing." }
+        if agentIsReviewing || fitEvaluationInProgress { base += " Evaluation in progress." }
         return base
     }
 

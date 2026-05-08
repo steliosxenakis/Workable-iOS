@@ -288,6 +288,7 @@ private struct AttendanceBadge: View {
 
 struct TodayWidgetFigma: View {
     let data: TodayWidgetData
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -317,43 +318,46 @@ struct TodayWidgetFigma: View {
                 .background(AppColors.lightBackground)
                 .cornerRadius(16)
 
-                HStack {
-                    Text("Attendance")
-                        .font(AppFonts.subheadline())
-                        .tracking(-0.24)
-                        .foregroundColor(AppColors.fontDefault)
-                    Spacer()
-                    HStack(spacing: 8) {
-                        NavigationLink {
-                            TimeAttendanceAnomaliesListView(initialFilters: [.noClockIn, .noClockInNorOut, .exceededWorkSchedule])
-                        } label: {
-                            Text("\(data.issueCount) Issues")
-                                .font(AppFonts.caption1Strong())
-                                .foregroundColor(AppColors.dangerDefault)
-                                .padding(.horizontal, 6)
-                                .frame(height: 25)
-                                .background(Color(light: "FFD2CF", dark: "5A1A0F"))
-                                .clipShape(Capsule())
+                if showsAttendanceIssuesUI {
+                    HStack {
+                        Text("Attendance")
+                            .font(AppFonts.subheadline())
+                            .tracking(-0.24)
+                            .foregroundColor(AppColors.fontDefault)
+                        Spacer()
+                        HStack(spacing: 8) {
+                            NavigationLink {
+                                TimeAttendanceAnomaliesListView(initialFilters: [.noClockIn, .noClockInNorOut, .exceededWorkSchedule])
+                            } label: {
+                                Text("\(data.issueCount) Issues")
+                                    .font(AppFonts.caption1Strong())
+                                    .foregroundColor(AppColors.dangerDefault)
+                                    .padding(.horizontal, 6)
+                                    .frame(height: 25)
+                                    .background(Color(light: "FFD2CF", dark: "5A1A0F"))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                TimeAttendanceAnomaliesListView(initialFilters: [.onTrack])
+                            } label: {
+                                Text("\(data.onTrackCount) On track")
+                                    .font(AppFonts.caption1Strong())
+                                    .foregroundColor(AppColors.fontSecondary)
+                                    .padding(.horizontal, 6)
+                                    .frame(height: 25)
+                                    .background(AppColors.separator)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        NavigationLink {
-                            TimeAttendanceAnomaliesListView(initialFilters: [.onTrack])
-                        } label: {
-                            Text("\(data.onTrackCount) On track")
-                                .font(AppFonts.caption1Strong())
-                                .foregroundColor(AppColors.fontSecondary)
-                                .padding(.horizontal, 6)
-                                .frame(height: 25)
-                                .background(AppColors.separator)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(AppColors.lightBackground)
+                    .cornerRadius(16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(AppColors.lightBackground)
-                .cornerRadius(16)
             }
         }
         .padding(16)

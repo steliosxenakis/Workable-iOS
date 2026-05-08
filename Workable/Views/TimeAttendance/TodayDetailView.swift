@@ -2,13 +2,19 @@ import SwiftUI
 
 struct TodayDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
     @State private var selectedDepartment: String?
     @State private var selectedEntity: String?
     @State private var searchText = ""
 
-    private let tabs = ["Events", "Anomalies", "On leave", "Celebrations"]
+    private var tabs: [(index: Int, title: String)] {
+        if showsAttendanceIssuesUI {
+            return [(0, "Events"), (1, "Anomalies"), (2, "On leave"), (3, "Celebrations")]
+        }
+        return [(0, "Events"), (2, "On leave"), (3, "Celebrations")]
+    }
     private let employees = TimeAttendanceMockData.employees
 
     init(initialTab: Int = 0, initialFilters: Set<AnomalyFilterCategory> = []) {
@@ -28,6 +34,11 @@ struct TodayDetailView: View {
                 case 3:  celebrationsTab
                 default: Spacer()
                 }
+            }
+        }
+        .onAppear {
+            if !showsAttendanceIssuesUI && selectedTab == 1 {
+                selectedTab = 0
             }
         }
         .background(AppColors.background)
@@ -67,16 +78,16 @@ struct TodayDetailView: View {
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.offset) { index, title in
-                    Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = index } } label: {
+                ForEach(tabs, id: \.index) { tab in
+                    Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab.index } } label: {
                         VStack(spacing: 8) {
-                            Text(title)
+                            Text(tab.title)
                                 .font(AppFonts.subheadStrong())
-                                .foregroundColor(selectedTab == index ? AppColors.primaryDark : AppColors.fontSecondary)
+                                .foregroundColor(selectedTab == tab.index ? AppColors.primaryDark : AppColors.fontSecondary)
                                 .padding(.horizontal, 16)
 
                             Rectangle()
-                                .fill(selectedTab == index ? AppColors.primaryDark : Color.clear)
+                                .fill(selectedTab == tab.index ? AppColors.primaryDark : Color.clear)
                                 .frame(height: 2)
                         }
                     }
