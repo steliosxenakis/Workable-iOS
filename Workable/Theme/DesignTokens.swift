@@ -9,6 +9,8 @@ enum AppColors {
     static let surface          = Color(light: "FFFFFF", dark: "1C1C1E")   // Neutral ☀️0   ☽750
     static let surfaceDarker    = Color(light: "FCF9F7", dark: "323234")   // Neutral ☀️50  ☽700
     static let lightBackground  = Color(light: "FBF9F6", dark: "323234")   // Neutral ☀️100 ☽700
+    /// Elevated dashboard tiles (Wise-style light gray cards on warm background)
+    static let dashboardCardFill = Color(light: "F2F2F2", dark: "2C2C2E")
     static let separator        = Color(light: "EEEDEC", dark: "38383A")   // Neutral ☀️300 ☽700
     static let iconInactive     = Color(light: "C8C7C7", dark: "8A8986")   // Neutral ☀️400 ☽600
     static let iconDefault      = Color(light: "9E9D9C", dark: "C8C7C7")   // Neutral ☀️500 ☽400

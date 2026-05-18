@@ -3,6 +3,9 @@ import SwiftUI
 private enum HomeDashboardLayout {
     /// Total height of the blob header band below the status bar (pt)
     static let headerHeight: CGFloat = 64
+    static let metricCardWidth: CGFloat = 160
+    static let metricCardCornerRadius: CGFloat = 16
+    static let transactionIconSize: CGFloat = 40
 }
 
 struct HomeView: View {
@@ -23,26 +26,42 @@ struct HomeView: View {
         JobItem(title: "Product Manager",    details: "Product · On-site · New York, US",      candidateCount: 14)
     ]
 
+    private var greetingTimePhrase: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5 ..< 12: return "Good morning,"
+        case 12 ..< 17: return "Good afternoon,"
+        case 17 ..< 22: return "Good evening,"
+        default: return "Good night,"
+        }
+    }
+
+    private var openJobsCount: Int { jobs.count }
+    private var newCandidatesThisWeek: Int { 12 }
+    private var timeOffDaysRemaining: Int { 12 }
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // ── Team scope chips ──
-                    teamChips
-                        .padding(.top, 6)
+                    greetingHeader
+                        .padding(.top, 8)
                         .padding(.bottom, 12)
 
-                    // ── Time tracking card (Figma 15353-17275) ──
-                    timeTrackingCard
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
+                    teamChips
+                        .padding(.bottom, 16)
 
-                    // ── To-dos (empty state per Figma) ──
+                    quickActionPills
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+
+                    metricCardsCarousel
+                        .padding(.bottom, 20)
+
                     todosSection
                         .padding(.bottom, 12)
 
-                    // ── Remaining cards ──
                     VStack(spacing: 12) {
                         todaySection
                         timeOffSection
@@ -54,8 +73,6 @@ struct HomeView: View {
                 }
             }
             .background(AppColors.background)
-            // Nav bar sits outside the scroll view so its background can
-            // reliably bleed behind the status bar via ignoresSafeArea
             .safeAreaInset(edge: .top, spacing: 0) {
                 homeNavBarArea
             }
@@ -72,20 +89,19 @@ struct HomeView: View {
 
     // MARK: - Nav bar area (blob header)
 
-    /// Lavender + mint blobs on white; sized to the header band (see `headerHeight`).
     private var headerBlobBackground: some View {
         ZStack {
             AppColors.background
 
             Ellipse()
-                .fill(Color(hex: "C5C5F1").opacity(0.8))
+                .fill(Color(hex: "C5C5F1").opacity(0.45))
                 .frame(width: 300, height: 180)
                 .rotationEffect(.degrees(-173.84))
                 .offset(x: -140, y: -110)
                 .blur(radius: 36)
 
             Ellipse()
-                .fill(Color(hex: "C2EAD4").opacity(0.8))
+                .fill(Color(hex: "C2EAD4").opacity(0.45))
                 .frame(width: 115, height: 240)
                 .rotationEffect(.degrees(-89.34))
                 .offset(x: 140, y: -100)
@@ -102,14 +118,7 @@ struct HomeView: View {
                 .frame(width: 36, height: 36)
                 .clipShape(Circle())
 
-            Spacer()
-
-            Image("logo-workable")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 43, height: 30)
-
-            Spacer()
+            Spacer(minLength: 0)
 
             Button {} label: {
                 Image(systemName: "magnifyingglass")
@@ -136,40 +145,71 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Greeting
+
+    private var greetingHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(greetingTimePhrase)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+
+                Text("Emma")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.5)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {} label: {
+                Image(systemName: "chart.bar.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
+                    .frame(width: 36, height: 36)
+                    .background(AppColors.dashboardCardFill)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Insights")
+        }
+        .padding(.horizontal, 16)
+    }
+
     // MARK: - Team Chips
 
     private var teamChips: some View {
-        HStack(spacing: 8) {
-            NavigationLink(value: DashboardRoute.directReports) {
-                HStack(spacing: 8) {
-                    Text("Direct reports")
-                        .font(AppFonts.subheadline())
-                        .tracking(-0.24)
-                        .foregroundColor(AppColors.fontSecondary)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                NavigationLink(value: DashboardRoute.directReports) {
+                    HStack(spacing: 8) {
+                        Text("Direct reports")
+                            .font(AppFonts.subheadline())
+                            .tracking(-0.24)
+                            .foregroundColor(AppColors.fontSecondary)
 
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(AppColors.iconInactive)
-                        .cornerRadius(10)
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.fontDefault)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(AppColors.iconInactive.opacity(0.35))
+                            .clipShape(Capsule())
 
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(AppColors.fontSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(AppColors.surface)
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(AppColors.surface)
-                .cornerRadius(26)
+
+                teamChip(title: "Your team", selected: false)
             }
-
-            teamChip(title: "Your team", selected: false)
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
     }
 
     private func teamChip(title: String, selected: Bool) -> some View {
@@ -184,80 +224,164 @@ struct HomeView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 14)
         .background(AppColors.surface)
-        .cornerRadius(26)
+        .clipShape(Capsule())
     }
 
-    // MARK: - Time Tracking
+    // MARK: - Quick actions (Wise-style pills)
 
-    /// Figma 15353-17275: running timer, stop control, drill-in chevron; summary row below
-    private var timeTrackingCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 24) {
+    private var quickActionPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 NavigationLink {
                     PersonalTimeTrackingView()
                 } label: {
-                    HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text("8h 00m")
-                            .font(.system(size: 22, weight: .semibold))
-                            .tracking(0.35)
-                            .foregroundColor(AppColors.fontDefault)
-                        Text("00s")
-                            .font(.system(size: 16, weight: .regular))
-                            .tracking(-0.32)
-                            .foregroundColor(AppColors.fontSecondary)
-                            .frame(height: 20)
-                    }
+                    Text("Clock in")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(AppColors.activeBackground)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-
-                Spacer(minLength: 0)
 
                 Button {} label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: "24272c"))
-                            .frame(width: 56, height: 56)
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.surface)
-                            .frame(width: 12, height: 12)
-                    }
-                    .shadow(color: Color(hex: "333E49").opacity(0.48), radius: 8.5, x: 0, y: 0)
+                    Text("New request")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(AppColors.dashboardCardFill)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
 
-                NavigationLink {
-                    PersonalTimeTrackingView()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColors.iconDefault)
+                Button {} label: {
+                    Text("Search")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(AppColors.dashboardCardFill)
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Search")
+            }
+        }
+    }
+
+    // MARK: - Metric cards (horizontal carousel)
+
+    private var metricCardsCarousel: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                metricCard(
+                    assetIcon: "icon-list-bullet",
+                    title: "Open jobs",
+                    subtitle: "\(openJobsCount) active",
+                    value: "\(openJobsCount)"
+                )
+
+                metricCard(
+                    assetIcon: "icon-candidates-new",
+                    title: "Candidates",
+                    subtitle: "\(newCandidatesThisWeek) new this week",
+                    value: "\(newCandidatesThisWeek)"
+                )
+
+                metricCard(
+                    systemIcon: "calendar",
+                    title: "Time off",
+                    subtitle: "Next · 15 May",
+                    value: "\(timeOffDaysRemaining)d"
+                )
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(AppColors.surface)
-            .cornerRadius(16)
+        }
+    }
 
-            HStack {
-                Text("Today · 8h in total")
-                    .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontDefault)
-                    .tracking(-0.24)
-
-                Spacer()
-
-                Text("8:00-16:00")
-                    .font(AppFonts.subheadline())
+    private func metricCard(
+        assetIcon: String? = nil,
+        systemIcon: String? = nil,
+        title: String,
+        subtitle: String,
+        value: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                if let assetIcon {
+                    Image(assetIcon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(AppColors.fontDefault)
+                } else if let systemIcon {
+                    Image(systemName: systemIcon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.fontDefault)
+                }
+                Text(title)
+                    .font(AppFonts.caption1Strong())
                     .foregroundColor(AppColors.fontSecondary)
-                    .tracking(-0.24)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(value)
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(AppColors.fontDefault)
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+
+            Text(subtitle)
+                .font(AppFonts.caption1())
+                .foregroundColor(AppColors.fontSecondary)
+                .padding(.top, 4)
+        }
+        .padding(16)
+        .frame(width: HomeDashboardLayout.metricCardWidth, alignment: .leading)
+        .frame(minHeight: 132, alignment: .leading)
+        .background(AppColors.dashboardCardFill)
+        .clipShape(RoundedRectangle(cornerRadius: HomeDashboardLayout.metricCardCornerRadius, style: .continuous))
+    }
+
+    // MARK: - Time tracking (compact, inside Today)
+
+    private var compactTimeTrackingRow: some View {
+        NavigationLink {
+            PersonalTimeTrackingView()
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                transactionIconCircle(systemName: "clock.fill", iconColor: AppColors.primaryDark, fill: AppColors.activeBackground)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Time today")
+                        .font(AppFonts.subheadline())
+                        .foregroundColor(AppColors.fontSecondary)
+                        .tracking(-0.24)
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text("8h 00m")
+                            .font(AppFonts.body())
+                            .fontWeight(.semibold)
+                            .foregroundColor(AppColors.fontDefault)
+                        Text("00s")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(AppColors.iconDefault)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
-        .background(AppColors.lightBackground)
-        .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
+        .buttonStyle(.plain)
     }
 
     private var attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] {
@@ -269,7 +393,6 @@ struct HomeView: View {
         ]
     }
 
-    /// Figma 15353-17307 — opens full anomalies list
     private var timeAttendanceStatusCard: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -283,11 +406,11 @@ struct HomeView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(AppColors.iconInactive)
+                                Capsule()
+                                    .fill(AppColors.dashboardCardFill)
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                Capsule()
                                     .stroke(AppColors.separator, lineWidth: 1)
                             )
                     }
@@ -299,7 +422,6 @@ struct HomeView: View {
 
     // MARK: - To-dos
 
-    /// Figma 15353-17276: empty state
     private var todosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("To-dos")
@@ -315,7 +437,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(AppColors.surface)
-                .cornerRadius(16)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.horizontal, 16)
         }
     }
@@ -324,27 +446,43 @@ struct HomeView: View {
 
     private var todaySection: some View {
         VStack(spacing: 0) {
+            sectionHeader(title: "Today", actionTitle: "View all", action: {})
+
+            compactTimeTrackingRow
+
+            Rectangle()
+                .fill(AppColors.separator)
+                .frame(height: 1)
+                .padding(.horizontal, 16)
+
             HStack {
-                Text("Today")
-                    .font(.system(size: 22, weight: .semibold))
+                Text("Today · 8h in total")
+                    .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontDefault)
-
+                    .tracking(-0.24)
                 Spacer()
-
-                Button("View all") {}
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(AppColors.primaryDark)
-                    .buttonStyle(.plain)
+                Text("8:00–16:00")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.vertical, 10)
+
+            Rectangle()
+                .fill(AppColors.separator)
+                .frame(height: 1)
+                .padding(.horizontal, 16)
 
             ForEach(todayEvents) { event in
                 todayEventRow(event)
             }
-            Rectangle().fill(AppColors.separator).frame(height: 1)
+
+            Rectangle()
+                .fill(AppColors.separator)
+                .frame(height: 1)
                 .padding(.horizontal, 16)
+
             todayInfoRow(
                 icon: "gift.fill",
                 iconColor: Color(hex: "E9756D"),
@@ -360,7 +498,10 @@ struct HomeView: View {
                 title: "Holidays",
                 value: "Christmas day"
             )
-            Rectangle().fill(AppColors.separator).frame(height: 1)
+
+            Rectangle()
+                .fill(AppColors.separator)
+                .frame(height: 1)
                 .padding(.horizontal, 16)
 
             onLeaveRow
@@ -370,11 +511,41 @@ struct HomeView: View {
                 .padding(.vertical, 12)
         }
         .background(AppColors.surface)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func sectionHeader(title: String, actionTitle: String, action: @escaping () -> Void) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(AppColors.fontDefault)
+            Spacer()
+            Button(actionTitle, action: action)
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(AppColors.primaryDark)
+                .underline()
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+    }
+
+    private func transactionIconCircle(systemName: String, iconColor: Color, fill: Color) -> some View {
+        ZStack {
+            Circle()
+                .fill(fill)
+                .frame(width: HomeDashboardLayout.transactionIconSize, height: HomeDashboardLayout.transactionIconSize)
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(iconColor)
+        }
     }
 
     private func todayEventRow(_ event: TodayEvent) -> some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 12) {
+            transactionIconCircle(systemName: "calendar", iconColor: AppColors.fontDefault, fill: AppColors.dashboardCardFill)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(event.title)
                     .font(AppFonts.body())
@@ -409,19 +580,12 @@ struct HomeView: View {
         value: String
     ) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(iconBackground)
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 15))
-                    .foregroundColor(iconColor)
-            }
+            transactionIconCircle(systemName: icon, iconColor: iconColor, fill: iconBackground)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(AppFonts.footnote())
-                    .tracking(-0.08)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
                     .foregroundColor(AppColors.fontSecondary)
                 Text(value)
                     .font(AppFonts.body())
@@ -432,17 +596,18 @@ struct HomeView: View {
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
     }
 
     private var onLeaveRow: some View {
-        HStack {
+        HStack(spacing: 12) {
+            transactionIconCircle(systemName: "person.2.fill", iconColor: AppColors.fontDefault, fill: AppColors.dashboardCardFill)
+
             Text("No employees on leave")
                 .font(AppFonts.body())
                 .tracking(-0.41)
                 .foregroundColor(AppColors.fontDefault)
-
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: -8) {
                 ForEach(["avatar-lucy", "avatar-abdi", "avatar-michael"], id: \.self) { name in
@@ -458,113 +623,97 @@ struct HomeView: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(AppColors.iconDefault)
-                .padding(.leading, 6)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
 
-    // MARK: - Time Off
+    // MARK: - Time off (Wise-style task row)
 
     private var timeOffSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-           
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Your time off")
+                    .font(.system(size: 22, weight: .semibold))
+                    .tracking(0.35)
+                    .foregroundColor(AppColors.fontDefault)
+                Spacer()
+                Button("View all") {}
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(AppColors.primaryDark)
+                    .underline()
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Your time off")
-                        .font(.system(size: 22, weight: .semibold))
-                        .tracking(0.35)
-                        .foregroundColor(AppColors.fontDefault)
-                    Spacer()
-                    Button("View all") {}
-                        .font(AppFonts.subheadStrong())
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(AppColors.surface)
+                        .frame(width: 48, height: 48)
+                        .overlay(Circle().stroke(AppColors.separator, lineWidth: 1))
+                    Image(systemName: "beach.umbrella.fill")
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(AppColors.primaryDark)
-                        .buttonStyle(.plain)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text("15 May 2023 - 18 May 2023")
                         .font(AppFonts.body())
+                        .fontWeight(.semibold)
+                        .foregroundColor(AppColors.primaryDark)
                         .tracking(-0.41)
-                        .foregroundColor(AppColors.fontDefault)
                     Text("Upcoming · Paid time off")
                         .font(AppFonts.subheadline())
-                        .tracking(-0.24)
                         .foregroundColor(AppColors.fontSecondary)
+                        .tracking(-0.24)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 8) {
-                    Button {} label: {
-                        HStack(spacing: 6) {
-                            Image("icon-add-circle")
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 16, height: 16)
-                            Text("New request")
-                                .font(AppFonts.subheadStrong())
-                        }
-                        .foregroundColor(AppColors.primaryDark)
-                        .padding(.horizontal, 12)
+                Button {} label: {
+                    Text("Review")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(AppColors.activeBackground)
-                        .cornerRadius(20)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {} label: {
-                        Image(systemName: "tablecells")
-                            .font(.system(size: 16))
-                            .foregroundColor(AppColors.primaryDark)
-                            .frame(width: 36, height: 36)
-                            .background(AppColors.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(AppColors.separator, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
+                        .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(AppColors.surface)
-            .cornerRadius(16)
         }
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: - Jobs
 
     private var jobsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Jobs")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppColors.fontDefault)
-                Spacer()
-                Button("View all") {}
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(AppColors.primaryDark)
-                    .buttonStyle(.plain)
-            }
-            .padding(.bottom, 12)
+            sectionHeader(title: "Jobs", actionTitle: "View all", action: {})
 
             ForEach(Array(jobs.enumerated()), id: \.offset) { index, job in
                 jobRow(job)
                 if index < jobs.count - 1 {
-                    Rectangle().fill(AppColors.separator).frame(height: 1)
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(height: 1)
+                        .padding(.leading, 16 + HomeDashboardLayout.transactionIconSize + 12)
                 }
             }
         }
-        .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func jobRow(_ job: JobItem) -> some View {
         NavigationLink(value: DashboardRoute.job(job)) {
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                transactionIconCircle(systemName: "briefcase.fill", iconColor: AppColors.fontDefault, fill: AppColors.dashboardCardFill)
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(job.title)
                         .font(AppFonts.body())
@@ -574,28 +723,17 @@ struct HomeView: View {
                         .font(AppFonts.subheadline())
                         .foregroundColor(AppColors.fontSecondary)
                         .tracking(-0.24)
+                        .lineLimit(2)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 8) {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(AppColors.iconDefault)
-
-                    HStack(spacing: 2) {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(AppColors.iconDefault)
-                        Text(verbatim: "\(job.candidateCount)")
-                            .font(AppFonts.footnote())
-                            .foregroundColor(AppColors.iconDefault)
-                            .tracking(-0.08)
-                    }
-                }
-                .frame(height: 41, alignment: .bottom)
+                Text(verbatim: "\(job.candidateCount)")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
+                    .frame(minWidth: 28, alignment: .trailing)
             }
-            .padding(.vertical, 15)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -613,6 +751,7 @@ struct HomeView: View {
                 Button("View all") {}
                     .font(AppFonts.subheadStrong())
                     .foregroundColor(AppColors.primaryDark)
+                    .underline()
                     .buttonStyle(.plain)
             }
             .padding(.bottom, 8)
@@ -625,7 +764,7 @@ struct HomeView: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func candidateRow(icon: String, label: String, count: Int) -> some View {
