@@ -6,13 +6,14 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
-    init(initialFilters: Set<AnomalyFilterCategory> = []) {
+    init(initialFilters: Set<AnomalyFilterCategory> = [], initialTab: Int? = nil) {
         _selectedFilters = State(initialValue: initialFilters)
         let version = AttendanceUIVersion.resolved(
             from: UserDefaults.standard.string(forKey: AttendanceUIVersion.appStorageKey)
                 ?? AttendanceUIVersion.defaultVersion.rawValue
         )
-        _selectedTab = State(initialValue: version.usesModernAttendanceChrome ? 3 : 1)
+        let defaultTab = version.usesModernAttendanceChrome ? 3 : 1
+        _selectedTab = State(initialValue: initialTab ?? defaultTab)
     }
     @State private var selectedDepartment: String?
     @State private var selectedEntity: String?
@@ -28,7 +29,7 @@ struct TimeAttendanceAnomaliesListView: View {
         switch attendanceUIVersion {
         case .v1:
             return ["Events", "Time tracking", "On leave", "Celebrations"]
-        case .v2, .v3:
+        case .v2, .v3, .v4:
             return ["Events", "On leave", "Celebrations", "Attendance"]
         }
     }
@@ -212,6 +213,7 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
         }
+        .padding(.top, 8)
         .background(AppColors.surface)
         .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
     }
@@ -396,7 +398,7 @@ struct TimeAttendanceAnomaliesListView: View {
 
                 if showsSelectionAction {
                     if !isSelecting {
-                        tertiarySelectionButton(title: "Select", icon: "checkmark.circle", foreground: AppColors.primaryDark) {
+                        tertiarySelectionButton(title: "Select", icon: nil, foreground: AppColors.primaryDark) {
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 isSelecting = true
                             }
@@ -444,7 +446,6 @@ struct TimeAttendanceAnomaliesListView: View {
                         Rectangle()
                             .fill(AppColors.separator)
                             .frame(height: 1)
-                            .padding(.horizontal, 16)
                     }
                 }
             }

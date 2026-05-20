@@ -70,21 +70,45 @@ private struct DirectReportRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                avatar
-                if showCalendarBadge {
-                    Image(systemName: "suitcase.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 18, height: 18)
-                        .background(AppColors.fontDefault)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(AppColors.surface, lineWidth: 0.5))
-                        .offset(x: 4, y: 4)
-                }
+        Group {
+            if attendanceUIVersion.usesV4EmployeeCardStatus {
+                v4RowBody
+            } else {
+                legacyRowBody
             }
-            .frame(width: 50, height: 50)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 16)
+        .padding(.vertical, 16)
+        .contentShape(Rectangle())
+    }
+
+    private var v4RowBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                avatarStack
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(employee.name)
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.fontDefault)
+                        .tracking(-0.41)
+                    Text(employee.role)
+                        .font(AppFonts.subheadline())
+                        .foregroundColor(AppColors.fontSecondary)
+                        .tracking(-0.24)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if showAnomalyPills {
+                EmployeeAnomalyV4IssueBanner(employee: employee)
+            }
+        }
+    }
+
+    private var legacyRowBody: some View {
+        HStack(alignment: .top, spacing: 12) {
+            avatarStack
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(employee.name)
@@ -106,10 +130,23 @@ private struct DirectReportRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 16)
-        .padding(.vertical, 16)
-        .contentShape(Rectangle())
+    }
+
+    private var avatarStack: some View {
+        ZStack(alignment: .bottomTrailing) {
+            avatar
+            if showCalendarBadge {
+                Image(systemName: "suitcase.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 18, height: 18)
+                    .background(AppColors.fontDefault)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(AppColors.surface, lineWidth: 0.5))
+                    .offset(x: 4, y: 4)
+            }
+        }
+        .frame(width: 50, height: 50)
     }
 
     private var avatar: some View {

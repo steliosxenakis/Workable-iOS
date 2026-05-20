@@ -582,7 +582,7 @@ struct AnomalyFilterBar: View {
         .padding(.leading, 16)
         .padding(.trailing, contextFiltersLeading ? 0 : 16)
         .padding(.top, 12)
-        .padding(.bottom, contextFiltersLeading ? 8 : 0)
+        .padding(.bottom, contextFiltersLeading ? 16 : 0)
     }
 
     private var searchFieldRow: some View {
@@ -756,6 +756,89 @@ private struct AnomalyProgressBar: View {
     }
 }
 
+// MARK: - V4 employee issue banner (Figma 15509:62644)
+
+/// V4 — full-width issue banner below name/role (replaces issue pills).
+struct EmployeeAnomalyV4IssueBanner: View {
+    let employee: EmployeeAnomaly
+
+    private var hoursModel: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(
+            scheduledHours: employee.scheduledHours,
+            workedHours: employee.workedHours,
+            anomalyType: employee.anomalyType
+        )
+    }
+
+    static func showsBanner(for employee: EmployeeAnomaly) -> Bool {
+        switch employee.anomalyType {
+        case .onTrack, .scheduleNotStarted:
+            return false
+        case .noClockIn:
+            return !employee.hasScheduleIcon
+        case .noClockInNorOut, .exceededWorkSchedule:
+            return true
+        }
+    }
+
+    var body: some View {
+        if Self.showsBanner(for: employee) {
+            HStack(alignment: .center, spacing: 0) {
+                HStack(spacing: 4) {
+                    Image(iconAssetName)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .foregroundColor(AppColors.dangerDefault)
+
+                    Text(employee.anomalyType.rawValue)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(AppColors.dangerDefault)
+                        .tracking(-0.08)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(bannerHoursValue)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(AppColors.dangerDefault)
+                    .tracking(-0.08)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surfaceDarker)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(hoursModel.accessibilitySummary)
+        }
+    }
+
+    private var iconAssetName: String {
+        switch employee.anomalyType {
+        case .exceededWorkSchedule:
+            return "icon-attendance-exceeded"
+        case .noClockIn:
+            return "icon-close"
+        case .noClockInNorOut:
+            return "icon-attendance-missed-clock-in"
+        case .onTrack, .scheduleNotStarted:
+            return "icon-close"
+        }
+    }
+
+    private var bannerHoursValue: String {
+        switch employee.anomalyType {
+        case .noClockIn, .noClockInNorOut:
+            return "0h"
+        case .exceededWorkSchedule:
+            return hoursModel.gapDisplayText
+        case .onTrack, .scheduleNotStarted:
+            return ""
+        }
+    }
+}
+
 /// V1/V2 — issue / hour capsules on employee rows.
 struct EmployeeAnomalyStatusPills: View {
     let employee: EmployeeAnomaly
@@ -860,6 +943,58 @@ struct EmployeeAnomalyRow: View {
     }
 
     var body: some View {
+        Group {
+            if attendanceUIVersion.usesV4EmployeeCardStatus {
+                v4RowBody
+            } else {
+                legacyRowBody
+            }
+        }
+        .onDisappear {
+            notifiedLabelHideTask?.cancel()
+        }
+    }
+
+    private var v4RowBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                if usesAvatarSlotSelection {
+                    selectionControl(diameter: 48, iconSize: 24)
+                } else {
+                    avatarView
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(employee.name)
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.fontDefault)
+
+                    Text(employee.role)
+                        .font(AppFonts.subheadline())
+                        .foregroundColor(AppColors.fontSecondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if usesBellSlotSelection && hasNotifyBellSlot {
+                    selectionControl(diameter: Self.bellSlotDiameter, iconSize: Self.selectionIconSize)
+                } else if showsNotifyBell {
+                    Color.clear
+                        .frame(width: Self.bellSlotDiameter, height: Self.bellSlotDiameter)
+                        .overlay(alignment: .trailing) {
+                            notifyBellControlV2
+                        }
+                        .zIndex(1)
+                }
+            }
+
+            EmployeeAnomalyV4IssueBanner(employee: employee)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+    }
+
+    private var legacyRowBody: some View {
         HStack(alignment: .top, spacing: 12) {
             if usesAvatarSlotSelection {
                 selectionControl(diameter: 48, iconSize: 24)
@@ -902,9 +1037,6 @@ struct EmployeeAnomalyRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .onDisappear {
-            notifiedLabelHideTask?.cancel()
-        }
     }
 
     private var notifyBellControlV1: some View {
@@ -1127,7 +1259,6 @@ struct TimeAttendanceAnomaliesListContent: View {
                         Rectangle()
                             .fill(AppColors.separator)
                             .frame(height: 1)
-                            .padding(.horizontal, 16)
                     }
                 }
             }

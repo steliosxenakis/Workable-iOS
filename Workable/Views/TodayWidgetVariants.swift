@@ -146,12 +146,13 @@ struct TodayWidgetData {
     )
 }
 
-// MARK: - Main attendance UI versions (V1 / V2 / V3)
+// MARK: - Main attendance UI versions (V1 / V2 / V3 / V4)
 
 enum AttendanceUIVersion: String, CaseIterable, Identifiable {
     case v1 = "V1"
     case v2 = "V2"
     case v3 = "V3"
+    case v4 = "V4"
 
     var id: String { rawValue }
 
@@ -162,14 +163,19 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
         AttendanceUIVersion(rawValue: rawValue) ?? .v1
     }
 
-    /// V2/V3 — Attendance tab order, search, filters, notify bell, issues chip, etc.
+    /// V2/V3/V4 — Attendance tab order, search, filters, notify bell, issues chip, etc.
     var usesModernAttendanceChrome: Bool {
-        self == .v2 || self == .v3
+        self == .v2 || self == .v3 || self == .v4
     }
 
     /// V3 — progress bars on employee rows instead of status pills.
     var usesProgressBarEmployeeStatus: Bool {
         self == .v3
+    }
+
+    /// V4 — Figma 15509 employee cards (per-anomaly layouts; fork from V2 list chrome).
+    var usesV4EmployeeCardStatus: Bool {
+        self == .v4
     }
 }
 
@@ -201,6 +207,8 @@ struct TodayWidgetSwitcher: View {
                 TodayWidgetV1(data: data)
             case .v2, .v3:
                 TodayWidgetV2(data: data)
+            case .v4:
+                TodayWidgetV4(data: data)
             }
         }
     }
@@ -365,13 +373,9 @@ private struct AttendanceUIVersionPageSnippet: View {
                 .foregroundColor(AppColors.fontSecondary)
             Spacer()
             if version.usesModernAttendanceChrome {
-                HStack(spacing: 2) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 7, weight: .semibold))
-                    Text("Select")
-                        .font(.system(size: 7, weight: .semibold))
-                }
-                .foregroundColor(AppColors.primaryDark)
+                Text("Select")
+                    .font(.system(size: 7, weight: .semibold))
+                    .foregroundColor(AppColors.primaryDark)
             }
         }
         .padding(.horizontal, 10)
@@ -395,6 +399,8 @@ private struct AttendanceUIVersionPageSnippet: View {
 
                 if version.usesProgressBarEmployeeStatus {
                     snippetProgressStatus
+                } else if version.usesV4EmployeeCardStatus {
+                    snippetV4IssueBanner
                 } else {
                     snippetPillStatus
                 }
@@ -449,6 +455,27 @@ private struct AttendanceUIVersionPageSnippet: View {
         }
     }
 
+    private var snippetV4IssueBanner: some View {
+        HStack(spacing: 2) {
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .fill(AppColors.dangerDefault.opacity(0.85))
+                .frame(width: 5, height: 5)
+            Text("Missed clock-in")
+                .font(.system(size: 5, weight: .regular))
+                .foregroundColor(AppColors.dangerDefault)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Text("0h")
+                .font(.system(size: 5, weight: .regular))
+                .foregroundColor(AppColors.dangerDefault)
+        }
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surfaceDarker)
+        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+
     private var snippetProgressStatus: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text("Missed clock-in")
@@ -476,7 +503,7 @@ private struct AttendanceUIVersionPageSnippet: View {
     }
 }
 
-/// Compact selectable previews for V1 / V2 / V3 in Settings.
+/// Compact selectable previews for V1 / V2 / V3 / V4 in Settings.
 struct AttendanceUIVersionSnippets: View {
     @Binding var selectedVersion: String
 
@@ -535,6 +562,8 @@ private extension AttendanceUIVersion {
             return "Attendance tab · pills · search icon · Select"
         case .v3:
             return "Like V2 · progress bars on rows"
+        case .v4:
+            return "Side-by-side On leave & Attendance · red banners"
         }
     }
 }
@@ -857,6 +886,46 @@ struct TodayWidgetV1: View {
     }
 }
 
+// MARK: - V2/V4 Today attendance row (whole row tappable)
+
+private struct TodayModernAttendanceSectionRow: View {
+    let issueCount: Int
+
+    var body: some View {
+        NavigationLink {
+            TimeAttendanceAnomaliesListView(initialFilters: [])
+        } label: {
+            HStack {
+                Text("Attendance")
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontDefault)
+                Spacer()
+                HStack(spacing: 8) {
+                    Text("\(issueCount) Issues")
+                        .font(AppFonts.caption1Strong())
+                        .foregroundColor(AppColors.dangerDefault)
+                        .padding(.horizontal, 6)
+                        .frame(height: 25)
+                        .background(Color(light: "FFD2CF", dark: "5A1A0F"))
+                        .clipShape(Capsule())
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppColors.fontSecondary)
+                        .frame(height: 25)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.lightBackground)
+            .cornerRadius(16)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - V2 — main attendance Today UI (fork for redesign)
 
 struct TodayWidgetV2: View {
@@ -892,46 +961,125 @@ struct TodayWidgetV2: View {
                 .cornerRadius(16)
 
                 if showsAttendanceIssuesUI {
-                    HStack {
-                        Text("Attendance")
-                            .font(AppFonts.subheadline())
-                            .tracking(-0.24)
-                            .foregroundColor(AppColors.fontDefault)
-                        Spacer()
-                        HStack(spacing: 8) {
-                            NavigationLink {
-                                TimeAttendanceAnomaliesListView(initialFilters: [.noClockIn, .noClockInNorOut, .exceededWorkSchedule])
-                            } label: {
-                                Text("\(data.issueCount) Issues")
-                                    .font(AppFonts.caption1Strong())
-                                    .foregroundColor(AppColors.dangerDefault)
-                                    .padding(.horizontal, 6)
-                                    .frame(height: 25)
-                                    .background(Color(light: "FFD2CF", dark: "5A1A0F"))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-
-                            NavigationLink {
-                                TimeAttendanceAnomaliesListView(initialFilters: [])
-                            } label: {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(AppColors.fontSecondary)
-                                    .padding(.horizontal, 6)
-                                    .frame(height: 25)
-                                    .background(AppColors.separator)
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(AppColors.lightBackground)
-                    .cornerRadius(16)
+                    TodayModernAttendanceSectionRow(issueCount: data.issueCount)
                 }
             }
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+    }
+}
+
+// MARK: - V4 Today metric cards (Figma 15515:999262)
+
+private struct TodayV4MetricCardsRow: View {
+    let data: TodayWidgetData
+    var showsAttendanceIssuesUI: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            TodayV4OnLeaveCard(
+                title: data.onLeaveTitle,
+                avatars: data.onLeaveAvatars,
+                overflow: data.onLeaveOverflow
+            )
+            .frame(maxWidth: .infinity)
+
+            if showsAttendanceIssuesUI {
+                TodayV4AttendanceCard(issueCount: data.issueCount)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
+private struct TodayV4OnLeaveCard: View {
+    let title: String
+    let avatars: [String]
+    let overflow: Int
+
+    var body: some View {
+        NavigationLink {
+            TimeAttendanceAnomaliesListView(initialFilters: [], initialTab: 1)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontDefault)
+
+                HStack(spacing: 2) {
+                    AvatarStack(names: avatars, overflow: overflow)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surfaceDarker)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TodayV4AttendanceCard: View {
+    let issueCount: Int
+
+    var body: some View {
+        NavigationLink {
+            TimeAttendanceAnomaliesListView(initialFilters: [], initialTab: 3)
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Attendance")
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontDefault)
+
+                Text("\(issueCount) Issues")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.dangerDefault)
+                    .padding(.horizontal, 6)
+                    .frame(height: 25)
+                    .background(AppColors.dangerBadge)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surfaceDarker)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - V4 — fork of V2 (change here without affecting V2)
+
+struct TodayWidgetV4: View {
+    let data: TodayWidgetData
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            TodayHeader()
+
+            ForEach(data.events.prefix(1)) { event in
+                EventRow(event: event)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(data.celebrations) { item in
+                    CelebrationRow(item: item)
+                }
+            }
+
+            TodayV4MetricCardsRow(
+                data: data,
+                showsAttendanceIssuesUI: showsAttendanceIssuesUI
+            )
         }
         .padding(16)
         .background(AppColors.surface)
