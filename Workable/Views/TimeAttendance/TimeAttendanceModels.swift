@@ -57,6 +57,18 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
         case .onTrack:                return [.onTrack]
         }
     }
+
+    /// Today issue pill copy — singular when `count == 1`.
+    func issuePillLabel(count: Int) -> String {
+        switch self {
+        case .noClockInNorOut:
+            return count == 1 ? "Missed clock-in" : rawValue
+        case .exceededWorkSchedule:
+            return count == 1 ? "Exceeded work hour" : rawValue
+        case .noClockIn, .onTrack:
+            return rawValue
+        }
+    }
 }
 
 // MARK: - Data Models
@@ -103,6 +115,20 @@ struct EmployeeAnomaly: Identifiable {
     let entity: String
     let scheduledHours: Double
     let workedHours: Double
+
+    var hasAttendanceIssue: Bool {
+        switch anomalyType {
+        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+            return true
+        case .onTrack, .scheduleNotStarted:
+            return false
+        }
+    }
+
+    /// Attendance issues that should surface in counts (excludes PTO / on-leave).
+    var countsTowardAttendanceIssues: Bool {
+        !hasScheduleIcon && hasAttendanceIssue
+    }
 }
 
 // MARK: - Week calendar (shared mock chart rows)
@@ -179,6 +205,10 @@ enum TimeAttendanceMockData {
     static var directReportsInFigmaOrder: [EmployeeAnomaly] {
         let order = ["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"]
         return order.compactMap { name in employees.first { $0.name == name } }
+    }
+
+    static var directReportsWithIssueCount: Int {
+        directReportsInFigmaOrder.filter(\.countsTowardAttendanceIssues).count
     }
 }
 
@@ -417,6 +447,40 @@ struct AnomalySummaryTagsView: View {
     }
 }
 
+// MARK: - Filter chip checkmark (SF Symbol)
+
+private struct AnomalyFilterCheckmarkIcon: View {
+    var size: CGFloat = 20
+
+    var body: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: size, weight: .semibold))
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(Color.white, AppColors.primaryDark)
+    }
+}
+
+// MARK: - V2 toolbar search toggle
+
+struct AttendanceV2SearchToolbarButton: View {
+    @Binding var isSearchVisible: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSearchVisible.toggle()
+            }
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(AppColors.primaryDark)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 10)
+        .accessibilityLabel(isSearchVisible ? "Hide search" : "Show search")
+    }
+}
+
 // MARK: - Anomaly Filter Bar (horizontal scrolling chips)
 
 struct AnomalyFilterBar: View {
@@ -424,19 +488,68 @@ struct AnomalyFilterBar: View {
     @Binding var selectedDepartment: String?
     @Binding var selectedEntity: String?
     @Binding var searchText: String
+    /// V2: toggled from nav search icon. V1: pass `.constant(true)`.
+    @Binding var isSearchRowVisible: Bool
     var filterCounts: [AnomalyFilterCategory: Int] = [:]
-    var isSearchRowVisible: Bool = true
+    var attendanceVersion: AttendanceUIVersion = .v1
+
+    @FocusState private var isSearchFieldFocused: Bool
+
+    private var isV2Layout: Bool { attendanceVersion.usesModernAttendanceChrome }
 
     private var sortedFilters: [AnomalyFilterCategory] {
-        AnomalyFilterCategory.allCases
+        AnomalyFilterCategory.allCases.filter { $0 != .onTrack }
     }
 
     private var hasActiveContextFilters: Bool {
         selectedDepartment != nil || selectedEntity != nil
     }
 
+    private var showsSearchRow: Bool {
+        isV2Layout ? isSearchRowVisible : true
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            filterChipsRow(contextFiltersLeading: isV2Layout)
+
+            if showsSearchRow {
+                Group {
+                    if isV2Layout {
+                        searchFieldRow
+                    } else {
+                        HStack(spacing: 8) {
+                            searchFieldRow
+                            contextFiltersMenu
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(AppColors.surface)
+        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
+        .animation(.easeInOut(duration: 0.2), value: showsSearchRow)
+        .onChange(of: isSearchRowVisible) { isVisible in
+            guard isV2Layout else { return }
+            if isVisible {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                    isSearchFieldFocused = true
+                }
+            } else {
+                isSearchFieldFocused = false
+            }
+        }
+    }
+
+    private func filterChipsRow(contextFiltersLeading: Bool) -> some View {
+        HStack(spacing: 8) {
+            if contextFiltersLeading {
+                contextFiltersMenu
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(sortedFilters, id: \.self) { filter in
@@ -448,9 +561,7 @@ struct AnomalyFilterBar: View {
                         } label: {
                             HStack(spacing: isSelected ? 8 : 4) {
                                 if isSelected {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(AppColors.primaryDark)
+                                    AnomalyFilterCheckmarkIcon()
                                 }
                                 Text("\(filter.rawValue) (\(count))")
                                     .font(AppFonts.subheadStrong())
@@ -464,90 +575,188 @@ struct AnomalyFilterBar: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.trailing, contextFiltersLeading ? 16 : 0)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, contextFiltersLeading ? 0 : 16)
+        .padding(.top, 12)
+        .padding(.bottom, contextFiltersLeading ? 8 : 0)
+    }
 
-            if isSearchRowVisible {
-                HStack(spacing: 8) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.iconDefault)
-                        TextField("Search", text: $searchText)
-                            .font(AppFonts.subheadline())
-                        if !searchText.isEmpty {
-                            Button { searchText = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AppColors.iconDefault)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(AppColors.lightBackground)
-                    .cornerRadius(10)
-
-                    Menu {
-                        Section("Department") {
-                            Button("All") { selectedDepartment = nil }
-                            ForEach(TimeAttendanceMockData.departments, id: \.self) { dept in
-                                Button {
-                                    selectedDepartment = dept
-                                } label: {
-                                    if selectedDepartment == dept {
-                                        Label(dept, systemImage: "checkmark")
-                                    } else {
-                                        Text(dept)
-                                    }
-                                }
-                            }
-                        }
-                        Section("Entities") {
-                            Button("All") { selectedEntity = nil }
-                            ForEach(TimeAttendanceMockData.entities, id: \.self) { entity in
-                                Button {
-                                    selectedEntity = entity
-                                } label: {
-                                    if selectedEntity == entity {
-                                        Label(entity, systemImage: "checkmark")
-                                    } else {
-                                        Text(entity)
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(hasActiveContextFilters ? AppColors.primaryDark : AppColors.fontSecondary)
-                            .frame(width: 36, height: 36)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(hasActiveContextFilters ? AppColors.activeBackground : AppColors.lightBackground)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(hasActiveContextFilters ? AppColors.primaryDark : AppColors.separator, lineWidth: 1)
-                            )
-                    }
+    private var searchFieldRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14))
+                .foregroundColor(AppColors.iconDefault)
+            TextField("Search", text: $searchText)
+                .font(AppFonts.subheadline())
+                .focused($isSearchFieldFocused)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppColors.iconDefault)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .transition(.move(edge: .top).combined(with: .opacity))
+                .buttonStyle(.plain)
             }
         }
-        .background(AppColors.surface)
-        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AppColors.lightBackground)
+        .cornerRadius(10)
+    }
+
+    private var contextFiltersMenu: some View {
+        Menu {
+            Section("Department") {
+                Button("All") { selectedDepartment = nil }
+                ForEach(TimeAttendanceMockData.departments, id: \.self) { dept in
+                    Button {
+                        selectedDepartment = dept
+                    } label: {
+                        if selectedDepartment == dept {
+                            Label(dept, systemImage: "checkmark")
+                        } else {
+                            Text(dept)
+                        }
+                    }
+                }
+            }
+            Section("Entities") {
+                Button("All") { selectedEntity = nil }
+                ForEach(TimeAttendanceMockData.entities, id: \.self) { entity in
+                    Button {
+                        selectedEntity = entity
+                    } label: {
+                        if selectedEntity == entity {
+                            Label(entity, systemImage: "checkmark")
+                        } else {
+                            Text(entity)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(hasActiveContextFilters ? AppColors.primaryDark : AppColors.fontSecondary)
+                .frame(width: isV2Layout ? 40 : 36, height: isV2Layout ? 40 : 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(hasActiveContextFilters ? AppColors.activeBackground : AppColors.lightBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(hasActiveContextFilters ? AppColors.primaryDark : AppColors.separator, lineWidth: 1)
+                )
+        }
     }
 
 }
 
-// MARK: - Shared anomaly pills (time-tracking list & direct reports)
+// MARK: - Employee row status (pills vs progress bars)
 
-/// Issue / hour capsules aligned with `EmployeeAnomalyRow` — single source for list UIs.
+/// V3 — anomaly label + scheduled/worked progress bar (pre-pill list UI).
+struct EmployeeAnomalyProgressStatus: View {
+    let employee: EmployeeAnomaly
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if showsAnomalyLabel {
+                Text(employee.anomalyType.rawValue)
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(employee.anomalyType.pillStyle.pillBackground)
+                    .clipShape(Capsule())
+            }
+
+            AnomalyProgressBar(
+                scheduledHours: employee.scheduledHours,
+                workedHours: employee.workedHours,
+                anomalyType: employee.anomalyType
+            )
+        }
+    }
+
+    private var showsAnomalyLabel: Bool {
+        guard employee.anomalyType != .onTrack, employee.anomalyType != .scheduleNotStarted else {
+            return false
+        }
+        if employee.anomalyType == .noClockIn, employee.hasScheduleIcon {
+            return false
+        }
+        return true
+    }
+}
+
+private struct AnomalyProgressBar: View {
+    let scheduledHours: Double
+    let workedHours: Double
+    let anomalyType: AnomalyType
+
+    private var fillRatio: Double {
+        guard scheduledHours > 0 else { return 0 }
+        return workedHours / scheduledHours
+    }
+
+    private var hoursLabel: String {
+        if workedHours == 0 { return "0h / \(formatted(scheduledHours))h" }
+        return "\(formatted(workedHours))h / \(formatted(scheduledHours))h"
+    }
+
+    private func formatted(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", value)
+            : String(format: "%.1f", value)
+    }
+
+    private var maxRatio: Double {
+        fillRatio > 1.0 ? min(fillRatio, 1.5) : 1.0
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(hoursLabel)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(AppColors.fontSecondary)
+                .tracking(-0.07)
+                .fixedSize()
+
+            GeometryReader { geo in
+                let trackWidth = geo.size.width
+                let scheduledWidth = trackWidth / maxRatio
+                let filledWidth = trackWidth * min(fillRatio, maxRatio) / maxRatio
+
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(AppColors.informativeBackground)
+                        .frame(width: scheduledWidth, height: 4)
+
+                    if filledWidth > 0 {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(AppColors.informativeDefault)
+                            .frame(width: min(filledWidth, scheduledWidth), height: 4)
+                    }
+
+                    if fillRatio > 1.0 {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .fill(AppColors.warningText)
+                            .frame(width: filledWidth - scheduledWidth, height: 4)
+                            .offset(x: scheduledWidth)
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
+            .frame(height: 4)
+        }
+    }
+}
+
+/// V1/V2 — issue / hour capsules on employee rows.
 struct EmployeeAnomalyStatusPills: View {
     let employee: EmployeeAnomaly
 
@@ -619,13 +828,44 @@ struct EmployeeAnomalyRow: View {
 
     var onBellTapped: (() -> Void)? = nil
     @Binding var isNotified: Bool
+    var isSelectionMode: Bool = false
+    var isSelectedForNotification: Bool = false
 
+    /// Trailing slot (bell / checkmark) — fixed size so layout does not shift in selection mode.
+    private static let bellSlotDiameter: CGFloat = 36
+    private static let bellIconSize: CGFloat = 16
+    private static let selectionIconSize: CGFloat = 22
+
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
     @State private var bellRingRotation: Double = 0
     @State private var bellRingScale: CGFloat = 1
+    @State private var showsNotifiedLabel = false
+    @State private var notifiedLabelHideTask: Task<Void, Never>?
+
+    /// V2/V3 — checkmarks in the bell slot; V1 — checkmarks replace the avatar.
+    private var usesBellSlotSelection: Bool {
+        isSelectionMode && attendanceUIVersion.usesModernAttendanceChrome
+    }
+
+    private var usesAvatarSlotSelection: Bool {
+        isSelectionMode && !attendanceUIVersion.usesModernAttendanceChrome
+    }
+
+    private var hasNotifyBellSlot: Bool {
+        employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted
+    }
+
+    private var showsNotifyBell: Bool {
+        !isSelectionMode && hasNotifyBellSlot
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            avatarView
+            if usesAvatarSlotSelection {
+                selectionControl(diameter: 48, iconSize: 24)
+            } else {
+                avatarView
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(employee.name)
@@ -636,55 +876,169 @@ struct EmployeeAnomalyRow: View {
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
 
-                EmployeeAnomalyStatusPills(employee: employee)
+                if attendanceUIVersion.usesProgressBarEmployeeStatus {
+                    EmployeeAnomalyProgressStatus(employee: employee)
+                } else {
+                    EmployeeAnomalyStatusPills(employee: employee)
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            if employee.anomalyType != .onTrack && employee.anomalyType != .scheduleNotStarted {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isNotified.toggle()
-                    }
-                    onBellTapped?()
-                } label: {
-                    Image(systemName: isNotified ? "bell.fill" : "bell")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColors.primaryDark)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            Circle()
-                                .fill(isNotified ? AppColors.successBackground : .white)
-                                .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
-                        )
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(.white.opacity(0.6), lineWidth: 0.5)
-                        )
-                        .background(
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .frame(width: 38, height: 38)
-                        )
-                        .scaleEffect(bellRingScale)
-                        .rotationEffect(.degrees(bellRingRotation))
-                }
-                .buttonStyle(.plain)
-                .onChange(of: isNotified) { newValue in
-                    if newValue {
-                        playBellNotifyMicroanimation()
-                    } else {
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            bellRingRotation = 0
-                            bellRingScale = 1
+            if usesBellSlotSelection && hasNotifyBellSlot {
+                selectionControl(diameter: Self.bellSlotDiameter, iconSize: Self.selectionIconSize)
+            } else if showsNotifyBell {
+                if attendanceUIVersion.usesModernAttendanceChrome {
+                    Color.clear
+                        .frame(width: Self.bellSlotDiameter, height: Self.bellSlotDiameter)
+                        .overlay(alignment: .trailing) {
+                            notifyBellControlV2
                         }
-                    }
+                        .zIndex(1)
+                } else {
+                    notifyBellControlV1
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .onDisappear {
+            notifiedLabelHideTask?.cancel()
+        }
+    }
+
+    private var notifyBellControlV1: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isNotified.toggle()
+            }
+            onBellTapped?()
+        } label: {
+            Image(systemName: isNotified ? "bell.fill" : "bell")
+                .font(.system(size: Self.bellIconSize, weight: .semibold))
+                .foregroundColor(AppColors.primaryDark)
+                .frame(width: Self.bellSlotDiameter, height: Self.bellSlotDiameter)
+                .background(
+                    Circle()
+                        .fill(isNotified ? AppColors.successBackground : .white)
+                )
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.6), lineWidth: 0.5)
+                )
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: Self.bellSlotDiameter, height: Self.bellSlotDiameter)
+                )
+                .scaleEffect(bellRingScale)
+                .rotationEffect(.degrees(bellRingRotation))
+        }
+        .buttonStyle(.plain)
+        .onChange(of: isNotified) { newValue in
+            if newValue {
+                playBellNotifyMicroanimation()
+            } else {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    bellRingRotation = 0
+                    bellRingScale = 1
+                }
+            }
+        }
+    }
+
+    private static let notifyPillExpansionAnimation = Animation.linear(duration: 0.24)
+    private static let notifyPillCollapseAnimation = Animation.linear(duration: 0.22)
+
+    private var notifyBellControlV2: some View {
+        Button {
+            let willNotify = !isNotified
+            isNotified.toggle()
+            onBellTapped?()
+            if willNotify {
+                presentNotifiedLabel()
+            } else {
+                dismissNotifiedLabel(animated: true)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if showsNotifiedLabel {
+                    Text("Notified")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.primaryDark)
+                        .transition(.opacity)
+                }
+
+                Image(systemName: isNotified ? "bell.fill" : "bell")
+                    .font(.system(size: Self.bellIconSize, weight: .semibold))
+                    .foregroundColor(AppColors.primaryDark)
+                    .frame(width: 20, height: 20)
+                    .scaleEffect(bellRingScale)
+                    .rotationEffect(.degrees(bellRingRotation))
+            }
+            .padding(.leading, showsNotifiedLabel ? 12 : 8)
+            .padding(.trailing, 8)
+            .frame(height: Self.bellSlotDiameter)
+            .background(notifyBellBackground)
+            .overlay(
+                Capsule()
+                    .stroke(AppColors.separator.opacity(0.6), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
+        .onChange(of: isNotified) { newValue in
+            if newValue {
+                playBellNotifyMicroanimation()
+            } else {
+                dismissNotifiedLabel(animated: false)
+                withAnimation(.easeOut(duration: 0.18)) {
+                    bellRingRotation = 0
+                    bellRingScale = 1
+                }
+            }
+        }
+    }
+
+    private var notifyBellBackground: some View {
+        Capsule()
+            .fill(.ultraThinMaterial)
+            .background(
+                Capsule()
+                    .fill(
+                        (isNotified || showsNotifiedLabel)
+                            ? AppColors.successBackground
+                            : AppColors.background
+                    )
+            )
+    }
+
+    private func presentNotifiedLabel() {
+        notifiedLabelHideTask?.cancel()
+        withAnimation(Self.notifyPillExpansionAnimation) {
+            showsNotifiedLabel = true
+        }
+
+        notifiedLabelHideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            dismissNotifiedLabel(animated: true)
+        }
+    }
+
+    private func dismissNotifiedLabel(animated: Bool) {
+        notifiedLabelHideTask?.cancel()
+        notifiedLabelHideTask = nil
+        guard showsNotifiedLabel else { return }
+
+        if animated {
+            withAnimation(Self.notifyPillCollapseAnimation) {
+                showsNotifiedLabel = false
+            }
+        } else {
+            showsNotifiedLabel = false
+        }
     }
 
     private func playBellNotifyMicroanimation() {
@@ -706,6 +1060,22 @@ struct EmployeeAnomalyRow: View {
                 bellRingScale = 1
             }
         }
+    }
+
+    private func selectionControl(diameter: CGFloat, iconSize: CGFloat) -> some View {
+        Group {
+            if isSelectedForNotification {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: iconSize, weight: .semibold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.white, AppColors.primaryDark)
+            } else {
+                Image(systemName: "circle")
+                    .font(.system(size: iconSize))
+                    .foregroundColor(AppColors.separator)
+            }
+        }
+        .frame(width: diameter, height: diameter)
     }
 
     private var avatarView: some View {

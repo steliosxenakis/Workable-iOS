@@ -136,6 +136,11 @@ struct HomeView: View {
     // MARK: - Team Chips
 
     @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+
+    private var directReportsIssueCount: Int {
+        TimeAttendanceMockData.directReportsWithIssueCount
+    }
 
     private var teamChips: some View {
         HStack(spacing: 8) {
@@ -147,9 +152,7 @@ struct HomeView: View {
                         .foregroundColor(AppColors.fontSecondary)
 
                     if showsAttendanceIssuesUI {
-                        Circle()
-                            .fill(AppColors.dangerBadge)
-                            .frame(width: 16, height: 16)
+                        directReportsAttendanceIndicator
                     }
 
                     Image(systemName: "chevron.right")
@@ -167,6 +170,26 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private var directReportsAttendanceIndicator: some View {
+        switch attendanceUIVersion {
+        case .v1:
+            Circle()
+                .fill(AppColors.dangerBadge)
+                .frame(width: 16, height: 16)
+        case .v2, .v3:
+            if directReportsIssueCount > 0 {
+                Text("\(directReportsIssueCount)")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.dangerDefault)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(AppColors.dangerBadge)
+                    .clipShape(Capsule())
+            }
+        }
     }
 
     private func teamChip(title: String, selected: Bool) -> some View {

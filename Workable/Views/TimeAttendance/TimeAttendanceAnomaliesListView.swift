@@ -2,23 +2,61 @@ import SwiftUI
 
 struct TimeAttendanceAnomaliesListView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab: Int = 1
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+    @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
     init(initialFilters: Set<AnomalyFilterCategory> = []) {
         _selectedFilters = State(initialValue: initialFilters)
+        let version = AttendanceUIVersion.resolved(
+            from: UserDefaults.standard.string(forKey: AttendanceUIVersion.appStorageKey)
+                ?? AttendanceUIVersion.defaultVersion.rawValue
+        )
+        _selectedTab = State(initialValue: version.usesModernAttendanceChrome ? 3 : 1)
     }
     @State private var selectedDepartment: String?
     @State private var selectedEntity: String?
     @State private var searchText = ""
     @State private var selectedDate = Date()
-    @State private var showSearchRow = true
+    @State private var showSearchRow = false
     @State private var notifiedEmployees: Set<UUID> = []
     @State private var allNotified = false
     @State private var isSelecting = false
     @State private var selectedForNotification: Set<UUID> = []
 
-    private let tabs = ["Events", "Time tracking", "On leave", "Celebrations"]
+    private var tabs: [String] {
+        switch attendanceUIVersion {
+        case .v1:
+            return ["Events", "Time tracking", "On leave", "Celebrations"]
+        case .v2, .v3:
+            return ["Events", "On leave", "Celebrations", "Attendance"]
+        }
+    }
+
+    private var attendanceTabIndex: Int {
+        attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
+    }
+
+    /// Matches `TabBarView` height; FABs sit 16pt above the menu (V1).
+    private static let mainTabBarHeight: CGFloat = 83
+    private static let floatingBarGapAboveMenu: CGFloat = 16
+    /// V2/V3 — shift floating actions 16pt lower (flush with tab bar top).
+    private static let modernFloatingBarExtraLowerOffset: CGFloat = 16
+    private static let floatingBarGradientHeight: CGFloat = 88
+
+    private func floatingBarBottomInset(for version: AttendanceUIVersion) -> CGFloat {
+        let standard = Self.mainTabBarHeight + Self.floatingBarGapAboveMenu
+        if version.usesModernAttendanceChrome {
+            return standard - Self.modernFloatingBarExtraLowerOffset
+        }
+        return standard
+    }
+
+    private var showsFloatingSelectionBar: Bool {
+        selectedTab == attendanceTabIndex
+            && (!attendanceUIVersion.usesModernAttendanceChrome || isSelecting)
+    }
+
     private let employees = TimeAttendanceMockData.employees
 
     private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"])
@@ -72,118 +110,18 @@ struct TimeAttendanceAnomaliesListView: View {
                 tabBar
 
                 Group {
-                    switch selectedTab {
-                    case 0:  placeholderTab("Events")
-                    case 1:  timeAttendanceContent
-                    case 2:  onLeaveContent
-                    case 3:  placeholderTab("Celebrations")
-                    default: Spacer()
-                    }
+                    tabContent
+                }
+            }
+            .onChange(of: attendanceUIVersion) { version in
+                selectedTab = attendanceTabIndex
+                if version == .v1 {
+                    showSearchRow = false
                 }
             }
 
-            if selectedTab == 1 {
-                HStack(spacing: 12) {
-                    if isSelecting && !filteredEmployees.isEmpty {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                let ids = selectableEmployeeIDs
-                                if allFilteredEmployeesSelected {
-                                    selectedForNotification.subtract(ids)
-                                } else {
-                                    selectedForNotification.formUnion(ids)
-                                }
-                            }
-                        } label: {
-                            Text(allFilteredEmployeesSelected ? "Deselect all" : "Select all")
-                                .font(AppFonts.subheadStrong())
-                                .foregroundColor(AppColors.primaryDark)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .background(.ultraThinMaterial)
-                                .background(.white.opacity(0.7))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
-                                .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Selects or clears everyone in the current list and filters.")
-                    }
-
-                    if isSelecting && !selectedForNotification.isEmpty {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                for id in selectedForNotification {
-                                    notifiedEmployees.insert(id)
-                                }
-                                selectedForNotification.removeAll()
-                                isSelecting = false
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "bell")
-                                    .font(.system(size: 16, weight: .semibold))
-                                Text("Notify \(selectedForNotification.count)")
-                                    .font(AppFonts.subheadStrong())
-                            }
-                            .foregroundColor(AppColors.primaryDark)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial)
-                            .background(.white.opacity(0.7))
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
-                            .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if !isSelecting {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                isSelecting = true
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 16, weight: .semibold))
-                                Text("Select")
-                                    .font(AppFonts.subheadStrong())
-                            }
-                            .foregroundColor(AppColors.primaryDark)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial)
-                            .background(.white.opacity(0.7))
-                            .clipShape(Capsule())
-                            .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
-                            .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    if isSelecting {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                selectedForNotification.removeAll()
-                                isSelecting = false
-                            }
-                        } label: {
-                            Text("Cancel")
-                                .font(AppFonts.subheadStrong())
-                                .foregroundColor(AppColors.fontSecondary)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .background(.ultraThinMaterial)
-                                .background(.white.opacity(0.7))
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
-                                .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.bottom, 90)
+            if showsFloatingSelectionBar {
+                floatingSelectionBar
             }
         }
         .background(AppColors.background)
@@ -204,16 +142,48 @@ struct TimeAttendanceAnomaliesListView: View {
                     .foregroundColor(AppColors.primaryDark)
                 }
             }
+            if attendanceUIVersion.usesModernAttendanceChrome {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.primaryDark)
-                    .overlay {
-                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                            .labelsHidden()
-                            .colorMultiply(.clear)
-                    }
-                    .fixedSize()
+                attendanceCalendarPicker
+            }
+        }
+    }
+
+    private var attendanceCalendarPicker: some View {
+        Image(systemName: "calendar")
+            .font(.system(size: 18))
+            .foregroundColor(AppColors.primaryDark)
+            .frame(width: 44, height: 44)
+            .overlay {
+                DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                    .labelsHidden()
+                    .colorMultiply(.clear)
+                    .frame(width: 44, height: 44)
+            }
+            .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        if attendanceUIVersion.usesModernAttendanceChrome {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  onLeaveContent
+            case 2:  placeholderTab("Celebrations")
+            case 3:  timeAttendanceContent
+            default: Spacer()
+            }
+        } else {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  timeAttendanceContent
+            case 2:  onLeaveContent
+            case 3:  placeholderTab("Celebrations")
+            default: Spacer()
             }
         }
     }
@@ -255,22 +225,19 @@ struct TimeAttendanceAnomaliesListView: View {
                 selectedDepartment: $selectedDepartment,
                 selectedEntity: $selectedEntity,
                 searchText: $searchText,
+                isSearchRowVisible: $showSearchRow,
                 filterCounts: filterCounts,
-                isSearchRowVisible: showSearchRow
+                attendanceVersion: attendanceUIVersion
             )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: ScrollOffsetKey.self,
-                            value: geo.frame(in: .named("taScroll")).minY
-                        )
-                    }
-                    .frame(height: 0)
-
                     if !directReportEmployees.isEmpty {
-                        employeeSection(title: "Direct reports", employees: directReportEmployees)
+                        employeeSection(
+                            title: "Direct reports",
+                            employees: directReportEmployees,
+                            showsSelectionAction: attendanceUIVersion.usesModernAttendanceChrome
+                        )
                     }
                     if !otherEmployees.isEmpty {
                         employeeSection(title: "Other employees", employees: otherEmployees)
@@ -278,26 +245,165 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, showsFloatingSelectionBar ? 140 : 16)
             }
-            .coordinateSpace(name: "taScroll")
-            .onPreferenceChange(ScrollOffsetKey.self) { offset in
-                let shouldShow = offset > -10
-                if shouldShow != showSearchRow {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showSearchRow = shouldShow
+        }
+        .background(AppColors.background)
+    }
+
+    private var floatingSelectionBar: some View {
+        ZStack(alignment: .bottom) {
+            LinearGradient(
+                stops: [
+                    .init(color: AppColors.background.opacity(0), location: 0),
+                    .init(color: AppColors.background.opacity(0.92), location: 0.55),
+                    .init(color: AppColors.background, location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: Self.floatingBarGradientHeight + 52)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+
+            HStack(spacing: 12) {
+                    if isSelecting {
+                        floatingCapsuleButton(
+                            "Cancel",
+                            foreground: AppColors.fontSecondary,
+                            style: attendanceUIVersion.usesModernAttendanceChrome ? .tertiary : .secondary
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        }
+                    }
+
+                    if isSelecting && !filteredEmployees.isEmpty {
+                        floatingCapsuleButton(
+                            allFilteredEmployeesSelected ? "Deselect all" : "Select all",
+                            style: .selectAll
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                let ids = selectableEmployeeIDs
+                                if allFilteredEmployeesSelected {
+                                    selectedForNotification.subtract(ids)
+                                } else {
+                                    selectedForNotification.formUnion(ids)
+                                }
+                            }
+                        }
+                        .accessibilityHint("Selects or clears everyone in the current list and filters.")
+                    }
+
+                    if isSelecting && !selectedForNotification.isEmpty {
+                        floatingCapsuleButton(
+                            "Notify \(selectedForNotification.count)",
+                            icon: "bell",
+                            style: .primary
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                for id in selectedForNotification {
+                                    notifiedEmployees.insert(id)
+                                }
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        }
+                    }
+
+                    if attendanceUIVersion == .v1 && !isSelecting {
+                        floatingCapsuleButton("Select", icon: "checkmark.circle") {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isSelecting = true
+                            }
+                        }
+                    }
+
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private enum FloatingCapsuleButtonStyle {
+        case secondary
+        case primary
+        case tertiary
+        case selectAll
+    }
+
+    private func floatingCapsuleButton(
+        _ title: String,
+        icon: String? = nil,
+        foreground: Color = AppColors.primaryDark,
+        style: FloatingCapsuleButtonStyle = .secondary,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                Text(title)
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(style == .primary ? .white : foreground)
+            .padding(.horizontal, style == .tertiary ? 16 : 20)
+            .padding(.vertical, 12)
+            .background {
+                switch style {
+                case .primary:
+                    Capsule().fill(AppColors.primaryDark)
+                case .selectAll:
+                    Capsule().fill(AppColors.activeBackground)
+                case .secondary:
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .background(Capsule().fill(.white.opacity(0.7)))
+                        .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                case .tertiary:
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .background(Capsule().fill(AppColors.surface.opacity(0.85)))
+                }
+            }
+            .shadow(
+                color: .black.opacity(style == .tertiary ? 0.06 : (style == .selectAll ? 0.08 : 0.1)),
+                radius: style == .tertiary ? 8 : 16,
+                y: style == .tertiary ? 3 : 6
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func employeeSection(
+        title: String,
+        employees: [EmployeeAnomaly],
+        showsSelectionAction: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.08)
+
+                Spacer(minLength: 8)
+
+                if showsSelectionAction {
+                    if !isSelecting {
+                        tertiarySelectionButton(title: "Select", icon: "checkmark.circle", foreground: AppColors.primaryDark) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isSelecting = true
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-
-    private func employeeSection(title: String, employees: [EmployeeAnomaly]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.08)
 
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
@@ -311,18 +417,12 @@ struct TimeAttendanceAnomaliesListView: View {
                                 }
                             }
                         } label: {
-                            HStack(spacing: 0) {
-                                let isSelected = selectedForNotification.contains(employee.id)
-                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.separator)
-                                    .padding(.leading, 16)
-
-                                EmployeeAnomalyRow(
-                                    employee: employee,
-                                    isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified)
-                                )
-                            }
+                            EmployeeAnomalyRow(
+                                employee: employee,
+                                isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified),
+                                isSelectionMode: true,
+                                isSelectedForNotification: selectedForNotification.contains(employee.id)
+                            )
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -351,6 +451,26 @@ struct TimeAttendanceAnomaliesListView: View {
             .background(AppColors.surface)
             .cornerRadius(16)
         }
+    }
+
+    private func tertiarySelectionButton(
+        title: String,
+        icon: String?,
+        foreground: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                Text(title)
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(foreground)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - On Leave Content
@@ -499,13 +619,6 @@ private struct OnLeaveSection: Identifiable {
     let id = UUID()
     let title: String
     let cards: [OnLeaveCard]
-}
-
-private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
 }
 
 private enum OnLeaveMockData {

@@ -50,6 +50,19 @@ struct TodayAnomalyPill: Identifiable {
     let filters: Set<AnomalyFilterCategory>
 }
 
+struct TodayIssueChip: Identifiable {
+    let category: AnomalyFilterCategory
+    let count: Int
+    let style: TodayPillStyle
+
+    var id: AnomalyFilterCategory { category }
+    var filters: Set<AnomalyFilterCategory> { [category] }
+
+    var pillTitle: String {
+        "\(count) \(category.issuePillLabel(count: count))"
+    }
+}
+
 struct TodayCelebration: Identifiable {
     let id = UUID()
     let icon: String
@@ -85,6 +98,29 @@ struct TodayWidgetData {
         return eligible.filter { $0.anomalyType == .onTrack }.count
     }
 
+    /// V1 Today attendance row — one chip per issue type (missed / no attendance / exceeded).
+    var issueChips: [TodayIssueChip] {
+        let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
+        return [
+            TodayIssueChip(
+                category: .noClockInNorOut,
+                count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,
+                style: .danger
+            ),
+            TodayIssueChip(
+                category: .noClockIn,
+                count: eligible.filter { $0.anomalyType == .noClockIn }.count,
+                style: .danger
+            ),
+            TodayIssueChip(
+                category: .exceededWorkSchedule,
+                count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count,
+                style: .danger
+            ),
+        ]
+        .filter { $0.count > 0 }
+    }
+
     static let mock = TodayWidgetData(
         events: [
             TodayEvent(title: "Call with John Doe",             time: "10:30 - 11:00", subtitle: "Software Engineer"),
@@ -110,7 +146,398 @@ struct TodayWidgetData {
     )
 }
 
-// MARK: - Version Enum & Switcher
+// MARK: - Main attendance UI versions (V1 / V2 / V3)
+
+enum AttendanceUIVersion: String, CaseIterable, Identifiable {
+    case v1 = "V1"
+    case v2 = "V2"
+    case v3 = "V3"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.attendanceUIVersion"
+    static let defaultVersion: AttendanceUIVersion = .v1
+
+    static func resolved(from rawValue: String) -> AttendanceUIVersion {
+        AttendanceUIVersion(rawValue: rawValue) ?? .v1
+    }
+
+    /// V2/V3 — Attendance tab order, search, filters, notify bell, issues chip, etc.
+    var usesModernAttendanceChrome: Bool {
+        self == .v2 || self == .v3
+    }
+
+    /// V3 — progress bars on employee rows instead of status pills.
+    var usesProgressBarEmployeeStatus: Bool {
+        self == .v3
+    }
+}
+
+private struct AttendanceUIVersionEnvironmentKey: EnvironmentKey {
+    static let defaultValue: AttendanceUIVersion = .v1
+}
+
+extension EnvironmentValues {
+    var attendanceUIVersion: AttendanceUIVersion {
+        get { self[AttendanceUIVersionEnvironmentKey.self] }
+        set { self[AttendanceUIVersionEnvironmentKey.self] = newValue }
+    }
+}
+
+struct TodayWidgetSwitcher: View {
+    let data: TodayWidgetData
+
+    @AppStorage(AttendanceUIVersion.appStorageKey) private var storedVersion =
+        AttendanceUIVersion.defaultVersion.rawValue
+
+    private var version: AttendanceUIVersion {
+        AttendanceUIVersion.resolved(from: storedVersion)
+    }
+
+    var body: some View {
+        Group {
+            switch version {
+            case .v1:
+                TodayWidgetV1(data: data)
+            case .v2, .v3:
+                TodayWidgetV2(data: data)
+            }
+        }
+    }
+}
+
+/// Miniature attendance **list page** preview — highlights what differs per version.
+private struct AttendanceUIVersionPageSnippet: View {
+    let version: AttendanceUIVersion
+
+    private var attendanceTabTitle: String {
+        version.usesModernAttendanceChrome ? "Attendance" : "Time tracking"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            snippetNavBar
+            snippetTabBar
+            snippetFilterBar
+            if version.usesModernAttendanceChrome && !version.usesProgressBarEmployeeStatus {
+                snippetSearchRow(visible: false)
+            } else if !version.usesModernAttendanceChrome {
+                snippetSearchRow(visible: true)
+            }
+            snippetSectionHeader
+            snippetEmployeeRow
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(AppColors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(AppColors.separator, lineWidth: 0.5)
+        )
+    }
+
+    private var snippetNavBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(AppColors.primaryDark)
+            Spacer()
+            if version.usesModernAttendanceChrome {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(AppColors.primaryDark)
+            }
+            Image(systemName: "calendar")
+                .font(.system(size: 9))
+                .foregroundColor(AppColors.primaryDark)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(AppColors.surface)
+    }
+
+    private var snippetTabBar: some View {
+        HStack(spacing: 0) {
+            snippetTab("Events", selected: false)
+            if version.usesModernAttendanceChrome {
+                snippetTab("On leave", selected: false)
+                snippetTab(attendanceTabTitle, selected: true)
+            } else {
+                snippetTab(attendanceTabTitle, selected: true)
+                snippetTab("On leave", selected: false)
+            }
+        }
+        .background(AppColors.surface)
+        .overlay(Rectangle().fill(AppColors.separator).frame(height: 0.5), alignment: .bottom)
+    }
+
+    private func snippetTab(_ title: String, selected: Bool) -> some View {
+        VStack(spacing: 3) {
+            Text(title)
+                .font(.system(size: 7, weight: selected ? .semibold : .regular))
+                .foregroundColor(selected ? AppColors.primaryDark : AppColors.fontSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Rectangle()
+                .fill(selected ? AppColors.primaryDark : Color.clear)
+                .frame(height: 1.5)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 5)
+    }
+
+    private var snippetFilterBar: some View {
+        HStack(spacing: 4) {
+            if version.usesModernAttendanceChrome {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(AppColors.lightBackground)
+                    .frame(width: 22, height: 22)
+                    .overlay {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
+            }
+
+            HStack(spacing: 3) {
+                snippetFilterChip("Missed (1)", selected: true)
+                snippetFilterChip("Exceeded (2)", selected: false)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(AppColors.surface)
+    }
+
+    private func snippetFilterChip(_ title: String, selected: Bool) -> some View {
+        HStack(spacing: 2) {
+            if selected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 8))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.white, AppColors.primaryDark)
+            }
+            Text(title)
+                .font(.system(size: 7, weight: .semibold))
+                .foregroundColor(selected ? AppColors.primaryDark : AppColors.fontSecondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 4)
+        .background(selected ? AppColors.activeBackground : AppColors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+
+    private func snippetSearchRow(visible: Bool) -> some View {
+        Group {
+            if visible {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 8))
+                        .foregroundColor(AppColors.iconDefault)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(AppColors.separator.opacity(0.5))
+                        .frame(height: 6)
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(AppColors.lightBackground)
+                        .frame(width: 22, height: 22)
+                        .overlay {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 8))
+                                .foregroundColor(AppColors.fontSecondary)
+                        }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(AppColors.lightBackground)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
+            }
+        }
+    }
+
+    private var snippetSectionHeader: some View {
+        HStack {
+            Text("Direct reports")
+                .font(.system(size: 7))
+                .foregroundColor(AppColors.fontSecondary)
+            Spacer()
+            if version.usesModernAttendanceChrome {
+                HStack(spacing: 2) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 7, weight: .semibold))
+                    Text("Select")
+                        .font(.system(size: 7, weight: .semibold))
+                }
+                .foregroundColor(AppColors.primaryDark)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+    }
+
+    private var snippetEmployeeRow: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Circle()
+                .fill(Color(hex: "E8E8ED"))
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 3) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppColors.fontDefault.opacity(0.85))
+                    .frame(width: 52, height: 5)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppColors.fontSecondary.opacity(0.5))
+                    .frame(width: 36, height: 4)
+
+                if version.usesProgressBarEmployeeStatus {
+                    snippetProgressStatus
+                } else {
+                    snippetPillStatus
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if version.usesModernAttendanceChrome {
+                Circle()
+                    .fill(AppColors.background)
+                    .frame(width: 18, height: 18)
+                    .overlay {
+                        Image(systemName: "bell")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(AppColors.primaryDark)
+                    }
+                    .overlay(Circle().stroke(AppColors.separator.opacity(0.6), lineWidth: 0.5))
+            } else {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 18, height: 18)
+                    .overlay {
+                        Image(systemName: "bell")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(AppColors.primaryDark)
+                    }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.horizontal, 8)
+    }
+
+    private var snippetPillStatus: some View {
+        HStack(spacing: 3) {
+            Text("-8h")
+                .font(.system(size: 6, weight: .bold))
+                .foregroundColor(AppColors.dangerDefault)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(AppColors.dangerBackground)
+                .clipShape(Capsule())
+            Text("Missed clock-in")
+                .font(.system(size: 6, weight: .medium))
+                .foregroundColor(AppColors.fontSecondary)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(AppColors.lightBackground)
+                .clipShape(Capsule())
+        }
+    }
+
+    private var snippetProgressStatus: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Missed clock-in")
+                .font(.system(size: 6, weight: .semibold))
+                .foregroundColor(AppColors.dangerDefault)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(AppColors.dangerBackground)
+                .clipShape(Capsule())
+
+            HStack(spacing: 4) {
+                Text("0h / 8h")
+                    .font(.system(size: 6))
+                    .foregroundColor(AppColors.fontSecondary)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(AppColors.informativeBackground)
+                            .frame(width: geo.size.width)
+                    }
+                }
+                .frame(height: 3)
+            }
+        }
+    }
+}
+
+/// Compact selectable previews for V1 / V2 / V3 in Settings.
+struct AttendanceUIVersionSnippets: View {
+    @Binding var selectedVersion: String
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(AttendanceUIVersion.allCases) { version in
+                    snippet(for: version)
+                }
+            }
+        }
+    }
+
+    private func snippet(for version: AttendanceUIVersion) -> some View {
+        let isSelected = AttendanceUIVersion.resolved(from: selectedVersion) == version
+
+        return Button {
+            selectedVersion = version.rawValue
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(version.rawValue)
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
+
+                AttendanceUIVersionPageSnippet(version: version)
+                    .frame(width: 148, height: 132)
+                    .allowsHitTesting(false)
+
+                Text(version.snippetCaption)
+                    .font(.system(size: 10))
+                    .foregroundColor(AppColors.fontSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(width: 168, alignment: .leading)
+            .background(isSelected ? AppColors.activeBackground : AppColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? AppColors.primaryDark : AppColors.separator, lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(version.rawValue) UI version")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private extension AttendanceUIVersion {
+    var snippetCaption: String {
+        switch self {
+        case .v1:
+            return "Time tracking tab · pills · always-visible search"
+        case .v2:
+            return "Attendance tab · pills · search icon · Select"
+        case .v3:
+            return "Like V2 · progress bars on rows"
+        }
+    }
+}
 
 enum TodayWidgetVersion: String, CaseIterable, Identifiable {
     case figma     = "Figma"
@@ -124,14 +551,6 @@ enum TodayWidgetVersion: String, CaseIterable, Identifiable {
     case dashboard = "Stats"
 
     var id: String { rawValue }
-}
-
-struct TodayWidgetSwitcher: View {
-    let data: TodayWidgetData
-
-    var body: some View {
-        TodayWidgetFigma(data: data)
-    }
 }
 
 // MARK: - Selective Corner Radius
@@ -261,6 +680,112 @@ private struct AvatarStack: View {
     }
 }
 
+private func todayCompactIssuePill(_ title: String, style: TodayPillStyle) -> some View {
+    Text(title)
+        .font(AppFonts.caption1Strong())
+        .foregroundColor(style.badgeTextColor)
+        .lineLimit(1)
+        .padding(.horizontal, 6)
+        .frame(height: 25)
+        .background(style.badgeBackground)
+        .clipShape(Capsule())
+}
+
+private struct AttendanceTitleWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+/// V1 Today row — pills start fully visible; scroll under the title fade overlay.
+private struct TodayV1AttendanceIssueScroll: View {
+    let issueChips: [TodayIssueChip]
+    private let fadeWidth: CGFloat = 36
+    private let pillHeight: CGFloat = 25
+    /// Gap between fade tail and first pill at rest.
+    private let pillStartGap: CGFloat = 12
+    @State private var titleAreaWidth: CGFloat = 96
+
+    private var scrollLeadingInset: CGFloat {
+        titleAreaWidth + fadeWidth + pillStartGap
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Color.clear
+                        .frame(width: scrollLeadingInset)
+
+                    ForEach(issueChips) { chip in
+                        NavigationLink {
+                            TimeAttendanceAnomaliesListView(initialFilters: chip.filters)
+                        } label: {
+                            todayCompactIssuePill(chip.pillTitle, style: chip.style)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    NavigationLink {
+                        TimeAttendanceAnomaliesListView(initialFilters: [])
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.fontSecondary)
+                            .padding(.horizontal, 6)
+                            .frame(height: pillHeight)
+                            .background(AppColors.separator)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(height: pillHeight)
+            }
+
+            attendanceTitleOverlay
+        }
+        .frame(minHeight: pillHeight)
+        .onPreferenceChange(AttendanceTitleWidthKey.self) { titleAreaWidth = $0 }
+    }
+
+    private var attendanceTitleOverlay: some View {
+        ZStack(alignment: .leading) {
+            ZStack(alignment: .trailing) {
+                Rectangle()
+                    .fill(AppColors.lightBackground)
+                LinearGradient(
+                    colors: [
+                        AppColors.lightBackground,
+                        AppColors.lightBackground.opacity(0),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: fadeWidth)
+                .offset(x: fadeWidth)
+            }
+            .frame(width: titleAreaWidth + fadeWidth, alignment: .leading)
+            .frame(maxHeight: .infinity)
+
+            Text("Attendance")
+                .font(AppFonts.subheadline())
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontDefault)
+                .padding(.leading, 16)
+                .padding(.trailing, 8)
+                .background {
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: AttendanceTitleWidthKey.self, value: geo.size.width)
+                    }
+                }
+        }
+        .frame(maxHeight: .infinity, alignment: .leading)
+        .allowsHitTesting(false)
+    }
+}
+
 private struct AttendanceBadge: View {
     let count: Int
     let label: String
@@ -284,9 +809,57 @@ private struct AttendanceBadge: View {
     }
 }
 
-// MARK: - Version F — Figma (faithful to design)
+// MARK: - V1 — main attendance Today UI
 
-struct TodayWidgetFigma: View {
+struct TodayWidgetV1: View {
+    let data: TodayWidgetData
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            TodayHeader()
+
+            ForEach(data.events.prefix(1)) { event in
+                EventRow(event: event)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(data.celebrations) { item in
+                    CelebrationRow(item: item)
+                }
+            }
+
+            VStack(spacing: 8) {
+                HStack {
+                    Text(data.onLeaveTitle)
+                        .font(AppFonts.subheadline())
+                        .tracking(-0.24)
+                        .foregroundColor(AppColors.fontDefault)
+                    Spacer()
+                    AvatarStack(names: data.onLeaveAvatars, overflow: data.onLeaveOverflow)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(AppColors.lightBackground)
+                .cornerRadius(16)
+
+                if showsAttendanceIssuesUI {
+                    TodayV1AttendanceIssueScroll(issueChips: data.issueChips)
+                        .padding(.vertical, 12)
+                        .background(AppColors.lightBackground)
+                        .cornerRadius(16)
+                }
+            }
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+    }
+}
+
+// MARK: - V2 — main attendance Today UI (fork for redesign)
+
+struct TodayWidgetV2: View {
     let data: TodayWidgetData
     @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
 
@@ -340,10 +913,10 @@ struct TodayWidgetFigma: View {
                             .buttonStyle(.plain)
 
                             NavigationLink {
-                                TimeAttendanceAnomaliesListView(initialFilters: [.onTrack])
+                                TimeAttendanceAnomaliesListView(initialFilters: [])
                             } label: {
-                                Text("\(data.onTrackCount) On track")
-                                    .font(AppFonts.caption1Strong())
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundColor(AppColors.fontSecondary)
                                     .padding(.horizontal, 6)
                                     .frame(height: 25)

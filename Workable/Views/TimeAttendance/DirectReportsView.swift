@@ -61,6 +61,7 @@ struct DirectReportsView: View {
 // MARK: - Row (avatar, name, role; optional calendar badge — Figma)
 
 private struct DirectReportRow: View {
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
     let employee: EmployeeAnomaly
     var showAnomalyPills: Bool = true
 
@@ -96,7 +97,11 @@ private struct DirectReportRow: View {
                     .tracking(-0.24)
 
                 if showAnomalyPills {
-                    EmployeeAnomalyStatusPills(employee: employee)
+                    if attendanceUIVersion.usesProgressBarEmployeeStatus {
+                        EmployeeAnomalyProgressStatus(employee: employee)
+                    } else {
+                        EmployeeAnomalyStatusPills(employee: employee)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -3,6 +3,12 @@ import SwiftUI
 struct RootView: View {
     @State private var selectedTab: TabItem = .home
     private static let showsAttendanceIssuesUIKey = "settings.showAttendanceIssuesUI"
+    @AppStorage(AttendanceUIVersion.appStorageKey) private var attendanceUIVersionRaw =
+        AttendanceUIVersion.defaultVersion.rawValue
+
+    private var attendanceUIVersion: AttendanceUIVersion {
+        AttendanceUIVersion.resolved(from: attendanceUIVersionRaw)
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -21,6 +27,7 @@ struct RootView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .environment(\.attendanceUIVersion, attendanceUIVersion)
 
             TabBarView(selectedTab: $selectedTab)
         }
@@ -36,6 +43,8 @@ struct RootView: View {
 private struct SettingsTabView: View {
     let showsAttendanceIssuesUIKey: String
     @AppStorage private var showsAttendanceIssuesUI: Bool
+    @AppStorage(AttendanceUIVersion.appStorageKey) private var attendanceUIVersion =
+        AttendanceUIVersion.defaultVersion.rawValue
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey
@@ -47,6 +56,18 @@ private struct SettingsTabView: View {
             Form {
                 Section("Attendance") {
                     Toggle("Show attendance UI", isOn: $showsAttendanceIssuesUI)
+
+                    if showsAttendanceIssuesUI {
+                        Picker("UI version", selection: $attendanceUIVersion) {
+                            ForEach(AttendanceUIVersion.allCases) { version in
+                                Text(version.rawValue).tag(version.rawValue)
+                            }
+                        }
+
+                        AttendanceUIVersionSnippets(selectedVersion: $attendanceUIVersion)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 16, trailing: 16))
+                            .listRowBackground(AppColors.background)
+                    }
                 }
             }
             .navigationTitle("Settings")
