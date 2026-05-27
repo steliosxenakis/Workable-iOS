@@ -721,7 +721,7 @@ private func todayCompactIssuePill(_ title: String, style: TodayPillStyle) -> so
 }
 
 private struct AttendanceTitleWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
@@ -882,7 +882,7 @@ struct TodayWidgetV1: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -967,7 +967,7 @@ struct TodayWidgetV2: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -1083,7 +1083,7 @@ struct TodayWidgetV4: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -1132,7 +1132,7 @@ struct TodayWidgetClassic: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 
     private func pillView(label: String, count: Int, style: TodayPillStyle) -> some View {
@@ -1248,7 +1248,7 @@ struct TodayWidgetCompact: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -1363,7 +1363,7 @@ struct TodayWidgetCardGrid: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 
     private func gridCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -1448,7 +1448,7 @@ struct TodayWidgetRich: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 
     private var progressSection: some View {
@@ -1609,7 +1609,7 @@ struct TodayWidgetTimeline: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 
     private func timelineDot(for kind: TimelineNode.Kind) -> some View {
@@ -1747,7 +1747,7 @@ struct TodayWidgetMagazine: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -1849,7 +1849,7 @@ struct TodayWidgetBento: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 }
 
@@ -1934,7 +1934,7 @@ struct TodayWidgetDashboard: View {
         }
         .padding(16)
         .background(AppColors.surface)
-        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
+        .cornerRadius(16)
     }
 
     private func statCard(value: String, label: String, color: Color) -> some View {

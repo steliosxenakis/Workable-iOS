@@ -35,6 +35,30 @@
 		A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000064 /* PersonalTimeTrackingView.swift */; };
 		A10000000000000000000065 /* DirectReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000066 /* DirectReportsView.swift */; };
 		A10000000000000000000069 /* TodayWidgetVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000006A /* TodayWidgetVariants.swift */; };
+		A10000000000000000000079 /* DisqualifyConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000078 /* DisqualifyConfirmationSheet.swift */; };
+		A1000000000000000000007B /* SendEmailConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000007A /* SendEmailConfirmationSheet.swift */; };
+		A1000000000000000000007D /* SendTextConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000007C /* SendTextConfirmationSheet.swift */; };
+		A1000000000000000000007F /* ComposeTextMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000007E /* ComposeTextMessageView.swift */; };
+		A10000000000000000000081 /* CreateEventConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000080 /* CreateEventConfirmationSheet.swift */; };
+		A10000000000000000000083 /* MoveToJobConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000082 /* MoveToJobConfirmationSheet.swift */; };
+		A10000000000000000000085 /* DisqualificationReasonSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000084 /* DisqualificationReasonSheet.swift */; };
+		A10000000000000000000087 /* DisqualifySecondaryFollowUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000086 /* DisqualifySecondaryFollowUpSheet.swift */; };
+		A10000000000000000000089 /* DisqualifyFinalConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000088 /* DisqualifyFinalConfirmationSheet.swift */; };
+		A1000000000000000000008B /* SendEmailFollowUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000008A /* SendEmailFollowUpSheet.swift */; };
+		A1000000000000000000008D /* SendTextSecondaryFollowUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000008C /* SendTextSecondaryFollowUpSheet.swift */; };
+		A1000000000000000000008F /* SendTextFinalConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000008E /* SendTextFinalConfirmationSheet.swift */; };
+		A10000000000000000000091 /* CreateEventFollowUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000090 /* CreateEventFollowUpSheet.swift */; };
+		A10000000000000000000093 /* MoveToJobSecondaryFollowUpSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000092 /* MoveToJobSecondaryFollowUpSheet.swift */; };
+		A10000000000000000000095 /* SelectJobSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000094 /* SelectJobSheet.swift */; };
+		A10000000000000000000097 /* ConfirmationSheetFitBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000096 /* ConfirmationSheetFitBanner.swift */; };
+		A10000000000000000000099 /* AgentStatusTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000098 /* AgentStatusTimelineView.swift */; };
+		A1000000000000000000009B /* AgentStatusCollapsibleCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000009A /* AgentStatusCollapsibleCard.swift */; };
+		A1000000000000000000009C /* SurveyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000009D /* SurveyModels.swift */; };
+		A1000000000000000000009E /* SurveyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000009F /* SurveyDetailView.swift */; };
+		A100000000000000000000A0 /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A1 /* InboxView.swift */; };
+		A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A5 /* SurveyWelcomeSheet.swift */; };
+		A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A7 /* SurveyQuestionView.swift */; };
+		A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A8 /* TextMessageDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -67,6 +91,30 @@
 		A10000000000000000000064 /* PersonalTimeTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalTimeTrackingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000066 /* DirectReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectReportsView.swift; sourceTree = "<group>"; };
 		A1000000000000000000006A /* TodayWidgetVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetVariants.swift; sourceTree = "<group>"; };
+		A10000000000000000000078 /* DisqualifyConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisqualifyConfirmationSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000007A /* SendEmailConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendEmailConfirmationSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000007C /* SendTextConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendTextConfirmationSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000007E /* ComposeTextMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeTextMessageView.swift; sourceTree = "<group>"; };
+		A10000000000000000000080 /* CreateEventConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEventConfirmationSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000082 /* MoveToJobConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveToJobConfirmationSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000084 /* DisqualificationReasonSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisqualificationReasonSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000086 /* DisqualifySecondaryFollowUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisqualifySecondaryFollowUpSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000088 /* DisqualifyFinalConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisqualifyFinalConfirmationSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000008A /* SendEmailFollowUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendEmailFollowUpSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000008C /* SendTextSecondaryFollowUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendTextSecondaryFollowUpSheet.swift; sourceTree = "<group>"; };
+		A1000000000000000000008E /* SendTextFinalConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendTextFinalConfirmationSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000090 /* CreateEventFollowUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateEventFollowUpSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000092 /* MoveToJobSecondaryFollowUpSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoveToJobSecondaryFollowUpSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000094 /* SelectJobSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectJobSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000000096 /* ConfirmationSheetFitBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmationSheetFitBanner.swift; sourceTree = "<group>"; };
+		A10000000000000000000098 /* AgentStatusTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusTimelineView.swift; sourceTree = "<group>"; };
+		A1000000000000000000009A /* AgentStatusCollapsibleCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentStatusCollapsibleCard.swift; sourceTree = "<group>"; };
+		A1000000000000000000009D /* SurveyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyModels.swift; sourceTree = "<group>"; };
+		A1000000000000000000009F /* SurveyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000A1 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
+		A100000000000000000000A5 /* SurveyWelcomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyWelcomeSheet.swift; sourceTree = "<group>"; };
+		A100000000000000000000A7 /* SurveyQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyQuestionView.swift; sourceTree = "<group>"; };
+		A100000000000000000000A8 /* TextMessageDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextMessageDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -133,8 +181,29 @@
 				A10000000000000000000008 /* CandidatesBrowserView.swift */,
 				A1000000000000000000001E /* Components */,
 				A10000000000000000000058 /* TimeAttendance */,
+				A100000000000000000000A2 /* Surveys */,
+				A100000000000000000000A3 /* Inbox */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000A2 /* Surveys */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000009D /* SurveyModels.swift */,
+				A1000000000000000000009F /* SurveyDetailView.swift */,
+				A100000000000000000000A5 /* SurveyWelcomeSheet.swift */,
+				A100000000000000000000A7 /* SurveyQuestionView.swift */,
+			);
+			path = Surveys;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000A3 /* Inbox */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000A1 /* InboxView.swift */,
+			);
+			path = Inbox;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000058 /* TimeAttendance */ = {
@@ -167,6 +236,25 @@
 				A1000000000000000000000E /* JobHeaderView.swift */,
 				A10000000000000000000010 /* NavBarView.swift */,
 				A10000000000000000000012 /* TabBarView.swift */,
+				A10000000000000000000078 /* DisqualifyConfirmationSheet.swift */,
+				A1000000000000000000007A /* SendEmailConfirmationSheet.swift */,
+				A1000000000000000000007C /* SendTextConfirmationSheet.swift */,
+				A1000000000000000000007E /* ComposeTextMessageView.swift */,
+				A10000000000000000000080 /* CreateEventConfirmationSheet.swift */,
+				A10000000000000000000082 /* MoveToJobConfirmationSheet.swift */,
+				A10000000000000000000084 /* DisqualificationReasonSheet.swift */,
+				A10000000000000000000086 /* DisqualifySecondaryFollowUpSheet.swift */,
+				A10000000000000000000088 /* DisqualifyFinalConfirmationSheet.swift */,
+				A1000000000000000000008A /* SendEmailFollowUpSheet.swift */,
+				A1000000000000000000008C /* SendTextSecondaryFollowUpSheet.swift */,
+				A1000000000000000000008E /* SendTextFinalConfirmationSheet.swift */,
+				A10000000000000000000090 /* CreateEventFollowUpSheet.swift */,
+				A10000000000000000000092 /* MoveToJobSecondaryFollowUpSheet.swift */,
+				A10000000000000000000094 /* SelectJobSheet.swift */,
+				A10000000000000000000096 /* ConfirmationSheetFitBanner.swift */,
+				A10000000000000000000098 /* AgentStatusTimelineView.swift */,
+				A1000000000000000000009A /* AgentStatusCollapsibleCard.swift */,
+				A100000000000000000000A8 /* TextMessageDetailView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -267,6 +355,30 @@
 				A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */,
 				A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */,
 				A10000000000000000000065 /* DirectReportsView.swift in Sources */,
+				A10000000000000000000079 /* DisqualifyConfirmationSheet.swift in Sources */,
+				A1000000000000000000007B /* SendEmailConfirmationSheet.swift in Sources */,
+				A1000000000000000000007D /* SendTextConfirmationSheet.swift in Sources */,
+				A1000000000000000000007F /* ComposeTextMessageView.swift in Sources */,
+				A10000000000000000000081 /* CreateEventConfirmationSheet.swift in Sources */,
+				A10000000000000000000083 /* MoveToJobConfirmationSheet.swift in Sources */,
+				A10000000000000000000085 /* DisqualificationReasonSheet.swift in Sources */,
+				A10000000000000000000087 /* DisqualifySecondaryFollowUpSheet.swift in Sources */,
+				A10000000000000000000089 /* DisqualifyFinalConfirmationSheet.swift in Sources */,
+				A1000000000000000000008B /* SendEmailFollowUpSheet.swift in Sources */,
+				A1000000000000000000008D /* SendTextSecondaryFollowUpSheet.swift in Sources */,
+				A1000000000000000000008F /* SendTextFinalConfirmationSheet.swift in Sources */,
+				A10000000000000000000091 /* CreateEventFollowUpSheet.swift in Sources */,
+				A10000000000000000000093 /* MoveToJobSecondaryFollowUpSheet.swift in Sources */,
+				A10000000000000000000095 /* SelectJobSheet.swift in Sources */,
+				A10000000000000000000097 /* ConfirmationSheetFitBanner.swift in Sources */,
+				A10000000000000000000099 /* AgentStatusTimelineView.swift in Sources */,
+				A1000000000000000000009B /* AgentStatusCollapsibleCard.swift in Sources */,
+				A1000000000000000000009C /* SurveyModels.swift in Sources */,
+				A1000000000000000000009E /* SurveyDetailView.swift in Sources */,
+				A100000000000000000000A0 /* InboxView.swift in Sources */,
+				A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */,
+				A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */,
+				A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

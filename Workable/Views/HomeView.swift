@@ -10,6 +10,7 @@ struct HomeView: View {
     private enum DashboardRoute: Hashable {
         case directReports
         case job(JobItem)
+        case surveyDetail(SurveyItem)
     }
 
     private let todayData = TodayWidgetData.mock
@@ -41,7 +42,11 @@ struct HomeView: View {
 
                     // ── Remaining cards ──
                     VStack(spacing: 12) {
-                        TodayWidgetSwitcher(data: todayData)
+                        if showsAttendanceIssuesUI {
+                            TodayWidgetSwitcher(data: todayData)
+                        } else {
+                            todaySimpleWidget
+                        }
                         timeOffSection
                         jobsSection
                         candidatesSection
@@ -56,12 +61,15 @@ struct HomeView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 homeNavBarArea
             }
+            .tint(AppColors.primaryDark)
             .navigationDestination(for: DashboardRoute.self) { route in
                 switch route {
                 case .directReports:
                     DirectReportsView()
                 case .job(let job):
                     CandidatesBrowserView(jobTitle: job.title, jobSubtitle: job.details)
+                case .surveyDetail(let survey):
+                    SurveyDetailView(survey: survey)
                 }
             }
         }
@@ -290,7 +298,12 @@ struct HomeView: View {
 
     // MARK: - To-dos
 
-    /// Figma 15353-17276: empty state
+    @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+
+    private var todoSurveyItems: [SurveyItem] {
+        surveysEnabled ? SurveyMockData.items : []
+    }
+
     private var todosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("To-dos")
@@ -299,16 +312,153 @@ struct HomeView: View {
                 .foregroundColor(AppColors.fontDefault)
                 .padding(.horizontal, 16)
 
-            Text("All done for now.")
-                .font(AppFonts.subheadline())
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.41)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(AppColors.surface)
-                .cornerRadius(16)
-                .padding(.horizontal, 16)
+            if todoSurveyItems.isEmpty {
+                Text("All done for now.")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.41)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(AppColors.surface)
+                    .cornerRadius(16)
+                    .padding(.horizontal, 16)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(todoSurveyItems) { item in
+                            NavigationLink(value: DashboardRoute.surveyDetail(item)) {
+                                TodoSurveyCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        TodoGenericCard(
+                            title: "Review your profile",
+                            subtitle: "Review updated profile."
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
         }
+    }
+
+    // MARK: - Today Simple Widget (no attendance)
+
+    private var todaySimpleWidget: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Today")
+                    .font(.system(size: 22, weight: .semibold))
+                    .tracking(0.35)
+                    .foregroundColor(AppColors.fontDefault)
+                Spacer()
+                Button("View all") {}
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(AppColors.primaryDark)
+                    .buttonStyle(.plain)
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                todayEventRow(
+                    title: "Call with John Doe",
+                    subtitle: "10:30 - 11:00 · Software Engineer"
+                )
+                Divider()
+                todayEventRow(
+                    title: "Interview with Elissa McArthur",
+                    subtitle: "9:30 - 10:00 · Product Designer"
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppColors.dangerBackground)
+                            .frame(width: 40, height: 40)
+                        Image("icon-gift")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(Color(hex: "E9756D"))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Birthdays")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .tracking(-0.24)
+                        Text("Doe, John +2")
+                            .font(AppFonts.body())
+                            .foregroundColor(AppColors.fontDefault)
+                            .tracking(-0.41)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppColors.successBackground)
+                            .frame(width: 40, height: 40)
+                        Image("icon-pyro")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(Color(hex: "37B086"))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Holidays")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .tracking(-0.24)
+                        Text("Christmas day")
+                            .font(AppFonts.body())
+                            .foregroundColor(AppColors.fontDefault)
+                            .tracking(-0.41)
+                    }
+                }
+            }
+
+            HStack {
+                Text("No employees on leave")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.24)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.iconDefault)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AppColors.lightBackground)
+            .cornerRadius(16)
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+    }
+
+    private func todayEventRow(title: String, subtitle: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+            }
+            Spacer()
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16))
+                .foregroundColor(AppColors.iconDefault)
+        }
+        .padding(.vertical, 12)
     }
 
     // MARK: - Time Off
@@ -511,6 +661,76 @@ private extension HomeView {
         let title: String
         let details: String
         let candidateCount: Int
+    }
+}
+
+// MARK: - Todo Cards
+
+private struct TodoSurveyCard: View {
+    let item: SurveyItem
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.isReminder ? "Reminder to complete \(item.surveyName)" : "Start \(item.surveyName)")
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(item.deadline != nil ? "Share your feedback by \(item.deadline!)." : "Share your feedback.")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.iconDefault)
+        }
+        .padding(16)
+        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+        .frame(height: 100)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+    }
+}
+
+private struct TodoGenericCard: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.iconDefault)
+        }
+        .padding(16)
+        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+        .frame(height: 100)
+        .background(AppColors.surface)
+        .cornerRadius(16)
     }
 }
 

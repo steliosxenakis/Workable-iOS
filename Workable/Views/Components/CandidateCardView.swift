@@ -102,6 +102,12 @@ struct AvatarWithScoreView: View {
 
     private let avatarSize: CGFloat = 50
     private let ringWidth: CGFloat = 2.5
+    private let reviewDimOpacity: Double = 0.5
+    private let haloShimmerPeriod: Double = 3.2
+
+    private var isReviewDimmed: Bool {
+        agentIsReviewing || fitEvaluationInProgress
+    }
 
     init(
         matchScore: Int?,
@@ -131,7 +137,7 @@ struct AvatarWithScoreView: View {
                     }
 
                     // Purple progress arc proportional to match score
-                    if let score = matchScore, !(agentIsReviewing || fitEvaluationInProgress) {
+                    if let score = matchScore, !isReviewDimmed {
                         Circle()
                             .trim(from: 0, to: CGFloat(score) / 100)
                             .stroke(
@@ -142,8 +148,9 @@ struct AvatarWithScoreView: View {
                             .rotationEffect(.degrees(90))
                     }
 
-                    if (agentIsReviewing || fitEvaluationInProgress), matchScore != nil {
+                    if isReviewDimmed, matchScore != nil {
                         reviewingHaloShimmer(color: AppColors.aiDefault)
+                            .opacity(reviewDimOpacity)
                     }
 
                     // Avatar image inset inside the ring
@@ -175,7 +182,7 @@ struct AvatarWithScoreView: View {
                     .frame(width: avatarSize - ringWidth * 2 - 2,
                            height: avatarSize - ringWidth * 2 - 2)
                     .clipShape(Circle())
-                    .opacity((agentIsReviewing || fitEvaluationInProgress) ? 0.6 : 1)
+                    .opacity(isReviewDimmed ? reviewDimOpacity : 1)
                 }
                 
                 if let score = matchScore {
@@ -186,6 +193,7 @@ struct AvatarWithScoreView: View {
                             .font(AppFonts.caption1())
                     }
                     .foregroundColor(AppColors.aiDefault)
+                    .opacity(isReviewDimmed ? reviewDimOpacity : 1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .background(AppColors.aiBackground)
@@ -220,10 +228,9 @@ struct AvatarWithScoreView: View {
 
     /// Travelling highlight on the halo while the agent is in the review step.
     private func reviewingHaloShimmer(color: Color) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 45.0, paused: false)) { timeline in
-            let period = 2.0
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
-            let angleDegrees = (t.truncatingRemainder(dividingBy: period) / period) * 360.0
+            let angleDegrees = (t.truncatingRemainder(dividingBy: haloShimmerPeriod) / haloShimmerPeriod) * 360.0
             Circle()
                 .stroke(
                     AngularGradient(

@@ -20,6 +20,8 @@ struct RootView: View {
                     NavigationStack {
                         CandidatesBrowserView()
                     }
+                case .inbox:
+                    InboxView()
                 case .settings:
                     SettingsTabView(showsAttendanceIssuesUIKey: Self.showsAttendanceIssuesUIKey)
                 default:
@@ -45,6 +47,9 @@ private struct SettingsTabView: View {
     @AppStorage private var showsAttendanceIssuesUI: Bool
     @AppStorage(AttendanceUIVersion.appStorageKey) private var attendanceUIVersion =
         AttendanceUIVersion.defaultVersion.rawValue
+    @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
+    @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+    @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey
@@ -68,6 +73,18 @@ private struct SettingsTabView: View {
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 16, trailing: 16))
                             .listRowBackground(AppColors.background)
                     }
+                }
+
+                Section("Messaging") {
+                    Toggle("WhatsApp", isOn: $whatsAppEnabled)
+                }
+
+                Section("Features") {
+                    Toggle("Surveys", isOn: $surveysEnabled)
+                }
+
+                Section("Agent") {
+                    Toggle("Hide agent confirmations", isOn: $hideAgentConfirmations)
                 }
             }
             .navigationTitle("Settings")

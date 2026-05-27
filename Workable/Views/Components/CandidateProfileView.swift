@@ -7,6 +7,8 @@ struct CandidateProfileView: View {
     private let showsCandidateTimeline = true
     @Environment(\.dismiss) private var dismiss
     @AppStorage(DisqualifyConfirmationSheet.suppressConfirmationAppStorageKey) private var suppressDisqualifyConfirmation = false
+    @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
+    @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
     @State private var selectedTab: Int
     @State private var showProfileContactMenu = false
     @State private var showOverflowActionMenu = false
@@ -114,12 +116,68 @@ struct CandidateProfileView: View {
         let title: String
         let time: String
         let actorInitials: String
+        var actorAvatar: String? = nil
+        var deliveryStatus: String? = nil
+        var deliveryFailed: Bool = false
+        var previewText: String? = nil
+        var failedReason: String? = nil
+        var sentViaWhatsApp: Bool = false
     }
-    
+
+    @State private var showTextMessageTimeline = false
+    @State private var showTextMessageDetail = false
+    @State private var sentMessageText = ""
+    @State private var showWhatsAppNotAvailable = false
+
     private var profileTimelineItems: [ProfileTimelineItem] {
-        return [
-            ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS")
-        ]
+        var items: [ProfileTimelineItem] = []
+
+        if candidate.name == "Tyler Anderson" {
+            items.append(ProfileTimelineItem(
+                id: "declined",
+                title: "Tyler has declined messages about the Software Engineer role.",
+                time: "1 day ago",
+                actorInitials: "TA",
+                actorAvatar: "avatar-tyler",
+                deliveryStatus: "Not interested",
+                deliveryFailed: true
+            ))
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "1 day ago",
+                actorInitials: "NS",
+                deliveryStatus: "Not delivered",
+                deliveryFailed: true,
+                previewText: "Dear Rachael, thank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We..."
+            ))
+        } else if candidate.name == "Abdi Hassan" {
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "1 day ago",
+                actorInitials: "NS",
+                deliveryStatus: "Not delivered",
+                deliveryFailed: true,
+                previewText: "Dear Rachael, thank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We...",
+                failedReason: "You have reached the limit of conversations with this candidate.",
+                sentViaWhatsApp: true
+            ))
+        } else if showTextMessageTimeline {
+            let isWhatsApp = whatsAppEnabled && candidate.name == "Emma Clark"
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "16 minutes ago",
+                actorInitials: "NS",
+                deliveryStatus: isWhatsApp ? "Read" : "Delivered",
+                previewText: sentMessageText,
+                sentViaWhatsApp: isWhatsApp
+            ))
+        }
+
+        items.append(ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS"))
+        return items
     }
     
     var body: some View {
@@ -201,7 +259,11 @@ struct CandidateProfileView: View {
         .sheet(isPresented: $showTextMessageCompose) {
             ComposeTextMessageView(
                 candidateName: candidate.name,
-                candidatePhone: "+3069282893"
+                candidatePhone: "+3069282893",
+                onSend: { text in
+                    sentMessageText = text
+                    withAnimation { showTextMessageTimeline = true }
+                }
             )
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
@@ -247,6 +309,31 @@ struct CandidateProfileView: View {
                 .presentationCornerRadius(10)
                 .presentationBackground(AppColors.surface)
         }
+        .navigationDestination(isPresented: $showTextMessageDetail) {
+            TextMessageDetailView(
+                candidateName: candidate.name,
+                candidateRole: candidate.role,
+                candidateAvatar: candidate.avatarName ?? "avatar-emma",
+                messageText: (candidate.name == "Tyler Anderson" || candidate.name == "Abdi Hassan") ? "Dear Rachael,\nthank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We would like to have a short call to schedule event you, are you available at 18.00 next Monday?\nYours sincerely,\nNatalie" : sentMessageText,
+                deliveryFailed: candidate.name == "Tyler Anderson" || candidate.name == "Abdi Hassan",
+                failedReason: candidate.name == "Abdi Hassan" ? "You have reached the limit of conversations with this candidate." : nil,
+                sentViaWhatsApp: candidate.name == "Abdi Hassan" || candidate.name == "Tyler Anderson" || (whatsAppEnabled && candidate.name == "Emma Clark")
+            )
+        }
+        .alert("WhatsApp not available", isPresented: $showWhatsAppNotAvailable) {
+            if candidate.name == "Liam Foster" {
+                Button("Cancel", role: .cancel) {}
+                Button("Send SMS") { performSendTextAction() }
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: {
+            if candidate.name == "Liam Foster" {
+                Text("The WhatsApp integration needs attention, support team is working on it. You can still message this candidate by SMS.")
+            } else {
+                Text("The WhatsApp integration needs attention, support team is working on it.")
+            }
+        }
         .onAppear {
             if shouldAutoStartFitEvaluation {
                 shouldAutoStartFitEvaluation = false
@@ -257,6 +344,10 @@ struct CandidateProfileView: View {
 
     private func performDisqualifyAction() {
         // TODO: Wire disqualify API / navigation when available.
+    }
+
+    private func performMoveToJobAction() {
+        // TODO: Wire move-to-job API / navigation when available.
     }
 
     @State private var showTextMessageCompose = false
@@ -336,30 +427,56 @@ struct CandidateProfileView: View {
                     switch action {
                     case .sendEmail:
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showSendEmailConfirmation = true
+                            if hideAgentConfirmations {
+                                showEmailTemplateSheet = true
+                            } else {
+                                showSendEmailConfirmation = true
+                            }
                         }
                     case .sendText:
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showSendTextConfirmation = true
+                            if candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson" {
+                                showWhatsAppNotAvailable = true
+                            } else if hideAgentConfirmations {
+                                performSendTextAction()
+                            } else {
+                                showSendTextConfirmation = true
+                            }
                         }
                     case .createEvent:
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showCreateEventConfirmation = true
+                            if hideAgentConfirmations {
+                                showCreateEvent = true
+                            } else {
+                                showCreateEventConfirmation = true
+                            }
                         }
                     default:
                         break
                     }
                 } label: {
                     HStack {
-                        Text(action.label)
+                        Text(action == .sendText && (whatsAppEnabled && candidate.name == "Emma Clark" || candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson") ? "Send text message" : action.label)
                             .font(.system(size: 17, weight: .regular))
                             .tracking(-0.41)
                             .foregroundColor(AppColors.fontDefault)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 8)
-                        Image(systemName: action.icon)
-                            .font(.system(size: 16))
-                            .foregroundColor(AppColors.iconDefault)
+                        if action == .sendText && (whatsAppEnabled && candidate.name == "Emma Clark" || candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson") {
+                            Image("icon-whatsapp")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        } else if action == .sendText {
+                            Image("icon-sms")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        } else {
+                            Image(systemName: action.icon)
+                                .font(.system(size: 16))
+                                .foregroundColor(AppColors.iconDefault)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 48)
@@ -401,11 +518,19 @@ struct CandidateProfileView: View {
                     switch action {
                     case .moveToJob:
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showMoveToJobConfirmation = true
+                            if hideAgentConfirmations {
+                                performMoveToJobAction()
+                            } else {
+                                showMoveToJobConfirmation = true
+                            }
                         }
                     case .disqualify:
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            showDisqualifyConfirmation = true
+                            if hideAgentConfirmations {
+                                performDisqualifyAction()
+                            } else {
+                                showDisqualifyConfirmation = true
+                            }
                         }
                     default:
                         break
@@ -539,10 +664,17 @@ struct CandidateProfileView: View {
             Rectangle()
                 .fill(AppColors.separator)
                 .frame(height: 1)
-            
+
             ForEach(profileTimelineItems) { item in
-                profileTimelineRow(item: item)
-                
+                if item.id == "text" {
+                    Button { showTextMessageDetail = true } label: {
+                        profileTimelineRow(item: item)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    profileTimelineRow(item: item)
+                }
+
                 Rectangle()
                     .fill(AppColors.separator)
                     .frame(height: 1)
@@ -557,29 +689,74 @@ struct CandidateProfileView: View {
                 .frame(width: 6, height: 6)
                 .padding(.leading, 6)
                 .padding(.top, 20)
-            
+
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(AppFonts.headline())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-                
-                Text(item.time)
-                    .font(AppFonts.subheadline())
-                    .tracking(-0.24)
-                    .foregroundColor(Color(hex: "9E9D9C"))
+                HStack(alignment: .top, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title)
+                            .font(AppFonts.headline())
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+
+                        HStack(spacing: 4) {
+                            Text(item.time)
+                                .font(AppFonts.subheadline())
+                                .tracking(-0.24)
+                                .foregroundColor(AppColors.fontSecondary)
+
+                            if let status = item.deliveryStatus {
+                                if item.deliveryFailed {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(AppColors.dangerDefault)
+                                    Text(status)
+                                        .font(AppFonts.subheadline())
+                                        .tracking(-0.24)
+                                        .foregroundColor(AppColors.dangerDefault)
+                                } else {
+                                    Text("·")
+                                        .font(AppFonts.subheadline())
+                                        .foregroundColor(AppColors.fontSecondary)
+                                    Image("icon-delivered")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 16, height: 16)
+                                    Text(status)
+                                        .font(AppFonts.subheadline())
+                                        .tracking(-0.24)
+                                        .foregroundColor(AppColors.fontSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let avatar = item.actorAvatar {
+                        Image(avatar)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(Color(hex: "8A8986"))
+                            .frame(width: 30, height: 30)
+                            .overlay(
+                                Text(item.actorInitials)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+
+                if let preview = item.previewText {
+                    Text(preview)
+                        .font(AppFonts.body())
+                        .tracking(-0.41)
+                        .foregroundColor(AppColors.fontDefault)
+                }
             }
             .padding(.leading, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Circle()
-                .fill(Color(hex: "8A8986"))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Text(item.actorInitials)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
-                )
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
