@@ -3,6 +3,7 @@ import SwiftUI
 struct TimeAttendanceAnomaliesListView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+    @Environment(\.attendanceMVP) private var attendanceMVP
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
@@ -12,7 +13,7 @@ struct TimeAttendanceAnomaliesListView: View {
             from: UserDefaults.standard.string(forKey: AttendanceUIVersion.appStorageKey)
                 ?? AttendanceUIVersion.defaultVersion.rawValue
         )
-        let defaultTab = version.usesModernAttendanceChrome ? 3 : 1
+        let defaultTab = version == .v6 ? 1 : version.usesModernAttendanceChrome ? 3 : 1
         _selectedTab = State(initialValue: initialTab ?? defaultTab)
     }
     @State private var selectedDepartment: String?
@@ -20,6 +21,27 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var searchText = ""
     @State private var selectedDate = Date()
     @State private var showSearchRow = false
+
+    /// V5 — past-date attendance is read-only (no bells, no selection).
+    private var isViewingNonTodayDate: Bool {
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6) && !Calendar.current.isDateInToday(selectedDate)
+    }
+
+    private var isViewingFutureDate: Bool {
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6) && selectedDate > Date()
+    }
+
+    private var isViewingPastDate: Bool {
+        isViewingNonTodayDate && !isViewingFutureDate
+    }
+
+    private var navigationDateTitle: String {
+        guard attendanceUIVersion == .v5 || attendanceUIVersion == .v6 else { return "7 April 2025" }
+        if attendanceUIVersion == .v5 && Calendar.current.isDateInToday(selectedDate) { return "Today" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM yyyy"
+        return formatter.string(from: selectedDate)
+    }
     @State private var notifiedEmployees: Set<UUID> = []
     @State private var allNotified = false
     @State private var isSelecting = false
@@ -29,13 +51,16 @@ struct TimeAttendanceAnomaliesListView: View {
         switch attendanceUIVersion {
         case .v1:
             return ["Events", "Time tracking", "On leave", "Celebrations"]
-        case .v2, .v3, .v4:
+        case .v6:
+            return ["Events", "Attendance", "On leave", "Celebrations"]
+        case .v2, .v3, .v4, .v5:
             return ["Events", "On leave", "Celebrations", "Attendance"]
         }
     }
 
     private var attendanceTabIndex: Int {
-        attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
+        if attendanceUIVersion == .v6 { return 1 }
+        return attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
     }
 
     /// Matches `TabBarView` height; FABs sit 16pt above the menu (V1).
@@ -54,16 +79,24 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var showsFloatingSelectionBar: Bool {
-        selectedTab == attendanceTabIndex
+        !attendanceMVP
+            && !isViewingNonTodayDate
+            && selectedTab == attendanceTabIndex
             && (!attendanceUIVersion.usesModernAttendanceChrome || isSelecting)
     }
 
-    private let employees = TimeAttendanceMockData.employees
+    private var employees: [EmployeeAnomaly] {
+        if attendanceUIVersion == .v5 || attendanceUIVersion == .v6 {
+            return TimeAttendanceMockData.employees(for: selectedDate)
+        }
+        return TimeAttendanceMockData.employees
+    }
 
-    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"])
+    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe", "Tomasevic, George"])
 
     private var eligibleEmployees: [EmployeeAnomaly] {
-        employees.filter { !$0.hasScheduleIcon }
+        if attendanceUIVersion.usesV6IssueBannerStyle { return employees }
+        return employees.filter { !$0.hasScheduleIcon }
     }
 
     private var filterCounts: [AnomalyFilterCategory: Int] {
@@ -91,7 +124,54 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var otherEmployees: [EmployeeAnomaly] {
-        filteredEmployees.filter { !directReportNames.contains($0.name) }
+        filteredEmployees.filter {
+            !directReportNames.contains($0.name) &&
+            !(attendanceUIVersion.usesV6IssueBannerStyle && $0.hasScheduleIcon && $0.anomalyType == .onTrack)
+        }
+    }
+
+    private var v6StatsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(AnomalyFilterCategory.allCases.filter { $0 != .onTrack }.prefix(3)).filter { (filterCounts[$0] ?? 0) > 0 }, id: \.self) { filter in
+                    let count = filterCounts[filter] ?? 0
+                    let isSelected = selectedFilters.contains(filter)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if isSelected { selectedFilters.remove(filter) }
+                            else { selectedFilters.insert(filter) }
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(filter.rawValue)
+                                .font(AppFonts.subheadline())
+                                .tracking(-0.24)
+                                .foregroundColor(AppColors.fontDefault)
+
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(AppFonts.subheadStrong())
+                                    .foregroundColor(AppColors.dangerDefault)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(AppColors.dangerBackground)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(isSelected ? AppColors.danger100 : AppColors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 12)
+        }
+        .padding(.horizontal, -16)
     }
 
     /// IDs visible with current filters & search — used for select all / deselect all.
@@ -120,13 +200,21 @@ struct TimeAttendanceAnomaliesListView: View {
                     showSearchRow = false
                 }
             }
+            .onChange(of: selectedDate) { _ in
+                if isViewingNonTodayDate {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSelecting = false
+                        selectedForNotification.removeAll()
+                    }
+                }
+            }
 
             if showsFloatingSelectionBar {
                 floatingSelectionBar
             }
         }
         .background(AppColors.background)
-        .navigationTitle("7 April 2025")
+        .navigationTitle(navigationDateTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(AppColors.surface, for: .navigationBar)
@@ -143,7 +231,7 @@ struct TimeAttendanceAnomaliesListView: View {
                     .foregroundColor(AppColors.primaryDark)
                 }
             }
-            if attendanceUIVersion.usesModernAttendanceChrome {
+            if attendanceUIVersion.usesModernAttendanceChrome && !attendanceUIVersion.usesV6IssueBannerStyle {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
                 }
@@ -170,7 +258,15 @@ struct TimeAttendanceAnomaliesListView: View {
 
     @ViewBuilder
     private var tabContent: some View {
-        if attendanceUIVersion.usesModernAttendanceChrome {
+        if attendanceUIVersion.usesV6IssueBannerStyle {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  timeAttendanceContent
+            case 2:  onLeaveContent
+            case 3:  placeholderTab("Celebrations")
+            default: Spacer()
+            }
+        } else if attendanceUIVersion.usesModernAttendanceChrome {
             switch selectedTab {
             case 0:  placeholderTab("Events")
             case 1:  onLeaveContent
@@ -232,22 +328,44 @@ struct TimeAttendanceAnomaliesListView: View {
                 attendanceVersion: attendanceUIVersion
             )
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if !directReportEmployees.isEmpty {
-                        employeeSection(
-                            title: "Direct reports",
-                            employees: directReportEmployees,
-                            showsSelectionAction: attendanceUIVersion.usesModernAttendanceChrome
-                        )
-                    }
-                    if !otherEmployees.isEmpty {
-                        employeeSection(title: "Other employees", employees: otherEmployees)
-                    }
+            if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
+                Spacer()
+                VStack(spacing: 12) {
+                    Image(systemName: "text.page")
+                        .font(.system(size: 48))
+                        .foregroundColor(AppColors.separator)
+                    Text("No employees to show")
+                        .font(AppFonts.headline())
+                        .foregroundColor(AppColors.fontDefault)
+                    Text("Try modifying your search.")
+                        .font(AppFonts.subheadline())
+                        .foregroundColor(AppColors.fontSecondary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, showsFloatingSelectionBar ? 140 : 16)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 80)
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if attendanceUIVersion.usesV6IssueBannerStyle {
+                            v6StatsRow
+                        }
+
+                        if !directReportEmployees.isEmpty {
+                            employeeSection(
+                                title: "Direct reports",
+                                employees: directReportEmployees,
+                                showsSelectionAction: !attendanceMVP && !isViewingNonTodayDate && attendanceUIVersion.usesModernAttendanceChrome
+                            )
+                        }
+                        if !otherEmployees.isEmpty {
+                            employeeSection(title: "Other employees", employees: otherEmployees)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
+                }
             }
         }
         .background(AppColors.background)
@@ -409,7 +527,7 @@ struct TimeAttendanceAnomaliesListView: View {
 
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
-                    if isSelecting {
+                    if isSelecting && !attendanceMVP && !isViewingNonTodayDate {
                         Button {
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 if selectedForNotification.contains(employee.id) {
@@ -423,7 +541,8 @@ struct TimeAttendanceAnomaliesListView: View {
                                 employee: employee,
                                 isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified),
                                 isSelectionMode: true,
-                                isSelectedForNotification: selectedForNotification.contains(employee.id)
+                                isSelectedForNotification: selectedForNotification.contains(employee.id),
+                                isActionable: true
                             )
                         }
                         .buttonStyle(.plain)
@@ -437,7 +556,8 @@ struct TimeAttendanceAnomaliesListView: View {
                                         if newValue { notifiedEmployees.insert(employee.id) }
                                         else { notifiedEmployees.remove(employee.id); allNotified = false }
                                     }
-                                )
+                                ),
+                                isActionable: !attendanceMVP && !isViewingNonTodayDate
                             )
                         }
                         .buttonStyle(.plain)

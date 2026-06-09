@@ -85,7 +85,7 @@ struct TodayWidgetData {
         let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
         return eligible.filter {
             switch $0.anomalyType {
-            case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+            case .noClockIn, .noClockInNorOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
                 return true
             default:
                 return false
@@ -117,6 +117,21 @@ struct TodayWidgetData {
                 count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count,
                 style: .danger
             ),
+            TodayIssueChip(
+                category: .unplanned,
+                count: eligible.filter { $0.anomalyType == .unplanned }.count,
+                style: .warning
+            ),
+            TodayIssueChip(
+                category: .late,
+                count: eligible.filter { $0.anomalyType == .late }.count,
+                style: .warning
+            ),
+            TodayIssueChip(
+                category: .exceededHours,
+                count: eligible.filter { $0.anomalyType == .exceededHours }.count,
+                style: .warning
+            ),
         ]
         .filter { $0.count > 0 }
     }
@@ -146,13 +161,15 @@ struct TodayWidgetData {
     )
 }
 
-// MARK: - Main attendance UI versions (V1 / V2 / V3 / V4)
+// MARK: - Main attendance UI versions (V1 / V2 / V3 / V4 / V5)
 
 enum AttendanceUIVersion: String, CaseIterable, Identifiable {
     case v1 = "V1"
     case v2 = "V2"
     case v3 = "V3"
     case v4 = "V4"
+    case v5 = "V5"
+    case v6 = "V6"
 
     var id: String { rawValue }
 
@@ -163,9 +180,9 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
         AttendanceUIVersion(rawValue: rawValue) ?? .v1
     }
 
-    /// V2/V3/V4 — Attendance tab order, search, filters, notify bell, issues chip, etc.
+    /// V2/V3/V4/V5/V6 — Attendance tab order, search, filters, notify bell, issues chip, etc.
     var usesModernAttendanceChrome: Bool {
-        self == .v2 || self == .v3 || self == .v4
+        self == .v2 || self == .v3 || self == .v4 || self == .v5 || self == .v6
     }
 
     /// V3 — progress bars on employee rows instead of status pills.
@@ -173,9 +190,19 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
         self == .v3
     }
 
-    /// V4 — Figma 15509 employee cards (per-anomaly layouts; fork from V2 list chrome).
+    /// V4/V5/V6 — Figma 15509 employee cards (per-anomaly layouts; fork from V2 list chrome).
     var usesV4EmployeeCardStatus: Bool {
-        self == .v4
+        self == .v4 || self == .v5 || self == .v6
+    }
+
+    /// V5 — simplified issue banners (no icons, no "0h", warning color support).
+    var usesV5IssueBannerStyle: Bool {
+        self == .v5
+    }
+
+    /// V6 — left-aligned label + right-aligned schedule time, per-type backgrounds.
+    var usesV6IssueBannerStyle: Bool {
+        self == .v6
     }
 }
 
@@ -183,10 +210,20 @@ private struct AttendanceUIVersionEnvironmentKey: EnvironmentKey {
     static let defaultValue: AttendanceUIVersion = .v1
 }
 
+private struct AttendanceMVPEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
 extension EnvironmentValues {
     var attendanceUIVersion: AttendanceUIVersion {
         get { self[AttendanceUIVersionEnvironmentKey.self] }
         set { self[AttendanceUIVersionEnvironmentKey.self] = newValue }
+    }
+
+    /// MVP mode — hides notification bells and multi-select from attendance lists.
+    var attendanceMVP: Bool {
+        get { self[AttendanceMVPEnvironmentKey.self] }
+        set { self[AttendanceMVPEnvironmentKey.self] = newValue }
     }
 }
 
@@ -207,8 +244,10 @@ struct TodayWidgetSwitcher: View {
                 TodayWidgetV1(data: data)
             case .v2, .v3:
                 TodayWidgetV2(data: data)
-            case .v4:
+            case .v4, .v5:
                 TodayWidgetV4(data: data)
+            case .v6:
+                TodayWidgetV6(data: data)
             }
         }
     }
@@ -503,7 +542,7 @@ private struct AttendanceUIVersionPageSnippet: View {
     }
 }
 
-/// Compact selectable previews for V1 / V2 / V3 / V4 in Settings.
+/// Compact selectable previews for V1 / V2 / V3 / V4 / V5 in Settings.
 struct AttendanceUIVersionSnippets: View {
     @Binding var selectedVersion: String
 
@@ -564,6 +603,10 @@ private extension AttendanceUIVersion {
             return "Like V2 · progress bars on rows"
         case .v4:
             return "Side-by-side On leave & Attendance · red banners"
+        case .v5:
+            return "Fork of V4 — red banners · independent iteration"
+        case .v6:
+            return "Fork of V5 — independent iteration"
         }
     }
 }
@@ -886,7 +929,7 @@ struct TodayWidgetV1: View {
     }
 }
 
-// MARK: - V2/V4 Today attendance row (whole row tappable)
+// MARK: - V2/V4/V5 Today attendance row (whole row tappable)
 
 private struct TodayModernAttendanceSectionRow: View {
     let issueCount: Int
@@ -1084,6 +1127,107 @@ struct TodayWidgetV4: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
+    }
+}
+
+// MARK: - V6 — fork of V4 (Figma 48-57115)
+
+struct TodayWidgetV6: View {
+    let data: TodayWidgetData
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            TodayHeader()
+
+            ForEach(data.events.prefix(1)) { event in
+                EventRow(event: event)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                TodayV6AttendanceChip(label: "Attendance", issueCount: data.issueCount)
+
+                TodayV6OnLeaveChip(
+                    label: "On leave",
+                    avatars: data.onLeaveAvatars,
+                    overflow: data.onLeaveOverflow
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(data.celebrations) { item in
+                    CelebrationRow(item: item)
+                }
+            }
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+    }
+}
+
+private struct TodayV6AttendanceChip: View {
+    let label: String
+    let issueCount: Int
+
+    var body: some View {
+        NavigationLink {
+            TimeAttendanceAnomaliesListView(initialFilters: [], initialTab: 1)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(label)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontDefault)
+
+                Text("\(issueCount) Issues")
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(AppColors.dangerDefault)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(AppColors.dangerBackground)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TodayV6OnLeaveChip: View {
+    let label: String
+    let avatars: [String]
+    let overflow: Int
+
+    var body: some View {
+        NavigationLink {
+            TimeAttendanceAnomaliesListView(initialFilters: [], initialTab: 2)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(label)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontDefault)
+
+                HStack(spacing: 2) {
+                    AvatarStack(names: avatars, overflow: overflow)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -5,6 +5,7 @@ struct RootView: View {
     private static let showsAttendanceIssuesUIKey = "settings.showAttendanceIssuesUI"
     @AppStorage(AttendanceUIVersion.appStorageKey) private var attendanceUIVersionRaw =
         AttendanceUIVersion.defaultVersion.rawValue
+    @AppStorage("settings.attendanceMVP") private var attendanceMVP = false
 
     private var attendanceUIVersion: AttendanceUIVersion {
         AttendanceUIVersion.resolved(from: attendanceUIVersionRaw)
@@ -30,6 +31,7 @@ struct RootView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(\.attendanceUIVersion, attendanceUIVersion)
+            .environment(\.attendanceMVP, attendanceMVP)
 
             TabBarView(selectedTab: $selectedTab)
         }
@@ -50,6 +52,7 @@ private struct SettingsTabView: View {
     @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
+    @AppStorage("settings.attendanceMVP") private var attendanceMVP = false
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey
@@ -63,6 +66,8 @@ private struct SettingsTabView: View {
                     Toggle("Show attendance UI", isOn: $showsAttendanceIssuesUI)
 
                     if showsAttendanceIssuesUI {
+                        Toggle("MVP (no notifications)", isOn: $attendanceMVP)
+
                         Picker("UI version", selection: $attendanceUIVersion) {
                             ForEach(AttendanceUIVersion.allCases) { version in
                                 Text(version.rawValue).tag(version.rawValue)

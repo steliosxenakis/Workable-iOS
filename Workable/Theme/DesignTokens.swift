@@ -25,13 +25,14 @@ enum AppColors {
 
     // Success — Primary palette
     static let successDefault    = Color(light: "009E6A", dark: "5CD9B5")   // Primary ☀️400 ☽200
-    static let activeBackground  = Color(light: "D3F7E3", dark: "0D3D38")  // Primary ☀️100 ☽600
+    static let activeBackground  = Color(light: "E9FCF4", dark: "0D3D38")  // Primary ☀️50  ☽600
     static let successBackground = Color(light: "E9FCF4", dark: "0D2E2A")  // Primary ☀️50  ☽700
 
     // Danger
     static let dangerDefault     = Color(light: "CC2C11", dark: "FF6B59")  // Danger ☀️500 ☽200
     static let dangerBadge       = Color(light: "FFD2CF", dark: "5A1A0F")  // Danger ☀️100 ☽600
     static let dangerBackground  = Color(light: "FFF1F1", dark: "4A100A")  // Danger ☀️50  ☽700
+    static let danger100         = Color(light: "FFD2CF", dark: "5E1A10")  // Danger ☀️100 ☽600
 
     // Warning
     static let warningDefault    = Color(light: "BD5B01", dark: "FFD666")  // Warning ☀️500 ☽50

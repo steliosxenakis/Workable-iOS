@@ -85,23 +85,39 @@ private struct DirectReportRow: View {
 
     private var v4RowBody: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: attendanceUIVersion.usesV6IssueBannerStyle ? .center : .top, spacing: 12) {
                 avatarStack
                 VStack(alignment: .leading, spacing: 4) {
                     Text(employee.name)
                         .font(AppFonts.headline())
                         .foregroundColor(AppColors.fontDefault)
                         .tracking(-0.41)
-                    Text(employee.role)
-                        .font(AppFonts.subheadline())
-                        .foregroundColor(AppColors.fontSecondary)
-                        .tracking(-0.24)
+                    if attendanceUIVersion.usesV6IssueBannerStyle {
+                        if let range = employee.scheduleTimeRange {
+                            let isOngoing = range.contains("Ongoing")
+                            let prefix = (employee.anomalyType == .scheduleNotStarted || employee.workedHours == 0) ? "Scheduled: " : (isOngoing ? "Working: " : "Worked: ")
+                            Text("\(prefix)\(range)")
+                                .font(AppFonts.subheadline())
+                                .foregroundColor(AppColors.fontSecondary)
+                        }
+                    } else {
+                        Text(employee.role)
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .tracking(-0.24)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if showAnomalyPills {
-                EmployeeAnomalyV4IssueBanner(employee: employee)
+                if attendanceUIVersion.usesV6IssueBannerStyle {
+                    EmployeeAnomalyV6IssueBanner(employee: employee)
+                } else if attendanceUIVersion.usesV5IssueBannerStyle {
+                    EmployeeAnomalyV5IssueBanner(employee: employee)
+                } else {
+                    EmployeeAnomalyV4IssueBanner(employee: employee)
+                }
             }
         }
     }
@@ -136,13 +152,13 @@ private struct DirectReportRow: View {
         ZStack(alignment: .bottomTrailing) {
             avatar
             if showCalendarBadge {
-                Image(systemName: "suitcase.fill")
+                Image(systemName: "calendar")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 18, height: 18)
+                    .frame(width: 21, height: 21)
                     .background(AppColors.fontDefault)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(AppColors.surface, lineWidth: 0.5))
+                    .overlay(Circle().stroke(Color.white, lineWidth: 0.5))
                     .offset(x: 4, y: 4)
             }
         }

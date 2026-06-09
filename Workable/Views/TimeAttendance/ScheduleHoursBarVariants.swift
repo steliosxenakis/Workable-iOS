@@ -103,21 +103,24 @@ struct HoursBalanceCapsuleModel {
     /// When `false`, capsule layouts render empty space (same rules everywhere).
     var showsCapsule: Bool {
         if anomalyType == .scheduleNotStarted { return false }
+        if anomalyType == .unplanned || anomalyType == .late || anomalyType == .exceededHours { return false }
         if anomalyType == .onTrack, abs(gapHours) < 0.05 { return false }
         return true
     }
 
-    private var isAttendanceIssue: Bool {
-        switch anomalyType {
-        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
-            return true
-        case .onTrack, .scheduleNotStarted:
-            return false
-        }
+    private var isDangerIssue: Bool {
+        anomalyType.isDangerLevel
+    }
+
+    private var isWarningIssue: Bool {
+        anomalyType.isWarningLevel
     }
 
     var foregroundColor: Color {
-        if isAttendanceIssue {
+        if isWarningIssue {
+            return AppColors.warningDefault
+        }
+        if isDangerIssue {
             return AppColors.dangerDefault
         }
         if anomalyType == .onTrack {
@@ -127,7 +130,10 @@ struct HoursBalanceCapsuleModel {
     }
 
     var chipBackground: Color {
-        if isAttendanceIssue {
+        if isWarningIssue {
+            return AppColors.warningBackground.opacity(0.65)
+        }
+        if isDangerIssue {
             return AppColors.dangerBackground.opacity(0.65)
         }
         if anomalyType == .onTrack {
@@ -146,6 +152,22 @@ struct HoursBalanceCapsuleModel {
         }
         let mag = HoursFormat.format(abs(g))
         return g > 0 ? "+\(mag)h" : "−\(mag)h"
+    }
+
+    var lateDeviationText: String {
+        guard anomalyType == .late else { return "" }
+        let deficit = scheduledHours - workedHours
+        if deficit <= 0 { return "" }
+        let totalMinutes = Int(round(deficit * 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if hours > 0 && minutes > 0 {
+            return "+\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            return "+\(hours)h"
+        } else {
+            return "+\(minutes)m"
+        }
     }
 
     var accessibilitySummary: String {
