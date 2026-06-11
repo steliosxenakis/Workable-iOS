@@ -2,13 +2,31 @@ import SwiftUI
 
 struct TodayDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
     @State private var selectedDepartment: String?
     @State private var selectedEntity: String?
     @State private var searchText = ""
+    @State private var showSearchRow = false
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Time & Attendance"]
+    private var anomaliesTabIndex: Int {
+        attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
+    }
+
+    private var tabs: [(index: Int, title: String)] {
+        if showsAttendanceIssuesUI {
+            if attendanceUIVersion.usesModernAttendanceChrome {
+                return [(0, "Events"), (1, "On leave"), (2, "Celebrations"), (3, "Anomalies")]
+            }
+            return [(0, "Events"), (1, "Anomalies"), (2, "On leave"), (3, "Celebrations")]
+        }
+        if attendanceUIVersion.usesModernAttendanceChrome {
+            return [(0, "Events"), (1, "On leave"), (2, "Celebrations")]
+        }
+        return [(0, "Events"), (2, "On leave"), (3, "Celebrations")]
+    }
     private let employees = TimeAttendanceMockData.employees
 
     init(initialTab: Int = 0, initialFilters: Set<AnomalyFilterCategory> = []) {
@@ -21,13 +39,17 @@ struct TodayDetailView: View {
             tabBar
 
             Group {
-                switch selectedTab {
-                case 0:  eventsTab
-                case 1:  celebrationsTab
-                case 2:  onLeaveTab
-                case 3:  timeTrackingTab
-                default: Spacer()
-                }
+                tabContent
+            }
+        }
+        .onAppear {
+            if !showsAttendanceIssuesUI && selectedTab == anomaliesTabIndex {
+                selectedTab = 0
+            }
+        }
+        .onChange(of: attendanceUIVersion) { _ in
+            if showsAttendanceIssuesUI {
+                selectedTab = anomaliesTabIndex
             }
         }
         .background(AppColors.background)
@@ -52,6 +74,11 @@ struct TodayDetailView: View {
                     .font(AppFonts.headline())
                     .foregroundColor(AppColors.fontDefault)
             }
+            if attendanceUIVersion.usesModernAttendanceChrome {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {} label: {
                     Image(systemName: "calendar")
@@ -62,21 +89,42 @@ struct TodayDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private var tabContent: some View {
+        if attendanceUIVersion.usesModernAttendanceChrome {
+            switch selectedTab {
+            case 0:  eventsTab
+            case 1:  onLeaveTab
+            case 2:  celebrationsTab
+            case 3:  timeTrackingTab
+            default: Spacer()
+            }
+        } else {
+            switch selectedTab {
+            case 0:  eventsTab
+            case 1:  timeTrackingTab
+            case 2:  onLeaveTab
+            case 3:  celebrationsTab
+            default: Spacer()
+            }
+        }
+    }
+
     // MARK: - Tab Bar
 
     private var tabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(Array(tabs.enumerated()), id: \.offset) { index, title in
-                    Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = index } } label: {
+                ForEach(tabs, id: \.index) { tab in
+                    Button { withAnimation(.easeInOut(duration: 0.2)) { selectedTab = tab.index } } label: {
                         VStack(spacing: 8) {
-                            Text(title)
+                            Text(tab.title)
                                 .font(AppFonts.subheadStrong())
-                                .foregroundColor(selectedTab == index ? AppColors.primaryDark : AppColors.fontSecondary)
+                                .foregroundColor(selectedTab == tab.index ? AppColors.primaryDark : AppColors.fontSecondary)
                                 .padding(.horizontal, 16)
 
                             Rectangle()
-                                .fill(selectedTab == index ? AppColors.primaryDark : Color.clear)
+                                .fill(selectedTab == tab.index ? AppColors.primaryDark : Color.clear)
                                 .frame(height: 2)
                         }
                     }
@@ -186,28 +234,14 @@ struct TodayDetailView: View {
 
     private var timeTrackingTab: some View {
         VStack(spacing: 0) {
-            AnomalyFilterBar(selectedFilters: $selectedFilters, selectedDepartment: $selectedDepartment, selectedEntity: $selectedEntity, searchText: $searchText)
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(AppColors.iconDefault)
-                TextField("Search employees", text: $searchText)
-                    .font(AppFonts.body())
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(AppColors.iconDefault)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(10)
-            .background(AppColors.lightBackground)
-            .cornerRadius(10)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(AppColors.surface)
+            AnomalyFilterBar(
+                selectedFilters: $selectedFilters,
+                selectedDepartment: $selectedDepartment,
+                selectedEntity: $selectedEntity,
+                searchText: $searchText,
+                isSearchRowVisible: $showSearchRow,
+                attendanceVersion: attendanceUIVersion
+            )
 
             TimeAttendanceAnomaliesListContent(
                 employees: filteredEmployees

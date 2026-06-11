@@ -3,20 +3,40 @@ import UIKit
 
 struct CandidateProfileView: View {
     let candidate: Candidate
+    /// Temporary switch to hide the candidate timeline until finalized.
+    private let showsCandidateTimeline = true
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab = 0
-    @State private var showActionMenu = false
+    @AppStorage(DisqualifyConfirmationSheet.suppressConfirmationAppStorageKey) private var suppressDisqualifyConfirmation = false
+    @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
+    @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
+    @State private var selectedTab: Int
+    @State private var showProfileContactMenu = false
+    @State private var showOverflowActionMenu = false
+    @State private var showSendEmailConfirmation = false
+    @State private var showSendTextConfirmation = false
+    @State private var showCreateEventConfirmation = false
     @State private var showEmailTemplateSheet = false
     @State private var showCreateEvent = false
-    
-    private enum ProfileAction: CaseIterable {
-        case sendEmail, sendText, createEvent, phoneCall, facetime
+    @State private var showCandidateFitSheet = false
+    @State private var showMoveToJobConfirmation = false
+    @State private var showDisqualifyConfirmation = false
+    @State private var generatedMatchScore: Int?
+    @State private var generatedMissingMustHaves: Int?
+    @State private var isEvaluatingFit = false
+    @State private var shouldAutoStartFitEvaluation = false
+    /// Contact shortcuts on the **person** toolbar icon (original wireframe menu).
+    private enum ProfileContactAction: CaseIterable {
+        case sendEmail
+        case sendText
+        case createEvent
+        case phoneCall
+        case facetime
 
         var label: String {
             switch self {
             case .sendEmail:    return "Send an email"
             case .sendText:     return "Send a text message"
-            case .createEvent:  return "Create event"
+            case .createEvent:  return "Schedule event"
             case .phoneCall:    return "Phone call"
             case .facetime:     return "Facetime"
             }
@@ -32,33 +52,132 @@ struct CandidateProfileView: View {
             }
         }
     }
+
+    /// Full candidate actions on the **⋯** toolbar icon.
+    private enum OverflowMenuAction: CaseIterable {
+        case comment
+        case evaluate
+        case moveToPhoneScreen
+        case saveCandidate
+        case share
+        case copyToJob
+        case moveToJob
+        case editCandidate
+        case stopAgentActions
+        case disqualify
+
+        var label: String {
+            switch self {
+            case .comment:             return "Comment"
+            case .evaluate:            return "Evaluate"
+            case .moveToPhoneScreen:   return "Move to Phone Screen"
+            case .saveCandidate:       return "Save candidate"
+            case .share:               return "Share"
+            case .copyToJob:           return "Copy to job"
+            case .moveToJob:           return "Move to job"
+            case .editCandidate:       return "Edit candidate"
+            case .stopAgentActions:    return "Stop Agent actions"
+            case .disqualify:          return "Disqualify"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .comment:             return "bubble.left"
+            case .evaluate:            return "bubble.left.and.bubble.right"
+            case .moveToPhoneScreen:   return "arrow.right"
+            case .saveCandidate:       return "bookmark"
+            case .share:               return "square.and.arrow.up"
+            case .copyToJob:           return "doc.on.doc"
+            case .moveToJob:           return "arrow.turn.down.right"
+            case .editCandidate:       return "pencil"
+            case .stopAgentActions:    return "stop.fill"
+            case .disqualify:          return "hand.raised.fill"
+            }
+        }
+
+        var isDestructive: Bool {
+            if case .disqualify = self { return true }
+            return false
+        }
+    }
+
+    /// `0` — Timeline, `1` — Profile (segmented control).
+    init(candidate: Candidate, initialSelectedTab: Int = 0) {
+        self.candidate = candidate
+        _selectedTab = State(initialValue: initialSelectedTab)
+        _generatedMatchScore = State(initialValue: candidate.matchScore)
+        _generatedMissingMustHaves = State(initialValue: candidate.fitMissingMustHaves)
+        _shouldAutoStartFitEvaluation = State(initialValue: candidate.fitEvaluationInProgress && candidate.matchScore == nil)
+    }
     
     private struct ProfileTimelineItem: Identifiable {
         let id: String
         let title: String
         let time: String
         let actorInitials: String
+        var actorAvatar: String? = nil
+        var deliveryStatus: String? = nil
+        var deliveryFailed: Bool = false
+        var previewText: String? = nil
+        var failedReason: String? = nil
+        var sentViaWhatsApp: Bool = false
     }
-    
+
+    @State private var showTextMessageTimeline = false
+    @State private var showTextMessageDetail = false
+    @State private var sentMessageText = ""
+    @State private var showWhatsAppNotAvailable = false
+
     private var profileTimelineItems: [ProfileTimelineItem] {
-        let candidateInitials: String = {
-            let parts = candidate.name.split(separator: " ").map(String.init)
-            if parts.count >= 2,
-               let f = parts[0].first,
-               let l = parts[1].first {
-                return "\(f)\(l)".uppercased()
-            }
-            return String(candidate.name.prefix(2)).uppercased()
-        }()
-        return [
-            ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "opened", title: "\(candidate.name) opened the email", time: "1 day ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "screen", title: "Phone screen scheduled", time: "3 days ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "reply", title: "\(candidate.name) replied to screening questions", time: "5 days ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "stage", title: "Moved to Sourced stage", time: "1 week ago", actorInitials: "NS"),
-            ProfileTimelineItem(id: "applied", title: "Applied via careers site", time: "2 weeks ago", actorInitials: candidateInitials),
-            ProfileTimelineItem(id: "sourced", title: "Sourced from LinkedIn", time: "2 weeks ago", actorInitials: "NS")
-        ]
+        var items: [ProfileTimelineItem] = []
+
+        if candidate.name == "Tyler Anderson" {
+            items.append(ProfileTimelineItem(
+                id: "declined",
+                title: "Tyler has declined messages about the Software Engineer role.",
+                time: "1 day ago",
+                actorInitials: "TA",
+                actorAvatar: "avatar-tyler",
+                deliveryStatus: "Not interested",
+                deliveryFailed: true
+            ))
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "1 day ago",
+                actorInitials: "NS",
+                deliveryStatus: "Not delivered",
+                deliveryFailed: true,
+                previewText: "Dear Rachael, thank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We..."
+            ))
+        } else if candidate.name == "Abdi Hassan" {
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "1 day ago",
+                actorInitials: "NS",
+                deliveryStatus: "Not delivered",
+                deliveryFailed: true,
+                previewText: "Dear Rachael, thank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We...",
+                failedReason: "You have reached the limit of conversations with this candidate.",
+                sentViaWhatsApp: true
+            ))
+        } else if showTextMessageTimeline {
+            let isWhatsApp = whatsAppEnabled && candidate.name == "Emma Clark"
+            items.append(ProfileTimelineItem(
+                id: "text",
+                title: "Natalie Sung sent a text message",
+                time: "16 minutes ago",
+                actorInitials: "NS",
+                deliveryStatus: isWhatsApp ? "Read" : "Delivered",
+                previewText: sentMessageText,
+                sentViaWhatsApp: isWhatsApp
+            ))
+        }
+
+        items.append(ProfileTimelineItem(id: "email", title: "Natalie Sung sent an email", time: "1 day ago", actorInitials: "NS"))
+        return items
     }
     
     var body: some View {
@@ -69,10 +188,21 @@ struct CandidateProfileView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         profileHeader
-                        tabSwitcher
-                        
-                        if selectedTab == 0 {
-                            timelineContent
+
+                        if isReviewingCandidate {
+                            reviewingCandidateBanner
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+
+                        if showsCandidateTimeline {
+                            tabSwitcher
+
+                            if selectedTab == 0 {
+                                timelineContent
+                            } else {
+                                profileContent
+                            }
                         } else {
                             profileContent
                         }
@@ -82,72 +212,23 @@ struct CandidateProfileView: View {
             }
             .background(AppColors.surface)
             
-            if showActionMenu {
+            if showProfileContactMenu || showOverflowActionMenu {
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                            showActionMenu = false
+                            showProfileContactMenu = false
+                            showOverflowActionMenu = false
                         }
                     }
-                
-                VStack(spacing: 0) {
-                    ForEach(Array(ProfileAction.allCases.enumerated()), id: \.offset) { index, action in
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                showActionMenu = false
-                            }
-                            switch action {
-                            case .sendEmail:
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    showEmailTemplateSheet = true
-                                }
-                            case .createEvent:
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                    showCreateEvent = true
-                                }
-                            default:
-                                break
-                            }
-                        } label: {
-                            HStack {
-                                Text(action.label)
-                                    .font(.system(size: 17, weight: .regular))
-                                    .tracking(-0.41)
-                                    .foregroundColor(AppColors.fontDefault)
-                                Spacer()
-                                Image(systemName: action.icon)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(AppColors.iconDefault)
-                            }
-                            .padding(.horizontal, 16)
-                            .frame(height: 48)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
 
-                        if index < ProfileAction.allCases.count - 1 {
-                            Rectangle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(height: 0.5)
-                        }
-                    }
+                if showProfileContactMenu {
+                    profileContactMenuPanel
                 }
-                .background(.ultraThinMaterial)
-                .background(Color.white.opacity(0.5))
-                .cornerRadius(8)
-                .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
-                )
-                .frame(width: 240)
-                .padding(.top, 50)
-                .padding(.trailing, 16)
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
-                    removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
-                ))
+
+                if showOverflowActionMenu {
+                    overflowActionMenuPanel
+                }
             }
         }
         .sheet(isPresented: $showEmailTemplateSheet) {
@@ -157,6 +238,38 @@ struct CandidateProfileView: View {
                 .presentationCornerRadius(10)
                 .presentationBackground(AppColors.surface)
         }
+        .sheet(isPresented: $showSendEmailConfirmation) {
+            SendEmailConfirmationSheet(candidate: candidate) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showEmailTemplateSheet = true
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showSendTextConfirmation) {
+            SendTextConfirmationSheet(candidate: candidate, onSendText: performSendTextAction)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showTextMessageCompose) {
+            ComposeTextMessageView(
+                candidateName: candidate.name,
+                candidatePhone: "+3069282893",
+                onSend: { text in
+                    sentMessageText = text
+                    withAnimation { showTextMessageTimeline = true }
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
+        }
         .sheet(isPresented: $showCreateEvent) {
             CreateEventView(candidateName: candidate.name, candidateRole: candidate.role)
                 .presentationDetents([.large])
@@ -164,6 +277,83 @@ struct CandidateProfileView: View {
                 .presentationCornerRadius(10)
                 .presentationBackground(AppColors.surface)
         }
+        .sheet(isPresented: $showCreateEventConfirmation) {
+            CreateEventConfirmationSheet(candidate: candidate) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showCreateEvent = true
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .presentationCornerRadius(10)
+            .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showCandidateFitSheet) {
+            CandidateFitView(candidate: candidate)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(20)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showMoveToJobConfirmation) {
+            MoveToJobConfirmationSheet(candidate: candidate, onConfirm: {})
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .sheet(isPresented: $showDisqualifyConfirmation) {
+            DisqualifyConfirmationSheet(candidate: candidate, onDisqualify: performDisqualifyAction)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(10)
+                .presentationBackground(AppColors.surface)
+        }
+        .navigationDestination(isPresented: $showTextMessageDetail) {
+            TextMessageDetailView(
+                candidateName: candidate.name,
+                candidateRole: candidate.role,
+                candidateAvatar: candidate.avatarName ?? "avatar-emma",
+                messageText: (candidate.name == "Tyler Anderson" || candidate.name == "Abdi Hassan") ? "Dear Rachael,\nthank you for applying for the Barista position. Just a clarification: do you have the CA food handlers certification? We would like to have a short call to schedule event you, are you available at 18.00 next Monday?\nYours sincerely,\nNatalie" : sentMessageText,
+                deliveryFailed: candidate.name == "Tyler Anderson" || candidate.name == "Abdi Hassan",
+                failedReason: candidate.name == "Abdi Hassan" ? "You have reached the limit of conversations with this candidate." : nil,
+                sentViaWhatsApp: candidate.name == "Abdi Hassan" || candidate.name == "Tyler Anderson" || (whatsAppEnabled && candidate.name == "Emma Clark")
+            )
+        }
+        .alert("WhatsApp not available", isPresented: $showWhatsAppNotAvailable) {
+            if candidate.name == "Liam Foster" {
+                Button("Cancel", role: .cancel) {}
+                Button("Send SMS") { performSendTextAction() }
+            } else {
+                Button("OK", role: .cancel) {}
+            }
+        } message: {
+            if candidate.name == "Liam Foster" {
+                Text("The WhatsApp integration needs attention, support team is working on it. You can still message this candidate by SMS.")
+            } else {
+                Text("The WhatsApp integration needs attention, support team is working on it.")
+            }
+        }
+        .onAppear {
+            if shouldAutoStartFitEvaluation {
+                shouldAutoStartFitEvaluation = false
+                startFitEvaluation()
+            }
+        }
+    }
+
+    private func performDisqualifyAction() {
+        // TODO: Wire disqualify API / navigation when available.
+    }
+
+    private func performMoveToJobAction() {
+        // TODO: Wire move-to-job API / navigation when available.
+    }
+
+    @State private var showTextMessageCompose = false
+
+    private func performSendTextAction() {
+        showTextMessageCompose = true
     }
     
     // MARK: - Nav Bar
@@ -187,7 +377,8 @@ struct CandidateProfileView: View {
             HStack(spacing: 24) {
                 Button {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showActionMenu.toggle()
+                        showOverflowActionMenu = false
+                        showProfileContactMenu.toggle()
                     }
                 } label: {
                     Image("icon-person-lines")
@@ -196,16 +387,25 @@ struct CandidateProfileView: View {
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                         .foregroundColor(AppColors.primaryDark)
+                        .padding(14)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                
-                Button {} label: {
+
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showProfileContactMenu = false
+                        showOverflowActionMenu.toggle()
+                    }
+                } label: {
                     Image("icon-menu-dots-horizontal")
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
                         .frame(width: 16, height: 16)
                         .foregroundColor(AppColors.primaryDark)
+                        .padding(14)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -216,12 +416,173 @@ struct CandidateProfileView: View {
         .padding(.bottom, 8)
         .background(AppColors.surface)
     }
-    
+
+    private var profileContactMenuPanel: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(ProfileContactAction.allCases.enumerated()), id: \.offset) { index, action in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        showProfileContactMenu = false
+                    }
+                    switch action {
+                    case .sendEmail:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if hideAgentConfirmations {
+                                showEmailTemplateSheet = true
+                            } else {
+                                showSendEmailConfirmation = true
+                            }
+                        }
+                    case .sendText:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson" {
+                                showWhatsAppNotAvailable = true
+                            } else if hideAgentConfirmations {
+                                performSendTextAction()
+                            } else {
+                                showSendTextConfirmation = true
+                            }
+                        }
+                    case .createEvent:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if hideAgentConfirmations {
+                                showCreateEvent = true
+                            } else {
+                                showCreateEventConfirmation = true
+                            }
+                        }
+                    default:
+                        break
+                    }
+                } label: {
+                    HStack {
+                        Text(action == .sendText && (whatsAppEnabled && candidate.name == "Emma Clark" || candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson") ? "Send text message" : action.label)
+                            .font(.system(size: 17, weight: .regular))
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        if action == .sendText && (whatsAppEnabled && candidate.name == "Emma Clark" || candidate.name == "Liam Foster" || candidate.name == "Lucy Anderson") {
+                            Image("icon-whatsapp")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        } else if action == .sendText {
+                            Image("icon-sms")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 20, height: 20)
+                        } else {
+                            Image(systemName: action.icon)
+                                .font(.system(size: 16))
+                                .foregroundColor(AppColors.iconDefault)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if index < ProfileContactAction.allCases.count - 1 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(height: 0.5)
+                }
+            }
+        }
+        .background(.ultraThinMaterial)
+        .background(Color.white.opacity(0.5))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
+        )
+        .frame(width: 240)
+        .padding(.top, 50)
+        .padding(.trailing, 16)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+            removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
+        ))
+    }
+
+    private var overflowActionMenuPanel: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(OverflowMenuAction.allCases.enumerated()), id: \.offset) { index, action in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        showOverflowActionMenu = false
+                    }
+                    switch action {
+                    case .moveToJob:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if hideAgentConfirmations {
+                                performMoveToJobAction()
+                            } else {
+                                showMoveToJobConfirmation = true
+                            }
+                        }
+                    case .disqualify:
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            if hideAgentConfirmations {
+                                performDisqualifyAction()
+                            } else {
+                                showDisqualifyConfirmation = true
+                            }
+                        }
+                    default:
+                        break
+                    }
+                } label: {
+                    HStack {
+                        Text(action.label)
+                            .font(.system(size: 17, weight: .regular))
+                            .tracking(-0.41)
+                            .foregroundColor(action.isDestructive ? AppColors.dangerDefault : AppColors.fontDefault)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 8)
+                        Image(systemName: action.icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(action.isDestructive ? AppColors.dangerDefault : AppColors.iconDefault)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if index < OverflowMenuAction.allCases.count - 1 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(height: 0.5)
+                }
+            }
+        }
+        .background(.ultraThinMaterial)
+        .background(Color.white.opacity(0.5))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.15), radius: 22, x: 0, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
+        )
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.top, 50)
+        .padding(.trailing, 16)
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+            removal: .scale(scale: 0.95, anchor: .topTrailing).combined(with: .opacity)
+        ))
+    }
+
     // MARK: - Profile Header
-    
+
     private var profileHeader: some View {
         VStack(spacing: 8) {
             profileAvatar
+                .opacity(isReviewingCandidate ? 0.8 : 1.0)
                 .padding(.bottom, 4)
             
             VStack(spacing: 2) {
@@ -303,10 +664,17 @@ struct CandidateProfileView: View {
             Rectangle()
                 .fill(AppColors.separator)
                 .frame(height: 1)
-            
+
             ForEach(profileTimelineItems) { item in
-                profileTimelineRow(item: item)
-                
+                if item.id == "text" {
+                    Button { showTextMessageDetail = true } label: {
+                        profileTimelineRow(item: item)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    profileTimelineRow(item: item)
+                }
+
                 Rectangle()
                     .fill(AppColors.separator)
                     .frame(height: 1)
@@ -321,48 +689,291 @@ struct CandidateProfileView: View {
                 .frame(width: 6, height: 6)
                 .padding(.leading, 6)
                 .padding(.top, 20)
-            
+
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(AppFonts.headline())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-                
-                Text(item.time)
-                    .font(AppFonts.subheadline())
-                    .tracking(-0.24)
-                    .foregroundColor(Color(hex: "9E9D9C"))
+                HStack(alignment: .top, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title)
+                            .font(AppFonts.headline())
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+
+                        HStack(spacing: 4) {
+                            Text(item.time)
+                                .font(AppFonts.subheadline())
+                                .tracking(-0.24)
+                                .foregroundColor(AppColors.fontSecondary)
+
+                            if let status = item.deliveryStatus {
+                                if item.deliveryFailed {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(AppColors.dangerDefault)
+                                    Text(status)
+                                        .font(AppFonts.subheadline())
+                                        .tracking(-0.24)
+                                        .foregroundColor(AppColors.dangerDefault)
+                                } else {
+                                    Text("·")
+                                        .font(AppFonts.subheadline())
+                                        .foregroundColor(AppColors.fontSecondary)
+                                    Image("icon-delivered")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 16, height: 16)
+                                    Text(status)
+                                        .font(AppFonts.subheadline())
+                                        .tracking(-0.24)
+                                        .foregroundColor(AppColors.fontSecondary)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let avatar = item.actorAvatar {
+                        Image(avatar)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(Color(hex: "8A8986"))
+                            .frame(width: 30, height: 30)
+                            .overlay(
+                                Text(item.actorInitials)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+
+                if let preview = item.previewText {
+                    Text(preview)
+                        .font(AppFonts.body())
+                        .tracking(-0.41)
+                        .foregroundColor(AppColors.fontDefault)
+                }
             }
             .padding(.leading, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Circle()
-                .fill(Color(hex: "8A8986"))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Text(item.actorInitials)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
-                )
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
     }
     
-    // MARK: - Profile Content (Placeholder)
+    // MARK: - Profile Content
     
     private var profileContent: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             Rectangle()
                 .fill(AppColors.separator)
                 .frame(height: 1)
+
+            candidateFitSection
+
+            profileSectionRow(title: "Email", value: "Not available yet")
+            profileDivider
+            profileSectionRow(title: "Phone", value: "Not available yet")
+            profileDivider
+            profileSectionRow(title: "Source", value: candidate.source)
+            profileDivider
             
-            Text("Profile details")
+            if let location = candidate.location, !location.isEmpty {
+                profileSectionRow(title: "Location", value: location)
+                profileDivider
+            }
+            
+            if let tags = candidate.tags, !tags.isEmpty {
+                profileSectionRow(title: "Tags", value: tags)
+                profileDivider
+            }
+            
+            profileSectionRow(title: "Role", value: candidate.role)
+            profileDivider
+            profileSectionRow(title: "Stage", value: candidate.stageInfo)
+            
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: 32)
+        }
+    }
+
+    private var candidateFitSection: some View {
+        Group {
+            if let fitScore = generatedMatchScore {
+                CandidateFitProfileBanner(
+                    matchScore: fitScore,
+                    missingMustHaves: generatedMissingMustHaves ?? 2,
+                    onOpenDetails: { showCandidateFitSheet = true }
+                )
+                .accessibilityHint("Score opens full fit. Chevron expands or collapses the summary.")
+            } else if isEvaluatingFit {
+                evaluatingBanner
+            } else {
+                startEvaluationBanner
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 24)
+        .padding(.bottom, 8)
+    }
+
+    private var isReviewingCandidate: Bool {
+        candidate.agentIsReviewing || candidate.fitEvaluationInProgress
+    }
+
+    private struct AgentBannerState: Identifiable {
+        let id: Int
+        let boldPrefix: String
+        let body: String
+    }
+
+    private let agentBannerStates: [AgentBannerState] = [
+        AgentBannerState(id: 0, boldPrefix: "Agent is active: ", body: "Waiting for reply on interest email. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 1, boldPrefix: "Agent is active: ", body: "Waiting for reply about missing details. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 2, boldPrefix: "Agent is active: ", body: "Waiting for reply to follow-up email. Expires in 6 days, 2 days until follow up."),
+        AgentBannerState(id: 3, boldPrefix: "Agent is active: ", body: "Waiting for reply to follow-up email. Expires in 6 days, 2 days until chat initiation."),
+        AgentBannerState(id: 4, boldPrefix: "Agent status: ", body: "Chat in progress. Expires in 6 days."),
+        AgentBannerState(id: 5, boldPrefix: "Agent review completed: ", body: "Candidate requests human communication"),
+    ]
+
+    @State private var agentBannerIndex = 0
+
+    private var reviewingCandidateBanner: some View {
+        let state = agentBannerStates[agentBannerIndex]
+        return VStack(alignment: .leading, spacing: 10) {
+            (Text(state.boldPrefix)
+                .font(AppFonts.subheadStrong())
+            + Text(state.body)
+                .font(AppFonts.subheadline()))
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontDefault)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.informativeBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                agentBannerIndex = (agentBannerIndex + 1) % agentBannerStates.count
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                .onEnded { value in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if value.translation.width < 0 {
+                            agentBannerIndex = min(agentBannerIndex + 1, agentBannerStates.count - 1)
+                        } else if value.translation.width > 0 {
+                            agentBannerIndex = max(agentBannerIndex - 1, 0)
+                        }
+                    }
+                }
+        )
+    }
+
+    private var startEvaluationBanner: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("Candidate fit")
+                    .font(AppFonts.headline())
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.fontDefault)
+
+                Spacer(minLength: 8)
+
+                Text("?")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(AppColors.background)
+                    .clipShape(Capsule())
+            }
+            .padding(.bottom, 12)
+
+            Text("The Agent hasn't evaluated this candidate. Start processing candidates and discover who's the best fit for this role.")
+                .font(AppFonts.subheadline())
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 16)
+
+            Button {
+                startFitEvaluation()
+            } label: {
+                Text("Start evaluation")
+                    .font(AppFonts.headline())
+                    .tracking(-0.41)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(AppColors.surface)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+    }
+
+    private var evaluatingBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(AppColors.primaryDark)
+                Text("Evaluating candidate fit...")
+                    .font(AppFonts.subheadStrong())
+                    .foregroundColor(AppColors.fontDefault)
+            }
+
+            Text("We are analyzing must-haves and profile strengths.")
                 .font(AppFonts.subheadline())
                 .foregroundColor(AppColors.fontSecondary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 32)
         }
+        .padding(16)
+        .background(AppColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+    }
+
+    private func startFitEvaluation() {
+        guard !isEvaluatingFit else { return }
+        isEvaluatingFit = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            generatedMatchScore = 70
+            generatedMissingMustHaves = generatedMissingMustHaves ?? 2
+            isEvaluatingFit = false
+        }
+    }
+    
+    private var profileDivider: some View {
+        Rectangle()
+            .fill(AppColors.separator)
+            .frame(height: 1)
+            .padding(.leading, 16)
+    }
+    
+    private func profileSectionRow(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontSecondary)
+            Text(value)
+                .font(AppFonts.body())
+                .tracking(-0.41)
+                .foregroundColor(AppColors.fontDefault)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 }
 

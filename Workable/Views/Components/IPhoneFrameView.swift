@@ -88,7 +88,9 @@ struct DynamicIslandView: View {
             .ignoresSafeArea()
         
         IPhoneFrameView {
-            CandidatesBrowserView()
+            NavigationStack {
+                CandidatesBrowserView()
+            }
         }
         .shadow(color: .black.opacity(0.25), radius: 40, x: 0, y: 20)
         .scaleEffect(0.7)

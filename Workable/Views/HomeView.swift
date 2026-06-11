@@ -10,12 +10,10 @@ struct HomeView: View {
     private enum DashboardRoute: Hashable {
         case directReports
         case job(JobItem)
+        case surveyDetail(SurveyItem)
     }
 
-    private let todayEvents: [TodayEvent] = [
-        TodayEvent(title: "Call with John Doe",             time: "10:30 - 11:00", subtitle: "Software Engineer"),
-        TodayEvent(title: "Interview with Elissa McArthur", time: "9:30 - 10:00",  subtitle: "Product Designer")
-    ]
+    private let todayData = TodayWidgetData.mock
 
     private let jobs: [JobItem] = [
         JobItem(title: "Software Engineer",  details: "Engineering · Hybrid · Athens, Greece", candidateCount: 14),
@@ -44,7 +42,11 @@ struct HomeView: View {
 
                     // ── Remaining cards ──
                     VStack(spacing: 12) {
-                        todaySection
+                        if showsAttendanceIssuesUI {
+                            TodayWidgetSwitcher(data: todayData)
+                        } else {
+                            todaySimpleWidget
+                        }
                         timeOffSection
                         jobsSection
                         candidatesSection
@@ -59,12 +61,15 @@ struct HomeView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 homeNavBarArea
             }
+            .tint(AppColors.primaryDark)
             .navigationDestination(for: DashboardRoute.self) { route in
                 switch route {
                 case .directReports:
                     DirectReportsView()
                 case .job(let job):
                     CandidatesBrowserView(jobTitle: job.title, jobSubtitle: job.details)
+                case .surveyDetail(let survey):
+                    SurveyDetailView(survey: survey)
                 }
             }
         }
@@ -138,6 +143,13 @@ struct HomeView: View {
 
     // MARK: - Team Chips
 
+    @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+
+    private var directReportsIssueCount: Int {
+        TimeAttendanceMockData.directReportsWithIssueCount
+    }
+
     private var teamChips: some View {
         HStack(spacing: 8) {
             NavigationLink(value: DashboardRoute.directReports) {
@@ -147,13 +159,9 @@ struct HomeView: View {
                         .tracking(-0.24)
                         .foregroundColor(AppColors.fontSecondary)
 
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(AppColors.iconInactive)
-                        .cornerRadius(10)
+                    if showsAttendanceIssuesUI {
+                        directReportsAttendanceIndicator
+                    }
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .regular))
@@ -170,6 +178,34 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private var directReportsAttendanceIndicator: some View {
+        switch attendanceUIVersion {
+        case .v1:
+            Circle()
+                .fill(AppColors.dangerBadge)
+                .frame(width: 16, height: 16)
+        case .v2, .v4, .v5, .v6, .v7, .v8:
+            if directReportsIssueCount > 0 {
+                Text("\(directReportsIssueCount)")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.dangerDefault)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(AppColors.dangerBadge))
+            }
+        case .v3:
+            if directReportsIssueCount > 0 {
+                Text("\(directReportsIssueCount)")
+                    .font(AppFonts.caption1Strong())
+                    .foregroundColor(AppColors.dangerDefault)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(AppColors.dangerBadge)
+                    .clipShape(Capsule())
+            }
+        }
     }
 
     private func teamChip(title: String, selected: Bool) -> some View {
@@ -260,45 +296,14 @@ struct HomeView: View {
         .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 3)
     }
 
-    private let attendanceStatusPills: [(label: String, count: Int, filters: Set<AnomalyFilterCategory>)] = [
-        ("No clock in", 3, [.noClockIn]),
-        ("No clock in and out", 2, [.noClockInNorOut]),
-        ("Exceeded work schedule", 3, [.exceededWorkSchedule]),
-        ("On track", 18, [.onTrack]),
-        ("Expected to work today", 26, [])
-    ]
-
-    /// Figma 15353-17307 — opens full anomalies list
-    private var timeAttendanceStatusCard: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(attendanceStatusPills, id: \.label) { pill in
-                    NavigationLink {
-                        TimeAttendanceAnomaliesListView(initialFilters: pill.filters)
-                    } label: {
-                        Text("\(pill.label) (\(pill.count))")
-                            .font(AppFonts.subheadStrong())
-                            .foregroundColor(AppColors.fontDefault)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(AppColors.iconInactive)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(AppColors.separator, lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
     // MARK: - To-dos
 
-    /// Figma 15353-17276: empty state
+    @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+
+    private var todoSurveyItems: [SurveyItem] {
+        surveysEnabled ? SurveyMockData.items : []
+    }
+
     private var todosSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("To-dos")
@@ -307,161 +312,152 @@ struct HomeView: View {
                 .foregroundColor(AppColors.fontDefault)
                 .padding(.horizontal, 16)
 
-            Text("All done for now.")
-                .font(AppFonts.subheadline())
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.41)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(AppColors.surface)
-                .cornerRadius(16)
-                .padding(.horizontal, 16)
+            if todoSurveyItems.isEmpty {
+                Text("All done for now.")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.41)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(AppColors.surface)
+                    .cornerRadius(16)
+                    .padding(.horizontal, 16)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(todoSurveyItems) { item in
+                            NavigationLink(value: DashboardRoute.surveyDetail(item)) {
+                                TodoSurveyCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        TodoGenericCard(
+                            title: "Review your profile",
+                            subtitle: "Review updated profile."
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
         }
     }
 
-    // MARK: - Today
+    // MARK: - Today Simple Widget (no attendance)
 
-    private var todaySection: some View {
-        VStack(spacing: 0) {
+    private var todaySimpleWidget: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Today")
                     .font(.system(size: 22, weight: .semibold))
+                    .tracking(0.35)
                     .foregroundColor(AppColors.fontDefault)
-
                 Spacer()
-
                 Button("View all") {}
                     .font(AppFonts.subheadStrong())
                     .foregroundColor(AppColors.primaryDark)
                     .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
 
-            ForEach(todayEvents) { event in
-                todayEventRow(event)
+            VStack(alignment: .leading, spacing: 0) {
+                todayEventRow(
+                    title: "Call with John Doe",
+                    subtitle: "10:30 - 11:00 · Software Engineer"
+                )
+                Divider()
+                todayEventRow(
+                    title: "Interview with Elissa McArthur",
+                    subtitle: "9:30 - 10:00 · Product Designer"
+                )
             }
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
-            todayInfoRow(
-                icon: "gift.fill",
-                iconColor: Color(hex: "E9756D"),
-                iconBackground: Color(hex: "F8ECEB"),
-                title: "Birthdays",
-                value: "Doe, John +2"
-            )
 
-            todayInfoRow(
-                icon: "sparkles",
-                iconColor: Color(hex: "37B086"),
-                iconBackground: Color(hex: "E8F4EF"),
-                title: "Holidays",
-                value: "Christmas day"
-            )
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppColors.dangerBackground)
+                            .frame(width: 40, height: 40)
+                        Image("icon-gift")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(Color(hex: "E9756D"))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Birthdays")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .tracking(-0.24)
+                        Text("Doe, John +2")
+                            .font(AppFonts.body())
+                            .foregroundColor(AppColors.fontDefault)
+                            .tracking(-0.41)
+                    }
+                }
 
-            onLeaveRow
+                HStack(spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(AppColors.successBackground)
+                            .frame(width: 40, height: 40)
+                        Image("icon-pyro")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 20, height: 20)
+                            .foregroundColor(Color(hex: "37B086"))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Holidays")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .tracking(-0.24)
+                        Text("Christmas day")
+                            .font(AppFonts.body())
+                            .foregroundColor(AppColors.fontDefault)
+                            .tracking(-0.41)
+                    }
+                }
+            }
 
-            Rectangle().fill(AppColors.separator).frame(height: 1)
-                .padding(.horizontal, 16)
-
-            timeAttendanceStatusCard
-                .padding(16)
+            HStack {
+                Text("No employees on leave")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.24)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.iconDefault)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(AppColors.lightBackground)
+            .cornerRadius(16)
         }
+        .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
     }
 
-    private func todayEventRow(_ event: TodayEvent) -> some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(event.title)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-
-                Text("\(event.time) · \(event.subtitle)")
-                    .font(AppFonts.subheadline())
-                    .tracking(-0.24)
-                    .foregroundColor(AppColors.fontSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button {} label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
-                    .foregroundColor(AppColors.iconDefault)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    private func todayInfoRow(
-        icon: String,
-        iconColor: Color,
-        iconBackground: Color,
-        title: String,
-        value: String
-    ) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(iconBackground)
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 15))
-                    .foregroundColor(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(AppFonts.footnote())
-                    .tracking(-0.08)
-                    .foregroundColor(AppColors.fontSecondary)
-                Text(value)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
-    private var onLeaveRow: some View {
+    private func todayEventRow(title: String, subtitle: String) -> some View {
         HStack {
-            Text("No employees on leave")
-                .font(AppFonts.body())
-                .tracking(-0.41)
-                .foregroundColor(AppColors.fontDefault)
-
-            Spacer()
-
-            HStack(spacing: -8) {
-                ForEach(["avatar-lucy", "avatar-abdi", "avatar-michael"], id: \.self) { name in
-                    Image(name)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 24, height: 24)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(AppColors.surface, lineWidth: 1.5))
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
             }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+            Spacer()
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16))
                 .foregroundColor(AppColors.iconDefault)
-                .padding(.leading, 6)
         }
-        .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
 
@@ -660,18 +656,81 @@ struct HomeView: View {
 // MARK: - Local models
 
 private extension HomeView {
-    struct TodayEvent: Identifiable {
-        let id = UUID()
-        let title: String
-        let time: String
-        let subtitle: String
-    }
-
     struct JobItem: Identifiable, Hashable {
         let id = UUID()
         let title: String
         let details: String
         let candidateCount: Int
+    }
+}
+
+// MARK: - Todo Cards
+
+private struct TodoSurveyCard: View {
+    let item: SurveyItem
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.isReminder ? "Reminder to complete \(item.surveyName)" : "Start \(item.surveyName)")
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(item.deadline != nil ? "Share your feedback by \(item.deadline!)." : "Share your feedback.")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.iconDefault)
+        }
+        .padding(16)
+        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+        .frame(height: 100)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+    }
+}
+
+private struct TodoGenericCard: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.iconDefault)
+        }
+        .padding(16)
+        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+        .frame(height: 100)
+        .background(AppColors.surface)
+        .cornerRadius(16)
     }
 }
 

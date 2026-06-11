@@ -14,7 +14,13 @@ struct Candidate: Identifiable, Equatable, Hashable {
     let stageInfo: String
     let avatarName: String?
     let avatarURL: URL?
-    
+    /// When set, drives “Missing N must-haves” on the profile fit banner; defaults in UI if nil.
+    let fitMissingMustHaves: Int?
+    /// Agent is on the “review” step — show an animated shimmer on the match halo.
+    let agentIsReviewing: Bool
+    /// Candidate fit evaluation has started but score is not ready yet.
+    let fitEvaluationInProgress: Bool
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -25,7 +31,10 @@ struct Candidate: Identifiable, Equatable, Hashable {
         tags: String? = nil,
         stageInfo: String,
         avatarName: String? = nil,
-        avatarURL: URL? = nil
+        avatarURL: URL? = nil,
+        fitMissingMustHaves: Int? = nil,
+        agentIsReviewing: Bool = false,
+        fitEvaluationInProgress: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -37,5 +46,8 @@ struct Candidate: Identifiable, Equatable, Hashable {
         self.stageInfo = stageInfo
         self.avatarName = avatarName
         self.avatarURL = avatarURL
+        self.fitMissingMustHaves = fitMissingMustHaves
+        self.agentIsReviewing = agentIsReviewing
+        self.fitEvaluationInProgress = fitEvaluationInProgress
     }
 }

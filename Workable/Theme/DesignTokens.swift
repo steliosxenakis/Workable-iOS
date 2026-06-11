@@ -25,17 +25,20 @@ enum AppColors {
 
     // Success — Primary palette
     static let successDefault    = Color(light: "009E6A", dark: "5CD9B5")   // Primary ☀️400 ☽200
-    static let activeBackground  = Color(light: "D3F7E3", dark: "0D3D38")  // Primary ☀️100 ☽600
+    static let activeBackground  = Color(light: "E9FCF4", dark: "0D3D38")  // Primary ☀️50  ☽600
     static let successBackground = Color(light: "E9FCF4", dark: "0D2E2A")  // Primary ☀️50  ☽700
 
     // Danger
     static let dangerDefault     = Color(light: "CC2C11", dark: "FF6B59")  // Danger ☀️500 ☽200
+    static let dangerBadge       = Color(light: "FFD2CF", dark: "5A1A0F")  // Danger ☀️100 ☽600
     static let dangerBackground  = Color(light: "FFF1F1", dark: "4A100A")  // Danger ☀️50  ☽700
+    static let danger100         = Color(light: "FFD2CF", dark: "5E1A10")  // Danger ☀️100 ☽600
 
     // Warning
     static let warningDefault    = Color(light: "BD5B01", dark: "FFD666")  // Warning ☀️500 ☽50
     static let warningIcon       = Color(light: "F07C0F", dark: "FFB420")  // Warning ☀️400 ☽300
     static let warningText       = Color(light: "FFB420", dark: "BD5B01")  // Warning ☀️300 ☽500
+    static let warningBadge      = Color(light: "FFF0B8", dark: "5C3200")  // Warning ☀️100 ☽600
     static let warningBackground = Color(light: "FFFADF", dark: "4A2400")  // Warning ☀️50  ☽700
 
     // Informative
@@ -45,6 +48,9 @@ enum AppColors {
     // AI
     static let aiDefault    = Color(light: "8736DC", dark: "C096ED")   // AI ☀️500 ☽200
     static let aiBackground = Color(light: "FBF4FF", dark: "2E1054")   // AI ☀️50  ☽700
+    /// Score pill on candidate fit summary (Figma ai/100 + ai/600 on `23609:132236`).
+    static let aiFitPillFill = Color(light: "EDD5FF", dark: "4A2780")
+    static let aiFitPillText = Color(light: "6509BF", dark: "E8D4FF")
 
     // Beta
     static let betaDefault         = Color(light: "107191", dark: "80D6E8") // BETA ☀️500 ☽100

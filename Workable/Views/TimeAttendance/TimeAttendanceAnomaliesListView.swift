@@ -2,25 +2,101 @@ import SwiftUI
 
 struct TimeAttendanceAnomaliesListView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab: Int = 3
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
+    @Environment(\.attendanceMVP) private var attendanceMVP
+    @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
-    init(initialFilters: Set<AnomalyFilterCategory> = []) {
+    init(initialFilters: Set<AnomalyFilterCategory> = [], initialTab: Int? = nil) {
         _selectedFilters = State(initialValue: initialFilters)
+        let version = AttendanceUIVersion.resolved(
+            from: UserDefaults.standard.string(forKey: AttendanceUIVersion.appStorageKey)
+                ?? AttendanceUIVersion.defaultVersion.rawValue
+        )
+        let defaultTab = (version == .v6 || version == .v7 || version == .v8) ? 1 : version.usesModernAttendanceChrome ? 3 : 1
+        _selectedTab = State(initialValue: initialTab ?? defaultTab)
     }
     @State private var selectedDepartment: String?
     @State private var selectedEntity: String?
     @State private var searchText = ""
     @State private var selectedDate = Date()
-    @State private var showSearchRow = true
+    @State private var showSearchRow = false
 
-    private let tabs = ["Events", "Celebrations", "On leave", "Time & attendance"]
-    private let employees = TimeAttendanceMockData.employees
+    /// V5 — past-date attendance is read-only (no bells, no selection).
+    private var isViewingNonTodayDate: Bool {
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8) && !Calendar.current.isDateInToday(selectedDate)
+    }
 
-    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe"])
+    private var isViewingFutureDate: Bool {
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8) && selectedDate > Date()
+    }
+
+    private var isViewingPastDate: Bool {
+        isViewingNonTodayDate && !isViewingFutureDate
+    }
+
+    private var navigationDateTitle: String {
+        guard attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 else { return "7 April 2025" }
+        if attendanceUIVersion == .v5 && Calendar.current.isDateInToday(selectedDate) { return "Today" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM yyyy"
+        return formatter.string(from: selectedDate)
+    }
+    @State private var notifiedEmployees: Set<UUID> = []
+    @State private var allNotified = false
+    @State private var isSelecting = false
+    @State private var selectedForNotification: Set<UUID> = []
+
+    private var tabs: [String] {
+        switch attendanceUIVersion {
+        case .v1:
+            return ["Events", "Time tracking", "On leave", "Celebrations"]
+        case .v6, .v7, .v8:
+            return ["Events", "Attendance", "On leave", "Celebrations"]
+        case .v2, .v3, .v4, .v5:
+            return ["Events", "On leave", "Celebrations", "Attendance"]
+        }
+    }
+
+    private var attendanceTabIndex: Int {
+        if attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 { return 1 }
+        return attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
+    }
+
+    /// Matches `TabBarView` height; FABs sit 16pt above the menu (V1).
+    private static let mainTabBarHeight: CGFloat = 83
+    private static let floatingBarGapAboveMenu: CGFloat = 16
+    /// V2/V3 — shift floating actions 16pt lower (flush with tab bar top).
+    private static let modernFloatingBarExtraLowerOffset: CGFloat = 16
+    private static let floatingBarGradientHeight: CGFloat = 88
+
+    private func floatingBarBottomInset(for version: AttendanceUIVersion) -> CGFloat {
+        let standard = Self.mainTabBarHeight + Self.floatingBarGapAboveMenu
+        if version.usesModernAttendanceChrome {
+            return standard - Self.modernFloatingBarExtraLowerOffset
+        }
+        return standard
+    }
+
+    private var showsFloatingSelectionBar: Bool {
+        !attendanceMVP
+            && !isViewingNonTodayDate
+            && selectedTab == attendanceTabIndex
+            && (!attendanceUIVersion.usesModernAttendanceChrome || isSelecting)
+    }
+
+    private var employees: [EmployeeAnomaly] {
+        if attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 {
+            return TimeAttendanceMockData.employees(for: selectedDate)
+        }
+        return TimeAttendanceMockData.employees
+    }
+
+    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe", "Tomasevic, George"])
 
     private var eligibleEmployees: [EmployeeAnomaly] {
-        employees.filter { !$0.hasScheduleIcon }
+        if attendanceUIVersion.usesV6IssueBannerStyle { return employees }
+        return employees.filter { !$0.hasScheduleIcon }
     }
 
     private var filterCounts: [AnomalyFilterCategory: Int] {
@@ -48,25 +124,95 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var otherEmployees: [EmployeeAnomaly] {
-        filteredEmployees.filter { !directReportNames.contains($0.name) }
+        filteredEmployees.filter {
+            !directReportNames.contains($0.name) &&
+            !(attendanceUIVersion.usesV6IssueBannerStyle && $0.hasScheduleIcon && $0.anomalyType == .onTrack)
+        }
+    }
+
+    private var v6StatsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(AnomalyFilterCategory.allCases.filter { $0 != .onTrack && $0 != .missedClockOut }.prefix(3)), id: \.self) { filter in
+                    let count = filterCounts[filter] ?? 0
+                    let isSelected = selectedFilters.contains(filter)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if isSelected { selectedFilters.remove(filter) }
+                            else { selectedFilters.insert(filter) }
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(filter.rawValue)
+                                .font(AppFonts.subheadline())
+                                .tracking(-0.24)
+                                .foregroundColor(AppColors.fontDefault)
+
+                            Text("\(count)")
+                                .font(AppFonts.subheadStrong())
+                                .foregroundColor(count > 0 ? AppColors.dangerDefault : AppColors.fontSecondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(count > 0 ? AppColors.dangerBackground : AppColors.lightBackground)
+                                .clipShape(Capsule())
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(isSelected ? AppColors.danger100 : AppColors.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 12)
+        }
+        .padding(.horizontal, -16)
+    }
+
+    /// IDs visible with current filters & search — used for select all / deselect all.
+    private var selectableEmployeeIDs: Set<UUID> {
+        Set(filteredEmployees.map(\.id))
+    }
+
+    private var allFilteredEmployeesSelected: Bool {
+        let ids = selectableEmployeeIDs
+        guard !ids.isEmpty else { return false }
+        return ids.isSubset(of: selectedForNotification)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            tabBar
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                tabBar
 
-            Group {
-                switch selectedTab {
-                case 0:  placeholderTab("Events")
-                case 1:  placeholderTab("Celebrations")
-                case 2:  onLeaveContent
-                case 3:  timeAttendanceContent
-                default: Spacer()
+                Group {
+                    tabContent
                 }
+            }
+            .onChange(of: attendanceUIVersion) { version in
+                selectedTab = attendanceTabIndex
+                if version == .v1 {
+                    showSearchRow = false
+                }
+            }
+            .onChange(of: selectedDate) { _ in
+                if isViewingNonTodayDate {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSelecting = false
+                        selectedForNotification.removeAll()
+                    }
+                }
+            }
+
+            if showsFloatingSelectionBar {
+                floatingSelectionBar
             }
         }
         .background(AppColors.background)
-        .navigationTitle("7 April 2025")
+        .navigationTitle(navigationDateTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(AppColors.surface, for: .navigationBar)
@@ -83,16 +229,56 @@ struct TimeAttendanceAnomaliesListView: View {
                     .foregroundColor(AppColors.primaryDark)
                 }
             }
+            if attendanceUIVersion.usesModernAttendanceChrome && !attendanceUIVersion.usesV6IssueBannerStyle {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppColors.primaryDark)
-                    .overlay {
-                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                            .labelsHidden()
-                            .colorMultiply(.clear)
-                    }
-                    .fixedSize()
+                attendanceCalendarPicker
+            }
+        }
+    }
+
+    private var attendanceCalendarPicker: some View {
+        Image(systemName: "calendar")
+            .font(.system(size: 18))
+            .foregroundColor(AppColors.primaryDark)
+            .frame(width: 44, height: 44)
+            .overlay {
+                DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                    .labelsHidden()
+                    .colorMultiply(.clear)
+                    .frame(width: 44, height: 44)
+            }
+            .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        if attendanceUIVersion.usesV6IssueBannerStyle {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  timeAttendanceContent
+            case 2:  onLeaveContent
+            case 3:  placeholderTab("Celebrations")
+            default: Spacer()
+            }
+        } else if attendanceUIVersion.usesModernAttendanceChrome {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  onLeaveContent
+            case 2:  placeholderTab("Celebrations")
+            case 3:  timeAttendanceContent
+            default: Spacer()
+            }
+        } else {
+            switch selectedTab {
+            case 0:  placeholderTab("Events")
+            case 1:  timeAttendanceContent
+            case 2:  onLeaveContent
+            case 3:  placeholderTab("Celebrations")
+            default: Spacer()
             }
         }
     }
@@ -121,6 +307,7 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
         }
+        .padding(.top, 8)
         .background(AppColors.surface)
         .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
     }
@@ -134,67 +321,274 @@ struct TimeAttendanceAnomaliesListView: View {
                 selectedDepartment: $selectedDepartment,
                 selectedEntity: $selectedEntity,
                 searchText: $searchText,
+                isSearchRowVisible: $showSearchRow,
                 filterCounts: filterCounts,
-                isSearchRowVisible: showSearchRow
+                attendanceVersion: attendanceUIVersion
             )
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    GeometryReader { geo in
-                        Color.clear.preference(
-                            key: ScrollOffsetKey.self,
-                            value: geo.frame(in: .named("taScroll")).minY
-                        )
+                    if attendanceUIVersion.usesV6IssueBannerStyle {
+                        v6StatsRow
                     }
-                    .frame(height: 0)
 
-                    if !directReportEmployees.isEmpty {
-                        employeeSection(title: "Direct reports", employees: directReportEmployees)
-                    }
-                    if !otherEmployees.isEmpty {
-                        employeeSection(title: "Other employees", employees: otherEmployees)
+                    if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
+                        VStack(spacing: 12) {
+                            Image("illustration-empty-list")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                            Text("No employees to show")
+                                .font(AppFonts.headline())
+                                .foregroundColor(AppColors.fontDefault)
+                            Text(!selectedFilters.isEmpty || selectedDepartment != nil || selectedEntity != nil ? "Try modifying your filters." : "Try modifying your search.")
+                                .font(AppFonts.subheadline())
+                                .foregroundColor(AppColors.fontSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else {
+                        if !directReportEmployees.isEmpty {
+                            employeeSection(
+                                title: "Direct reports",
+                                employees: directReportEmployees,
+                                showsSelectionAction: !attendanceMVP && !isViewingNonTodayDate && attendanceUIVersion.usesModernAttendanceChrome
+                            )
+                        }
+                        if !otherEmployees.isEmpty {
+                            employeeSection(title: "Other employees", employees: otherEmployees)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
             }
-            .coordinateSpace(name: "taScroll")
-            .onPreferenceChange(ScrollOffsetKey.self) { offset in
-                let shouldShow = offset > -10
-                if shouldShow != showSearchRow {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showSearchRow = shouldShow
+        }
+        .background(AppColors.background)
+    }
+
+    private var floatingSelectionBar: some View {
+        ZStack(alignment: .bottom) {
+            LinearGradient(
+                stops: [
+                    .init(color: AppColors.background.opacity(0), location: 0),
+                    .init(color: AppColors.background.opacity(0.92), location: 0.55),
+                    .init(color: AppColors.background, location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: Self.floatingBarGradientHeight + 52)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+
+            HStack(spacing: 12) {
+                    if isSelecting {
+                        floatingCapsuleButton(
+                            "Cancel",
+                            foreground: AppColors.fontSecondary,
+                            style: attendanceUIVersion.usesModernAttendanceChrome ? .tertiary : .secondary
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        }
+                    }
+
+                    if isSelecting && !filteredEmployees.isEmpty {
+                        floatingCapsuleButton(
+                            allFilteredEmployeesSelected ? "Deselect all" : "Select all",
+                            style: .selectAll
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                let ids = selectableEmployeeIDs
+                                if allFilteredEmployeesSelected {
+                                    selectedForNotification.subtract(ids)
+                                } else {
+                                    selectedForNotification.formUnion(ids)
+                                }
+                            }
+                        }
+                        .accessibilityHint("Selects or clears everyone in the current list and filters.")
+                    }
+
+                    if isSelecting && !selectedForNotification.isEmpty {
+                        floatingCapsuleButton(
+                            "Notify \(selectedForNotification.count)",
+                            icon: "bell",
+                            style: .primary
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                for id in selectedForNotification {
+                                    notifiedEmployees.insert(id)
+                                }
+                                selectedForNotification.removeAll()
+                                isSelecting = false
+                            }
+                        }
+                    }
+
+                    if attendanceUIVersion == .v1 && !isSelecting {
+                        floatingCapsuleButton("Select", icon: "checkmark.circle") {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isSelecting = true
+                            }
+                        }
+                    }
+
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private enum FloatingCapsuleButtonStyle {
+        case secondary
+        case primary
+        case tertiary
+        case selectAll
+    }
+
+    private func floatingCapsuleButton(
+        _ title: String,
+        icon: String? = nil,
+        foreground: Color = AppColors.primaryDark,
+        style: FloatingCapsuleButtonStyle = .secondary,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                Text(title)
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(style == .primary ? .white : foreground)
+            .padding(.horizontal, style == .tertiary ? 16 : 20)
+            .padding(.vertical, 12)
+            .background {
+                switch style {
+                case .primary:
+                    Capsule().fill(AppColors.primaryDark)
+                case .selectAll:
+                    Capsule().fill(AppColors.activeBackground)
+                case .secondary:
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .background(Capsule().fill(.white.opacity(0.7)))
+                        .overlay(Capsule().stroke(.white.opacity(0.5), lineWidth: 0.5))
+                case .tertiary:
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .background(Capsule().fill(AppColors.surface.opacity(0.85)))
+                }
+            }
+            .shadow(
+                color: .black.opacity(style == .tertiary ? 0.06 : (style == .selectAll ? 0.08 : 0.1)),
+                radius: style == .tertiary ? 8 : 16,
+                y: style == .tertiary ? 3 : 6
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func employeeSection(
+        title: String,
+        employees: [EmployeeAnomaly],
+        showsSelectionAction: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.08)
+
+                Spacer(minLength: 8)
+
+                if showsSelectionAction {
+                    if !isSelecting {
+                        tertiarySelectionButton(title: "Select", icon: nil, foreground: AppColors.primaryDark) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isSelecting = true
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-
-    private func employeeSection(title: String, employees: [EmployeeAnomaly]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(AppColors.fontSecondary)
-                .tracking(-0.08)
 
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
-                    NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
-                        EmployeeAnomalyRow(employee: employee)
+                    if isSelecting && !attendanceMVP && !isViewingNonTodayDate {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                if selectedForNotification.contains(employee.id) {
+                                    selectedForNotification.remove(employee.id)
+                                } else {
+                                    selectedForNotification.insert(employee.id)
+                                }
+                            }
+                        } label: {
+                            EmployeeAnomalyRow(
+                                employee: employee,
+                                isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified),
+                                isSelectionMode: true,
+                                isSelectedForNotification: selectedForNotification.contains(employee.id),
+                                isActionable: true
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
+                            EmployeeAnomalyRow(
+                                employee: employee,
+                                isNotified: Binding(
+                                    get: { notifiedEmployees.contains(employee.id) || allNotified },
+                                    set: { newValue in
+                                        if newValue { notifiedEmployees.insert(employee.id) }
+                                        else { notifiedEmployees.remove(employee.id); allNotified = false }
+                                    }
+                                ),
+                                isActionable: !attendanceMVP && !isViewingNonTodayDate
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     if index < employees.count - 1 {
                         Rectangle()
                             .fill(AppColors.separator)
                             .frame(height: 1)
-                            .padding(.horizontal, 16)
                     }
                 }
             }
             .background(AppColors.surface)
             .cornerRadius(16)
         }
+    }
+
+    private func tertiarySelectionButton(
+        title: String,
+        icon: String?,
+        foreground: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                Text(title)
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(foreground)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - On Leave Content
@@ -226,13 +620,21 @@ struct TimeAttendanceAnomaliesListView: View {
     private func onLeaveCard(_ card: OnLeaveCard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: "E8E8ED"))
+                if let avatarName = card.avatarName {
+                    Image(avatarName)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: 30, height: 30)
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.iconDefault)
+                        .clipShape(Circle())
+                } else {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: "E8E8ED"))
+                            .frame(width: 30, height: 30)
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(AppColors.iconDefault)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -327,6 +729,7 @@ private struct OnLeaveCard: Identifiable {
     let id = UUID()
     let name: String
     let role: String
+    let avatarName: String?
     let entries: [LeaveEntry]
 }
 
@@ -336,36 +739,29 @@ private struct OnLeaveSection: Identifiable {
     let cards: [OnLeaveCard]
 }
 
-private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 private enum OnLeaveMockData {
     static let sections: [OnLeaveSection] = [
         OnLeaveSection(title: "Direct reports", cards: [
-            OnLeaveCard(name: "Gutmann, Elyssa", role: "Account Manager", entries: [
+            OnLeaveCard(name: "Gutmann, Elyssa", role: "Account Manager", avatarName: "avatar-michael", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 - 18 Jan 2023", isPending: false)
             ])
         ]),
         OnLeaveSection(title: "Manager", cards: [
-            OnLeaveCard(name: "Carty, Joe", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Carty, Joe", role: "Operations Engineer", avatarName: "avatar-abdi", entries: [
                 LeaveEntry(type: .unpaidTimeOff, dateRange: "6 Jan 2023 (18:00) - 6 Jan 2023 (19:00)", isPending: true),
                 LeaveEntry(type: .sickLeave, dateRange: "6 Jan 2023 (20:00) - 6 Jan 2023 (21:00)", isPending: true)
             ])
         ]),
         OnLeaveSection(title: "Teammates", cards: [
-            OnLeaveCard(name: "Laren, John", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Laren, John", role: "Operations Engineer", avatarName: "avatar-tyler", entries: [
                 LeaveEntry(type: .sickLeave, dateRange: "6 Jan 2023 (first half)", isPending: false)
             ])
         ]),
         OnLeaveSection(title: "Other employees", cards: [
-            OnLeaveCard(name: "Wilhelham, Minnie Laris Julie", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Wilhelham, Minnie Laris Julie", role: "Operations Engineer", avatarName: "avatar-grace", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 (half day) - 21 Jan 2023 (half day)", isPending: false)
             ]),
-            OnLeaveCard(name: "Kovarek, Tomas", role: "Operations Engineer", entries: [
+            OnLeaveCard(name: "Kovarek, Tomas", role: "Operations Engineer", avatarName: "avatar-tyler", entries: [
                 LeaveEntry(type: .paidTimeOff, dateRange: "6 Jan 2023 (first half)", isPending: false)
             ])
         ])

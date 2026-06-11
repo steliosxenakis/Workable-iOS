@@ -4,10 +4,14 @@ struct EmployeeTimeTrackingDetailView: View {
     let employee: EmployeeAnomaly
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
     @State private var selectedTab = 2
     @State private var selectedSubTab = 0
 
-    private let tabs = ["Information", "Time off", "Time tracking"]
+    private var tabs: [String] {
+        let timeLabel = attendanceUIVersion.usesModernAttendanceChrome ? "Attendance" : "Time tracking"
+        return ["Information", "Time off", timeLabel]
+    }
 
     var body: some View {
         VStack(spacing: 0) {

@@ -2,7 +2,12 @@ import SwiftUI
 
 struct PersonalTimeTrackingView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.attendanceUIVersion) private var attendanceUIVersion
     @State private var selectedSubTab = 0
+
+    private var navigationTitle: String {
+        attendanceUIVersion.usesModernAttendanceChrome ? "Attendance" : "Time tracking"
+    }
 
     var body: some View {
         TimeTrackingWeekCalendarContent(selectedSubTab: $selectedSubTab)
@@ -24,7 +29,7 @@ struct PersonalTimeTrackingView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("Time tracking")
+                    Text(navigationTitle)
                         .font(AppFonts.headline())
                         .foregroundColor(AppColors.fontDefault)
                 }
