@@ -13,7 +13,7 @@ struct TimeAttendanceAnomaliesListView: View {
             from: UserDefaults.standard.string(forKey: AttendanceUIVersion.appStorageKey)
                 ?? AttendanceUIVersion.defaultVersion.rawValue
         )
-        let defaultTab = version == .v6 ? 1 : version.usesModernAttendanceChrome ? 3 : 1
+        let defaultTab = (version == .v6 || version == .v7 || version == .v8) ? 1 : version.usesModernAttendanceChrome ? 3 : 1
         _selectedTab = State(initialValue: initialTab ?? defaultTab)
     }
     @State private var selectedDepartment: String?
@@ -24,11 +24,11 @@ struct TimeAttendanceAnomaliesListView: View {
 
     /// V5 — past-date attendance is read-only (no bells, no selection).
     private var isViewingNonTodayDate: Bool {
-        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6) && !Calendar.current.isDateInToday(selectedDate)
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8) && !Calendar.current.isDateInToday(selectedDate)
     }
 
     private var isViewingFutureDate: Bool {
-        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6) && selectedDate > Date()
+        (attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8) && selectedDate > Date()
     }
 
     private var isViewingPastDate: Bool {
@@ -36,7 +36,7 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var navigationDateTitle: String {
-        guard attendanceUIVersion == .v5 || attendanceUIVersion == .v6 else { return "7 April 2025" }
+        guard attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 else { return "7 April 2025" }
         if attendanceUIVersion == .v5 && Calendar.current.isDateInToday(selectedDate) { return "Today" }
         let formatter = DateFormatter()
         formatter.dateFormat = "d MMMM yyyy"
@@ -51,7 +51,7 @@ struct TimeAttendanceAnomaliesListView: View {
         switch attendanceUIVersion {
         case .v1:
             return ["Events", "Time tracking", "On leave", "Celebrations"]
-        case .v6:
+        case .v6, .v7, .v8:
             return ["Events", "Attendance", "On leave", "Celebrations"]
         case .v2, .v3, .v4, .v5:
             return ["Events", "On leave", "Celebrations", "Attendance"]
@@ -59,7 +59,7 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var attendanceTabIndex: Int {
-        if attendanceUIVersion == .v6 { return 1 }
+        if attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 { return 1 }
         return attendanceUIVersion.usesModernAttendanceChrome ? 3 : 1
     }
 
@@ -86,7 +86,7 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var employees: [EmployeeAnomaly] {
-        if attendanceUIVersion == .v5 || attendanceUIVersion == .v6 {
+        if attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 {
             return TimeAttendanceMockData.employees(for: selectedDate)
         }
         return TimeAttendanceMockData.employees
@@ -133,7 +133,7 @@ struct TimeAttendanceAnomaliesListView: View {
     private var v6StatsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Array(AnomalyFilterCategory.allCases.filter { $0 != .onTrack }.prefix(3)).filter { (filterCounts[$0] ?? 0) > 0 }, id: \.self) { filter in
+                ForEach(Array(AnomalyFilterCategory.allCases.filter { $0 != .onTrack && $0 != .missedClockOut }.prefix(3)), id: \.self) { filter in
                     let count = filterCounts[filter] ?? 0
                     let isSelected = selectedFilters.contains(filter)
                     Button {
@@ -148,15 +148,13 @@ struct TimeAttendanceAnomaliesListView: View {
                                 .tracking(-0.24)
                                 .foregroundColor(AppColors.fontDefault)
 
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(AppFonts.subheadStrong())
-                                    .foregroundColor(AppColors.dangerDefault)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(AppColors.dangerBackground)
-                                    .clipShape(Capsule())
-                            }
+                            Text("\(count)")
+                                .font(AppFonts.subheadStrong())
+                                .foregroundColor(count > 0 ? AppColors.dangerDefault : AppColors.fontSecondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(count > 0 ? AppColors.dangerBackground : AppColors.lightBackground)
+                                .clipShape(Capsule())
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -328,29 +326,28 @@ struct TimeAttendanceAnomaliesListView: View {
                 attendanceVersion: attendanceUIVersion
             )
 
-            if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
-                Spacer()
-                VStack(spacing: 12) {
-                    Image(systemName: "text.page")
-                        .font(.system(size: 48))
-                        .foregroundColor(AppColors.separator)
-                    Text("No employees to show")
-                        .font(AppFonts.headline())
-                        .foregroundColor(AppColors.fontDefault)
-                    Text("Try modifying your search.")
-                        .font(AppFonts.subheadline())
-                        .foregroundColor(AppColors.fontSecondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 80)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if attendanceUIVersion.usesV6IssueBannerStyle {
-                            v6StatsRow
-                        }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if attendanceUIVersion.usesV6IssueBannerStyle {
+                        v6StatsRow
+                    }
 
+                    if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
+                        VStack(spacing: 12) {
+                            Image("illustration-empty-list")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                            Text("No employees to show")
+                                .font(AppFonts.headline())
+                                .foregroundColor(AppColors.fontDefault)
+                            Text(!selectedFilters.isEmpty || selectedDepartment != nil || selectedEntity != nil ? "Try modifying your filters." : "Try modifying your search.")
+                                .font(AppFonts.subheadline())
+                                .foregroundColor(AppColors.fontSecondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                    } else {
                         if !directReportEmployees.isEmpty {
                             employeeSection(
                                 title: "Direct reports",
@@ -362,10 +359,10 @@ struct TimeAttendanceAnomaliesListView: View {
                             employeeSection(title: "Other employees", employees: otherEmployees)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
             }
         }
         .background(AppColors.background)

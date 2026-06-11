@@ -187,7 +187,7 @@ struct HomeView: View {
             Circle()
                 .fill(AppColors.dangerBadge)
                 .frame(width: 16, height: 16)
-        case .v2, .v4, .v5, .v6:
+        case .v2, .v4, .v5, .v6, .v7, .v8:
             if directReportsIssueCount > 0 {
                 Text("\(directReportsIssueCount)")
                     .font(AppFonts.caption1Strong())

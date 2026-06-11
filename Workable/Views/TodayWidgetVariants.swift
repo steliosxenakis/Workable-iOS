@@ -169,20 +169,22 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
     case v3 = "V3"
     case v4 = "V4"
     case v5 = "V5"
-    case v6 = "V6"
+    case v6 = "V6 Exec"
+    case v7 = "V7"
+    case v8 = "V8"
 
     var id: String { rawValue }
 
     static let appStorageKey = "settings.attendanceUIVersion"
-    static let defaultVersion: AttendanceUIVersion = .v1
+    static let defaultVersion: AttendanceUIVersion = .v6
 
     static func resolved(from rawValue: String) -> AttendanceUIVersion {
         AttendanceUIVersion(rawValue: rawValue) ?? .v1
     }
 
-    /// V2/V3/V4/V5/V6 — Attendance tab order, search, filters, notify bell, issues chip, etc.
+    /// V2/V3/V4/V5/V6/V7/V8 — Attendance tab order, search, filters, notify bell, issues chip, etc.
     var usesModernAttendanceChrome: Bool {
-        self == .v2 || self == .v3 || self == .v4 || self == .v5 || self == .v6
+        self == .v2 || self == .v3 || self == .v4 || self == .v5 || self == .v6 || self == .v7 || self == .v8
     }
 
     /// V3 — progress bars on employee rows instead of status pills.
@@ -190,9 +192,9 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
         self == .v3
     }
 
-    /// V4/V5/V6 — Figma 15509 employee cards (per-anomaly layouts; fork from V2 list chrome).
+    /// V4/V5/V6/V7/V8 — Figma 15509 employee cards (per-anomaly layouts; fork from V2 list chrome).
     var usesV4EmployeeCardStatus: Bool {
-        self == .v4 || self == .v5 || self == .v6
+        self == .v4 || self == .v5 || self == .v6 || self == .v7 || self == .v8
     }
 
     /// V5 — simplified issue banners (no icons, no "0h", warning color support).
@@ -200,18 +202,28 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
         self == .v5
     }
 
-    /// V6 — left-aligned label + right-aligned schedule time, per-type backgrounds.
+    /// V6/V7/V8 — left-aligned label + right-aligned schedule time, per-type backgrounds.
     var usesV6IssueBannerStyle: Bool {
-        self == .v6
+        self == .v6 || self == .v7 || self == .v8
+    }
+
+    /// V7/V8 — single issue as right-aligned pill; multiple issues in banner below.
+    var usesV7InlinePillStyle: Bool {
+        self == .v7 || self == .v8
+    }
+
+    /// V8 — compact 30×30 avatars instead of the standard 48×48.
+    var usesCompactAvatar: Bool {
+        self == .v8
     }
 }
 
 private struct AttendanceUIVersionEnvironmentKey: EnvironmentKey {
-    static let defaultValue: AttendanceUIVersion = .v1
+    static let defaultValue: AttendanceUIVersion = .v6
 }
 
 private struct AttendanceMVPEnvironmentKey: EnvironmentKey {
-    static let defaultValue: Bool = false
+    static let defaultValue: Bool = true
 }
 
 extension EnvironmentValues {
@@ -246,7 +258,7 @@ struct TodayWidgetSwitcher: View {
                 TodayWidgetV2(data: data)
             case .v4, .v5:
                 TodayWidgetV4(data: data)
-            case .v6:
+            case .v6, .v7, .v8:
                 TodayWidgetV6(data: data)
             }
         }
@@ -607,6 +619,10 @@ private extension AttendanceUIVersion {
             return "Fork of V4 — red banners · independent iteration"
         case .v6:
             return "Fork of V5 — independent iteration"
+        case .v7:
+            return "Fork of V6 — inline issue pills on the right"
+        case .v8:
+            return "Fork of V7 — compact 30×30 avatars"
         }
     }
 }

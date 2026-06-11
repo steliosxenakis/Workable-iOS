@@ -150,8 +150,18 @@ struct HoursBalanceCapsuleModel {
         if abs(g) < 0.05 {
             return "0h"
         }
-        let mag = HoursFormat.format(abs(g))
-        return g > 0 ? "+\(mag)h" : "−\(mag)h"
+        let totalMinutes = Int(round(abs(g) * 60))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        let formatted: String
+        if hours > 0 && minutes > 0 {
+            formatted = "\(hours)h \(minutes)m"
+        } else if hours > 0 {
+            formatted = "\(hours)h"
+        } else {
+            formatted = "\(minutes)m"
+        }
+        return g > 0 ? "+\(formatted)" : "−\(formatted)"
     }
 
     var lateDeviationText: String {

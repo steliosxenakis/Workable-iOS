@@ -5,7 +5,7 @@ struct RootView: View {
     private static let showsAttendanceIssuesUIKey = "settings.showAttendanceIssuesUI"
     @AppStorage(AttendanceUIVersion.appStorageKey) private var attendanceUIVersionRaw =
         AttendanceUIVersion.defaultVersion.rawValue
-    @AppStorage("settings.attendanceMVP") private var attendanceMVP = false
+    @AppStorage("settings.attendanceMVP") private var attendanceMVP = true
 
     private var attendanceUIVersion: AttendanceUIVersion {
         AttendanceUIVersion.resolved(from: attendanceUIVersionRaw)
@@ -52,7 +52,7 @@ private struct SettingsTabView: View {
     @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
-    @AppStorage("settings.attendanceMVP") private var attendanceMVP = false
+    @AppStorage("settings.attendanceMVP") private var attendanceMVP = true
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey

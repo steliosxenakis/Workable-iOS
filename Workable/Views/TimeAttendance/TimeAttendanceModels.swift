@@ -6,6 +6,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
     // Actionable (danger)
     case noClockIn = "No attendance"
     case noClockInNorOut = "Missed clock-in"
+    case missedClockOut = "Missed clock-out"
     case exceededWorkSchedule = "Exceeding work hours"
     // Non-actionable (warning)
     case late = "Late arrival"
@@ -19,7 +20,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 
     var textColor: Color {
         switch self {
-        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+        case .noClockIn, .noClockInNorOut, .missedClockOut, .exceededWorkSchedule:
             return AppColors.dangerDefault
         case .late, .exceededHours, .unplanned:
             return AppColors.warningDefault
@@ -32,7 +33,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 
     var badgeBackground: Color {
         switch self {
-        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+        case .noClockIn, .noClockInNorOut, .missedClockOut, .exceededWorkSchedule:
             return AppColors.dangerBackground
         case .late, .exceededHours, .unplanned:
             return AppColors.warningBackground
@@ -45,7 +46,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 
     var isDangerLevel: Bool {
         switch self {
-        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule:
+        case .noClockIn, .noClockInNorOut, .missedClockOut, .exceededWorkSchedule:
             return true
         default:
             return false
@@ -66,6 +67,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
     case noClockInNorOut = "Missed clock-ins"
+    case missedClockOut = "Missed clock-outs"
     case exceededWorkSchedule = "Exceeding work hours"
     case noClockIn = "No attendance"
     case late = "Late arrival"
@@ -79,6 +81,7 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
         switch self {
         case .noClockIn:              return [.noClockIn]
         case .noClockInNorOut:        return [.noClockInNorOut]
+        case .missedClockOut:         return [.missedClockOut]
         case .exceededWorkSchedule:   return [.exceededWorkSchedule]
         case .late:                   return [.late]
         case .exceededHours:          return [.exceededHours]
@@ -92,6 +95,8 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
         switch self {
         case .noClockInNorOut:
             return count == 1 ? "Missed clock-in" : rawValue
+        case .missedClockOut:
+            return count == 1 ? "Missed clock-out" : rawValue
         case .exceededWorkSchedule:
             return count == 1 ? "Exceeding work hour" : rawValue
         case .noClockIn, .onTrack, .late, .exceededHours, .unplanned:
@@ -149,7 +154,7 @@ struct EmployeeAnomaly: Identifiable {
 
     var hasAttendanceIssue: Bool {
         switch anomalyType {
-        case .noClockIn, .noClockInNorOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
+        case .noClockIn, .noClockInNorOut, .missedClockOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
             return true
         case .onTrack, .scheduleNotStarted:
             return false
@@ -246,6 +251,8 @@ enum TimeAttendanceMockData {
         .init(name: "Fischer, Leon",                    role: "Security Engineer",       avatarName: "avatar-tyler",   anomalyType: .onTrack,              hasScheduleIcon: false,  department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 8, scheduleTimeRange: "07:45 - 15:50"),
         .init(name: "Moreau, Camille",                  role: "Marketing Manager",       avatarName: "avatar-lucy",    anomalyType: .onTrack,              hasScheduleIcon: false,  department: "Marketing",   workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 6.5, scheduleTimeRange: "09:00 - 17:10"),
         .init(name: "Suzuki, Yuki",                     role: "iOS Developer",           avatarName: "avatar-zoe",     anomalyType: .onTrack,              hasScheduleIcon: false,  department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 7.5, scheduleTimeRange: "10:00 - 18:15"),
+        .init(name: "Elordi, Xavier",                   role: "Account Executive",       avatarName: "avatar-michael", anomalyType: .missedClockOut,       hasScheduleIcon: false,  department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 5, scheduleTimeRange: "09:30 - Missed"),
+        .init(name: "Novak, Elena",                     role: "HR Coordinator",          avatarName: "avatar-priya",   anomalyType: .missedClockOut,       hasScheduleIcon: false,  department: "Operations",  workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 6, scheduleTimeRange: "08:00 - Missed"),
     ]
 
     /// Order matches Figma Direct reports (15276-14308).
@@ -428,7 +435,7 @@ enum AnomalyPillStyle {
 extension AnomalyType {
     var pillStyle: AnomalyPillStyle {
         switch self {
-        case .noClockIn, .noClockInNorOut: return .danger
+        case .noClockIn, .noClockInNorOut, .missedClockOut: return .danger
         case .exceededWorkSchedule:        return .warning
         case .late, .exceededHours, .unplanned: return .warning
         case .scheduleNotStarted:          return .neutral
@@ -765,6 +772,15 @@ struct AnomalyFilterBar: View {
         Menu {
             if attendanceVersion.usesV6IssueBannerStyle {
                 Menu("Issues") {
+                    Button {
+                        selectedFilters.removeAll()
+                    } label: {
+                        if selectedFilters.isEmpty {
+                            Label("All", systemImage: "checkmark")
+                        } else {
+                            Text("All")
+                        }
+                    }
                     ForEach(sortedFilters, id: \.self) { filter in
                         let isSelected = selectedFilters.contains(filter)
                         Button {
@@ -783,6 +799,15 @@ struct AnomalyFilterBar: View {
 
             if attendanceVersion.usesV6IssueBannerStyle {
                 Menu("Department") {
+                    Button {
+                        selectedDepartment = nil
+                    } label: {
+                        if selectedDepartment == nil {
+                            Label("All", systemImage: "checkmark")
+                        } else {
+                            Text("All")
+                        }
+                    }
                     ForEach(TimeAttendanceMockData.departments, id: \.self) { dept in
                         Button {
                             selectedDepartment = selectedDepartment == dept ? nil : dept
@@ -796,6 +821,15 @@ struct AnomalyFilterBar: View {
                     }
                 }
                 Menu("Entities") {
+                    Button {
+                        selectedEntity = nil
+                    } label: {
+                        if selectedEntity == nil {
+                            Label("All", systemImage: "checkmark")
+                        } else {
+                            Text("All")
+                        }
+                    }
                     ForEach(TimeAttendanceMockData.entities, id: \.self) { entity in
                         Button {
                             selectedEntity = selectedEntity == entity ? nil : entity
@@ -991,7 +1025,7 @@ struct EmployeeAnomalyV4IssueBanner: View {
             return false
         case .noClockIn:
             return !employee.hasScheduleIcon
-        case .noClockInNorOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
+        case .noClockInNorOut, .missedClockOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
             return true
         }
     }
@@ -1035,7 +1069,7 @@ struct EmployeeAnomalyV4IssueBanner: View {
             return "icon-attendance-exceeded"
         case .noClockIn:
             return "icon-close"
-        case .noClockInNorOut:
+        case .noClockInNorOut, .missedClockOut:
             return "icon-attendance-missed-clock-in"
         case .late, .exceededHours, .unplanned:
             return "icon-attendance-exceeded"
@@ -1046,7 +1080,7 @@ struct EmployeeAnomalyV4IssueBanner: View {
 
     private var bannerHoursValue: String {
         switch employee.anomalyType {
-        case .noClockIn, .noClockInNorOut:
+        case .noClockIn, .noClockInNorOut, .missedClockOut:
             return "0h"
         case .exceededWorkSchedule, .exceededHours:
             return hoursModel.gapDisplayText
@@ -1146,9 +1180,11 @@ struct EmployeeAnomalyV6IssueBanner: View {
             return "No attendance"
         case .noClockInNorOut:
             return "Missed clock-in"
+        case .missedClockOut:
+            return "Missed clock-out"
         case .exceededWorkSchedule, .exceededHours:
             let gap = hoursModel.gapDisplayText
-            return gap.isEmpty ? employee.anomalyType.rawValue : "\(employee.anomalyType.rawValue) (\(gap))"
+            return gap.isEmpty ? employee.anomalyType.rawValue : "\(employee.anomalyType.rawValue) by \(gap.replacingOccurrences(of: "+", with: ""))"
         case .late:
             return "Late arrival"
         case .unplanned:
@@ -1189,6 +1225,72 @@ struct EmployeeAnomalyV6IssueBanner: View {
     }
 }
 
+/// V7 — issue as an inline pill on the right side of the row.
+struct EmployeeAnomalyV7IssuePill: View {
+    let employee: EmployeeAnomaly
+
+    private var hoursModel: HoursBalanceCapsuleModel {
+        HoursBalanceCapsuleModel(
+            scheduledHours: employee.scheduledHours,
+            workedHours: employee.workedHours,
+            anomalyType: employee.anomalyType
+        )
+    }
+
+    static func showsPill(for employee: EmployeeAnomaly) -> Bool {
+        switch employee.anomalyType {
+        case .scheduleNotStarted, .onTrack:
+            return false
+        case .noClockIn:
+            return !employee.hasScheduleIcon
+        default:
+            return true
+        }
+    }
+
+    private var pillLabel: String {
+        switch employee.anomalyType {
+        case .noClockIn:
+            return "No attendance"
+        case .noClockInNorOut:
+            return "Missed clock-in"
+        case .missedClockOut:
+            return "Missed clock-out"
+        case .exceededWorkSchedule, .exceededHours:
+            let gap = hoursModel.gapDisplayText.replacingOccurrences(of: "+", with: "")
+            return gap.isEmpty ? employee.anomalyType.rawValue : "Exceeded by \(gap)"
+        case .late:
+            return "Late arrival"
+        case .unplanned:
+            return "Unplanned"
+        case .onTrack, .scheduleNotStarted:
+            return ""
+        }
+    }
+
+    private var pillTextColor: Color {
+        employee.anomalyType.isWarningLevel ? AppColors.warningDefault : AppColors.dangerDefault
+    }
+
+    private var pillBackground: Color {
+        employee.anomalyType.isWarningLevel ? AppColors.warningBackground : AppColors.dangerBackground
+    }
+
+    var body: some View {
+        if Self.showsPill(for: employee) {
+            Text(pillLabel)
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(pillTextColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(pillBackground)
+                .clipShape(Capsule())
+                .fixedSize()
+                .accessibilityLabel(hoursModel.accessibilitySummary)
+        }
+    }
+}
+
 /// V1/V2 — issue / hour capsules on employee rows.
 struct EmployeeAnomalyStatusPills: View {
     let employee: EmployeeAnomaly
@@ -1218,7 +1320,7 @@ struct EmployeeAnomalyStatusPills: View {
                         .clipShape(Capsule())
                 }
 
-            case .noClockInNorOut, .exceededWorkSchedule:
+            case .noClockInNorOut, .missedClockOut, .exceededWorkSchedule:
                 let model = hoursCapsuleModel
                 HStack(alignment: .center, spacing: 8) {
                     if model.showsCapsule {
@@ -1350,6 +1452,10 @@ struct EmployeeAnomalyRow: View {
 
                 Spacer(minLength: 0)
 
+                if attendanceUIVersion.usesV7InlinePillStyle {
+                    EmployeeAnomalyV7IssuePill(employee: employee)
+                }
+
                 if usesBellSlotSelection && hasNotifyBellSlot {
                     selectionControl(diameter: Self.bellSlotDiameter, iconSize: Self.selectionIconSize)
                 } else if showsNotifyBell {
@@ -1362,12 +1468,14 @@ struct EmployeeAnomalyRow: View {
                 }
             }
 
-            if attendanceUIVersion.usesV6IssueBannerStyle {
-                EmployeeAnomalyV6IssueBanner(employee: employee, isPastDate: !isActionable)
-            } else if attendanceUIVersion.usesV5IssueBannerStyle {
-                EmployeeAnomalyV5IssueBanner(employee: employee, isPastDate: !isActionable)
-            } else {
-                EmployeeAnomalyV4IssueBanner(employee: employee)
+            if !attendanceUIVersion.usesV7InlinePillStyle {
+                if attendanceUIVersion.usesV6IssueBannerStyle {
+                    EmployeeAnomalyV6IssueBanner(employee: employee, isPastDate: !isActionable)
+                } else if attendanceUIVersion.usesV5IssueBannerStyle {
+                    EmployeeAnomalyV5IssueBanner(employee: employee, isPastDate: !isActionable)
+                } else {
+                    EmployeeAnomalyV4IssueBanner(employee: employee)
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -1590,30 +1698,36 @@ struct EmployeeAnomalyRow: View {
         .frame(width: diameter, height: diameter)
     }
 
+    private var avatarDiameter: CGFloat {
+        attendanceUIVersion.usesCompactAvatar ? 30 : 48
+    }
+
     private var avatarView: some View {
-        ZStack(alignment: .bottomTrailing) {
+        let size = avatarDiameter
+        return ZStack(alignment: .bottomTrailing) {
             if let name = employee.avatarName {
                 Image(name)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 48, height: 48)
+                    .frame(width: size, height: size)
                     .clipShape(Circle())
             } else {
                 ZStack {
                     Circle()
                         .fill(Color(hex: "E8E8ED"))
-                        .frame(width: 48, height: 48)
+                        .frame(width: size, height: size)
                     Image(systemName: "person.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: size == 30 ? 14 : 20))
                         .foregroundColor(AppColors.iconDefault)
                 }
             }
 
             if employee.hasScheduleIcon {
+                let badgeSize: CGFloat = size == 30 ? 16 : 21
                 Image(systemName: "calendar")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: size == 30 ? 7 : 9, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 21, height: 21)
+                    .frame(width: badgeSize, height: badgeSize)
                     .background(AppColors.fontDefault)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white, lineWidth: 0.5))
