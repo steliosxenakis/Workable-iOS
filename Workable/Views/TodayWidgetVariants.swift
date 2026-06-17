@@ -223,7 +223,7 @@ private struct AttendanceUIVersionEnvironmentKey: EnvironmentKey {
 }
 
 private struct AttendanceMVPEnvironmentKey: EnvironmentKey {
-    static let defaultValue: Bool = true
+    static let defaultValue: Bool = false
 }
 
 extension EnvironmentValues {

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usability Test — V6 Exec · Attendance issues in my line</title>
+<style>
+  :root{
+    --bg:#F8F5F2; --surface:#FFFFFF; --surface-darker:#FCF9F7; --light:#FBF9F6;
+    --sep:#EEEDEC; --font:#323234; --font2:#8A8986; --primary:#00665B;
+    --danger:#CC2C11; --danger-bg:#FFF1F1; --danger-badge:#FFD2CF;
+    --warning:#BD5B01; --warning-bg:#FFFADF; --success-bg:#E9FCF4; --success:#009E6A;
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Inter,sans-serif;background:#fff;color:var(--font);margin:0;padding:32px;max-width:1080px;margin-inline:auto;font-size:14px;line-height:1.45}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:16px;color:#0F3B36;margin:36px 0 12px;border-bottom:2px solid var(--sep);padding-bottom:6px}
+  .strip{display:flex;flex-wrap:wrap;gap:8px 20px;background:var(--bg);border:1px solid var(--sep);border-radius:10px;padding:10px 16px;font-size:13px;margin:14px 0 8px}
+  .strip b{color:var(--font)}
+  .strip span{color:var(--font2)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+  .b-crit{background:var(--danger-badge);color:var(--danger)}
+  .b-major{background:#FFF0B8;color:var(--warning)}
+  .b-minor{background:var(--success-bg);color:var(--primary)}
+  .b-done{background:var(--success-bg);color:var(--success)}
+  .b-partial{background:#FFF0B8;color:var(--warning)}
+  .b-fail{background:var(--danger-badge);color:var(--danger)}
+  /* persona cards */
+  .personas{display:flex;gap:12px;flex-wrap:wrap}
+  .pcard{flex:1;min-width:240px;border:1px solid var(--sep);border-radius:12px;padding:12px 14px;background:var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.04)}
+  .pcard .av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;margin-right:8px}
+  .pcard h3{display:inline;font-size:14px;margin:0}
+  .pcard .meta{color:var(--font2);font-size:12px;margin:6px 0}
+  /* journeys */
+  details{border:1px solid var(--sep);border-radius:10px;margin:8px 0;background:var(--surface)}
+  details>summary{cursor:pointer;padding:10px 14px;font-weight:600;background:var(--light);border-radius:10px;list-style-position:inside}
+  details[open]>summary{border-bottom:1px solid var(--sep);border-radius:10px 10px 0 0}
+  details .inner{padding:10px 14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--font2);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--sep)}
+  td{padding:6px 8px;border-bottom:1px solid var(--sep);vertical-align:top}
+  tr:nth-child(even) td{background:var(--surface-darker)}
+  .warn-row td{background:var(--danger-bg)!important}
+  /* findings */
+  .finding{border:1px solid var(--sep);border-radius:12px;padding:16px;margin:14px 0;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .finding h3{margin:0 0 6px;font-size:15px}
+  .tags{font-size:12px;color:var(--font2);margin-bottom:10px}
+  .tag{background:var(--bg);border:1px solid var(--sep);border-radius:99px;padding:1px 8px;margin-right:4px}
+  .caption{font-size:11px;color:var(--font2);font-style:italic;margin-top:4px}
+  /* phone mockups */
+  .mock{width:370px;max-width:100%;background:var(--bg);border:1px solid var(--sep);border-radius:14px;padding:12px;font-size:13px}
+  .mockpair{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 4px 7px rgba(0,0,0,.07)}
+  .row{display:flex;align-items:center;gap:10px}
+  .avatar{width:42px;height:42px;border-radius:50%;background:#E8E8ED;display:flex;align-items:center;justify-content:center;color:var(--font2);font-weight:700;flex-shrink:0}
+  .nm{font-weight:600}
+  .sub{color:var(--font2);font-size:12px}
+  .banner{margin-top:8px;background:var(--danger-bg);color:var(--danger);border-radius:8px;padding:7px 8px;font-size:13px}
+  .banner.warn{background:var(--warning-bg);color:var(--warning)}
+  .pill{display:inline-block;background:var(--danger-bg);color:var(--danger);border-radius:99px;padding:3px 12px;font-weight:600;font-size:13px}
+  .pill.dark{background:var(--danger-badge)}
+  .bell{margin-left:auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--sep);background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .statcard{background:var(--surface);border-radius:14px;padding:10px 12px;box-shadow:0 4px 7px rgba(0,0,0,.07);display:inline-block;margin-right:6px;vertical-align:top;min-width:104px}
+  .statcard .lbl{font-size:12px;margin-bottom:6px}
+  .problem{outline:2px dashed var(--danger);outline-offset:3px;border-radius:10px}
+  .fixed{outline:2px dashed var(--success);outline-offset:3px;border-radius:10px}
+  .sol{background:#F0FBF6;border:1px solid #BFE8D6;border-radius:10px;margin-top:12px}
+  .sol>summary{background:#E2F6EC;color:#0F3B36}
+  .codeblock{background:#1C1C1E;color:#E8E8ED;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;overflow-x:auto;white-space:pre}
+  .sechead{font-size:12px;color:var(--font2);margin:8px 0 4px}
+  .verdict{background:var(--bg);border-left:4px solid var(--primary);padding:12px 16px;border-radius:0 10px 10px 0}
+</style>
+</head>
+<body>
+
+<h1>Usability Test — Attendance issues in my line → notify</h1>
+<div class="strip">
+  <span><b>App</b> Workable iOS · V6 Exec</span>
+  <span><b>Task</b> Find direct reports with attendance issues, notify them to fix time entries</span>
+  <span><b>Date</b> 12 Jun 2026</span>
+  <span><b>Mode</b> Code-based simulation (SwiftUI)</span>
+  <span><b>Completion</b> <span class="badge b-fail">0/3 full task</span> <span class="badge b-partial">2/3 identified only</span></span>
+  <span><b>Issues</b> 7 · 2 critical</span>
+</div>
+
+<h2>Personas</h2>
+<div class="personas">
+  <div class="pcard">
+    <span class="av">L</span><h3>Lily Brooks</h3> <span class="badge b-partial">~ Partial</span>
+    <div class="meta">Manager HR Operations · knowledge 75% · usage 55%</div>
+    Mental model: Workable conventions; expects an explicit notify action near each issue. Systematic scan, persistent.
+  </div>
+  <div class="pcard">
+    <span class="av" style="background:#BD5B01">L</span><h3>Leo Thomas</h3> <span class="badge b-fail">✗ Abandoned</span>
+    <div class="meta">Finance Director · knowledge 55% · usage 35%</div>
+    Mental model: dashboard surfaces what needs action; one obvious button. Glance-speed; 2 wrong taps → delegates.
+  </div>
+  <div class="pcard">
+    <span class="av" style="background:#8A8986">M</span><h3>Max Carter</h3> <span class="badge b-fail">✗ Abandoned</span>
+    <div class="meta">Territory Manager · knowledge 60% · usage 20%</div>
+    Mental model: consumer apps; cards are drill-down buttons; expects tap → action sheet. Low patience.
+  </div>
+</div>
+
+<h2>Journeys</h2>
+
+<details>
+<summary>Lily Brooks · <span class="badge b-partial">~ Partial</span> · 7 steps · identified her line, found no way to notify anyone</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home (Today V6)</td><td>Sees "Attendance · 13 Issues" chip; taps it</td><td>Also sees "Direct reports · 2" chip — two competing entries for the same job</td></tr>
+<tr class="warn-row"><td>2</td><td>Attendance list</td><td>Reads stats cards: 2 + 5 + 3</td><td>⚠ Cards sum to 10, chip said 13 — "where are the other 3?" (F2)</td></tr>
+<tr><td>3</td><td>Attendance list</td><td>Scrolls to "Direct reports" section</td><td>✓ Identifies Doe (Missed clock-in) and Gutmann (Exceeding work hours)</td></tr>
+<tr class="warn-row"><td>4</td><td>Attendance list</td><td>Looks for a notify control on rows</td><td>⚠ No bell, no Select, nothing in the filter menu (F1)</td></tr>
+<tr><td>5</td><td>Employee detail (Doe)</td><td>Taps row hoping detail has an action</td><td>Week calendar only; Information / Time off tabs are empty</td></tr>
+<tr class="warn-row"><td>6</td><td>Employee detail</td><td>Hunts toolbar, long-presses row</td><td>⚠ No actions exist anywhere (F1)</td></tr>
+<tr><td>7</td><td>Attendance list</td><td>Gives up on notify</td><td>Partial: identification ✓, notification ✗</td></tr>
+</table></div>
+</details>
+
+<details>
+<summary>Leo Thomas · <span class="badge b-fail">✗ Abandoned</span> · 4 steps · two dead-end taps, then "I'll just Slack them"</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home</td><td>Spots "Direct reports" chip with red ② badge; taps it — it is literally "my line"</td><td>✓ Right scent, fast</td></tr>
+<tr><td>2</td><td>Direct reports</td><td>Glances: red banners on Doe + Gutmann</td><td>✓ Identified in seconds — but rows show "Scheduled: 09:30 – 17:30" instead of role; can't tell who's who beyond names (F7)</td></tr>
+<tr class="warn-row"><td>3</td><td>Employee detail (Gutmann)</td><td>Taps row expecting a "Notify" button</td><td>⚠ Week calendar, no action. Wrong tap #1 (F1)</td></tr>
+<tr class="warn-row"><td>4</td><td>Direct reports</td><td>Back; taps red banner itself</td><td>⚠ Not interactive. Wrong tap #2 → patience spent, abandons in-app, will chase via Slack</td></tr>
+</table></div>
+</details>
+
+<details>
+<summary>Max Carter · <span class="badge b-fail">✗ Abandoned</span> · 6 steps · filter card trap → wrong conclusion about his line</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home (Today V6)</td><td>Red "13 Issues" pill draws eye; taps Attendance chip</td><td>✓</td></tr>
+<tr class="warn-row"><td>2</td><td>Attendance list</td><td>Taps "Missed clock-ins" card expecting a drill-down page</td><td>⚠ Card silently becomes a filter (pink tint); reads it as "I'm on the missed clock-ins page" (F4)</td></tr>
+<tr class="warn-row"><td>3</td><td>Attendance list (filtered)</td><td>Scans "Direct reports": only Doe visible</td><td>⚠ Concludes only 1 person in his line has issues — Gutmann hidden by his accidental filter (F4 → wrong data takeaway)</td></tr>
+<tr><td>4</td><td>Employee detail (Doe)</td><td>Taps row expecting an action sheet</td><td>Calendar view; lost, goes back</td></tr>
+<tr class="warn-row"><td>5</td><td>Attendance list</td><td>Taps the red "Missed clock-in" banner on the row</td><td>⚠ Nothing happens (F1)</td></tr>
+<tr><td>6</td><td>Attendance list</td><td>3 steps without progress → abandons</td><td>✗ Mis-identified his line AND never notified</td></tr>
+</table></div>
+</details>
+
+<h2>Findings</h2>
+
+<!-- F1 -->
+<div class="finding">
+<h3>F1 <span class="badge b-crit">🔴 Critical</span> &nbsp;Task is impossible: no notify action exists in the default (MVP) build</h3>
+<div class="tags"><span class="tag">Lily</span><span class="tag">Leo</span><span class="tag">Max</span> · Attendance list, Direct reports, Employee detail</div>
+<p>`attendanceMVP` defaults to <b>true</b>, which strips the notify bell, the Select mode, and the floating "Notify N" bar from every list. The employee detail view has no action either. The Today widget promises "13 Issues" needing attention, then offers zero remediation. All 3 personas failed the notify half of the task.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">Direct reports — as built (MVP)</div>
+  <div class="card problem">
+    <div class="row"><div class="avatar">JD</div><div><div class="nm">Doe, Joanne</div><div class="sub">Scheduled: 09:30 - 17:30</div></div></div>
+    <div class="banner">Missed clock-in</div>
+  </div>
+  <div class="caption">rendered from code — not a simulator screenshot. Issue flagged, nowhere to act.</div>
+</div>
+</div>
+<details><summary>▸ Code evidence</summary><div class="inner"><div class="codeblock">// RootView.swift
+@AppStorage("settings.attendanceMVP") private var attendanceMVP = true
+Toggle("MVP (no notifications)", isOn: $attendanceMVP)
+
+// TimeAttendanceAnomaliesListView.swift — bell & Select gated off
+isActionable: !attendanceMVP && !isViewingNonTodayDate
+showsSelectionAction: !attendanceMVP && ...
+// EmployeeTimeTrackingDetailView.swift — no notify action at all</div></div></details>
+<details class="sol"><summary>✦ Proposed solution S1 — ship a notify path in MVP, or stop promising one [M]</summary><div class="inner">
+<p>Either include the per-row bell in MVP scope, or (cheaper) keep MVP read-only but reword the Today chip to "13 issues today" without danger styling, and add a notify CTA to the employee detail toolbar where it's a single, controlled surface.</p>
+<div class="mock"><div class="sechead">Row with notify restored</div>
+  <div class="card fixed">
+    <div class="row"><div class="avatar">JD</div><div><div class="nm">Doe, Joanne</div><div class="sub">Scheduled: 09:30 - 17:30</div></div><div class="bell">🔔</div></div>
+    <div class="banner">Missed clock-in</div>
+  </div>
+</div>
+<p>Alternative [S]: detail-view-only "Remind to log time" button — one entry point, no list clutter.</p>
+</div></details>
+</div>
+
+<!-- F2 -->
+<div class="finding">
+<h3>F2 <span class="badge b-crit">🔴 Critical</span> &nbsp;"13 Issues" on Today ≠ 10 across the list's stat cards</h3>
+<div class="tags"><span class="tag">Lily</span> · Today widget → Attendance list stats row</div>
+<p>The Today chip counts 6 anomaly types (13). The stats row shows only the first 3 categories (2+5+3 = 10); late / exceeded-hours / unplanned are counted in the headline but invisible below. Missed clock-outs are counted <i>nowhere</i> yet still render red banners in the list. Numbers an exec quotes upward must reconcile; Lily immediately distrusted the screen.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built</div>
+  <div style="margin-bottom:10px" class="problem"><div class="card" style="display:inline-block"><div class="sub" style="color:var(--font)">Attendance</div><div style="margin-top:6px"><span class="pill">13 Issues</span></div></div></div>
+  <div>
+    <span class="statcard"><div class="lbl">Missed clock-ins</div><span class="pill">2</span></span><span class="statcard"><div class="lbl">Exceeding work hours</div><span class="pill">5</span></span><span class="statcard"><div class="lbl">No attendance</div><span class="pill">3</span></span>
+  </div>
+  <div class="caption">rendered from code. 2+5+3 = 10; the other 3 issues exist but have no card.</div>
+</div>
+</div>
+<details><summary>▸ Code evidence</summary><div class="inner"><div class="codeblock">// Today chip: 6 types counted
+case .noClockIn, .noClockInNorOut, .exceededWorkSchedule,
+     .late, .exceededHours, .unplanned: return true   // = 13
+
+// v6StatsRow: only first 3 categories shown
+AnomalyFilterCategory.allCases
+  .filter { $0 != .onTrack && $0 != .missedClockOut }.prefix(3)
+// .missedClockOut excluded from BOTH counts, still banners in list</div></div></details>
+<details class="sol"><summary>✦ Proposed solution S2 — one counting rule, plus an overflow card [S]</summary><div class="inner">
+<p>Define a single `attendanceIssueTypes` set used by chip and stats row. Append a "+3 more" card opening the Issues filter menu so every headline issue is reachable. Include missed clock-outs or stop styling them as issues.</p>
+<div class="mock"><div class="sechead">Reconciled</div>
+  <div class="fixed" style="display:inline-block">
+  <span class="statcard"><div class="lbl">Missed clock-ins</div><span class="pill">2</span></span><span class="statcard"><div class="lbl">Exceeding hours</div><span class="pill">5</span></span><span class="statcard"><div class="lbl">No attendance</div><span class="pill">3</span></span><span class="statcard" style="background:var(--light)"><div class="lbl">Other issues</div><span class="pill" style="background:#FFF0B8;color:var(--warning)">+3</span></span>
+  </div>
+</div>
+</div></details>
+</div>
+
+<!-- F3 -->
+<div class="finding">
+<h3>F3 <span class="badge b-major">🟡 Major</span> &nbsp;No "my line" scope — stats and filters are always org-wide</h3>
+<div class="tags"><span class="tag">Lily</span><span class="tag">Leo</span> · Attendance list</div>
+<p>The task is about <i>people in my line</i>. The list has a Direct reports section, but every count (stat cards, filter menu) aggregates all 28 employees. An exec must visually subtract "Other employees" from each number. The dedicated Direct reports page has the opposite gap: scoped correctly but no filters and no counts.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built — counts mix everyone</div>
+  <div class="problem" style="display:inline-block"><span class="statcard"><div class="lbl">Missed clock-ins</div><span class="pill">2</span></span></div>
+  <div class="caption">"2" = 1 direct report + 1 other employee — indistinguishable.</div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S3 — scope segmented control above the stats row [M]</summary><div class="inner">
+<p>Add "My line / Everyone" segmented control; stat cards, filter counts and sections recompute on toggle. Default to "My line" when arriving from the Direct reports chip.</p>
+<div class="mock"><div class="sechead">Scoped</div>
+  <div class="fixed" style="display:inline-block;padding:4px">
+    <div style="display:inline-flex;background:var(--light);border-radius:99px;padding:3px;margin-bottom:8px">
+      <span style="background:var(--surface);border-radius:99px;padding:3px 12px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)">My line</span>
+      <span style="padding:3px 12px;color:var(--font2)">Everyone</span>
+    </div><br>
+    <span class="statcard"><div class="lbl">Missed clock-ins</div><span class="pill">1</span></span><span class="statcard"><div class="lbl">Exceeding hours</div><span class="pill">1</span></span>
+  </div>
+</div>
+</div></details>
+</div>
+
+<!-- F4 -->
+<div class="finding">
+<h3>F4 <span class="badge b-major">🟡 Major</span> &nbsp;Stat cards are secret filters — identical to Today's static chips</h3>
+<div class="tags"><span class="tag">Max</span> · Attendance list stats row</div>
+<p>The V6 stat cards share styling with the non-interactive Today chips, but tapping one silently filters the whole list. Selected state is only a pale pink card tint. Max tapped one expecting a drill-down, never realised a filter was on, and walked away believing only 1 of his 2 line issues existed. A filter that hides people without clearly saying so produces wrong decisions, not just friction.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built — selected state</div>
+  <div class="problem" style="display:inline-block"><span class="statcard" style="background:var(--danger-badge)"><div class="lbl">Missed clock-ins</div><span class="pill" style="background:#fff">2</span></span></div>
+  <div class="caption">Pink tint = "filter on". No checkmark, no label change, list shrinks silently.</div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S4 — explicit filter affordance + active-filter bar [S]</summary><div class="inner">
+<p>Add a checkmark to the selected card (pattern already exists in v4FilterChip) and a dismissible "Filtered: Missed clock-ins ✕" bar above the sections so a hidden-people state is always visible and escapable.</p>
+<div class="mock"><div class="sechead">Fixed</div>
+  <div class="fixed" style="display:inline-block">
+    <span class="statcard" style="background:var(--danger-badge)"><div class="lbl">✓ Missed clock-ins</div><span class="pill" style="background:#fff">2</span></span>
+    <div style="margin-top:8px;background:var(--success-bg);color:var(--primary);border-radius:8px;padding:6px 10px;font-size:12px;display:inline-block">Filtered: Missed clock-ins &nbsp;✕</div>
+  </div>
+</div>
+</div></details>
+</div>
+
+<!-- F5 -->
+<div class="finding">
+<h3>F5 <span class="badge b-major">🟡 Major</span> &nbsp;Every issue banner is danger-red — warnings masquerade as critical</h3>
+<div class="tags"><span class="tag">Lily</span><span class="tag">Leo</span> · Employee rows (list + Direct reports)</div>
+<p>`EmployeeAnomalyV6IssueBanner` hardcodes `dangerBackground`/`dangerDefault` for all types, despite the code comment promising "per-type backgrounds". Late arrival and unplanned attendance (warning-level, not even notifiable) look identical to missed clock-ins. An exec triaging at a glance can't tell who actually needs chasing.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built</div>
+  <div class="card problem">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Working: 09:33 - Ongoing…</div></div></div>
+    <div class="banner">Late arrival</div>
+  </div>
+  <div class="caption">Warning-level issue rendered with danger tokens.</div>
+</div>
+<div class="mock"><div class="sechead">Proposed</div>
+  <div class="card fixed">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Working: 09:33 - Ongoing…</div></div></div>
+    <div class="banner warn">Late arrival</div>
+  </div>
+  <div class="caption">warningBackground #FFFADF / warningDefault #BD5B01 — tokens already exist.</div>
+</div>
+</div>
+<details><summary>▸ Code evidence</summary><div class="inner"><div class="codeblock">// EmployeeAnomalyV6IssueBanner
+private var bannerBackground: Color {
+    AppColors.dangerBackground       // ← always danger
+}
+...
+.foregroundColor(AppColors.dangerDefault)  // ← always danger
+// vs V5/V7 which switch on anomalyType.isWarningLevel</div></div></details>
+<details class="sol"><summary>✦ Proposed solution S5 — reuse V5's severity switch [S]</summary><div class="inner">Copy the two-line `isWarningLevel` ternary from `EmployeeAnomalyV5IssueBanner` into the V6 banner. Mockup above.</div></details>
+</div>
+
+<!-- F6 -->
+<div class="finding">
+<h3>F6 <span class="badge b-minor">🟢 Minor</span> &nbsp;Selection mode: warning rows are invisibly selectable (non-MVP)</h3>
+<div class="tags"><span class="tag">latent bug</span> · Attendance list, Select mode</div>
+<p>With MVP off, every row in Select mode toggles selection on tap — but warning-level rows render no checkbox (`hasNotifyBellSlot == false`). Tapping one silently increments "Notify N" with zero visual feedback; the user can notify people they never saw selected.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built — selected, no indicator</div>
+  <div class="card problem">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Working: 09:33 - Ongoing…</div></div></div>
+    <div class="banner">Late arrival</div>
+  </div>
+  <div class="caption">Row is in selectedForNotification — nothing shows it.</div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S6 — exclude non-notifiable rows from selection [S]</summary><div class="inner">
+<p>In Select mode, skip the toggle for rows where `hasNotifyBellSlot == false` and dim them, so "Notify N" can only ever contain people who show a checkmark.</p>
+<div class="mock"><div class="sechead">Fixed — dimmed, not selectable</div>
+  <div class="card fixed" style="opacity:.45">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Not notifiable</div></div></div>
+    <div class="banner warn">Late arrival</div>
+  </div>
+</div>
+</div></details>
+</div>
+
+<!-- F7 -->
+<div class="finding">
+<h3>F7 <span class="badge b-minor">🟢 Minor</span> &nbsp;V6 rows drop the role line — names only</h3>
+<div class="tags"><span class="tag">Leo</span> · All V6 employee rows</div>
+<p>V6 replaces the role subtitle with "Scheduled / Worked: …". A low-usage exec scanning unfamiliar surnames loses the who-is-this anchor every other version provides.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built</div>
+  <div class="card problem"><div class="row"><div class="avatar">GT</div><div><div class="nm">Tomasevic, George</div><div class="sub">Worked: 09:30 - 17:30</div></div></div></div>
+</div>
+<div class="mock"><div class="sechead">Proposed</div>
+  <div class="card fixed"><div class="row"><div class="avatar">GT</div><div><div class="nm">Tomasevic, George</div><div class="sub">Operations Manager · Worked: 09:30 - 17:30</div></div></div></div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S7 — role + time on one subtitle line [S]</summary><div class="inner">Concatenate role and time range with a separator; truncate role first on overflow. Mockup above.</div></details>
+</div>
+
+<h2>Verdict</h2>
+<p class="verdict">V6 Exec identifies issues well for a systematic user, but the default build promises action it cannot deliver — 0 of 3 personas could notify anyone, and one walked away with wrong data about his own team. Fix the notify path (F1) and the count reconciliation (F2) before any exec-facing demo.</p>
+
+</body>
+</html>
