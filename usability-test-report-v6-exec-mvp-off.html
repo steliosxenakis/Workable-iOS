@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usability Re-test — V6 Exec · MVP off (notifications enabled)</title>
+<style>
+  :root{
+    --bg:#F8F5F2; --surface:#FFFFFF; --surface-darker:#FCF9F7; --light:#FBF9F6;
+    --sep:#EEEDEC; --font:#323234; --font2:#8A8986; --primary:#00665B;
+    --danger:#CC2C11; --danger-bg:#FFF1F1; --danger-badge:#FFD2CF;
+    --warning:#BD5B01; --warning-bg:#FFFADF; --success-bg:#E9FCF4; --success:#009E6A;
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Inter,sans-serif;background:#fff;color:var(--font);margin:0;padding:32px;max-width:1080px;margin-inline:auto;font-size:14px;line-height:1.45}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:16px;color:#0F3B36;margin:36px 0 12px;border-bottom:2px solid var(--sep);padding-bottom:6px}
+  .strip{display:flex;flex-wrap:wrap;gap:8px 20px;background:var(--bg);border:1px solid var(--sep);border-radius:10px;padding:10px 16px;font-size:13px;margin:14px 0 8px}
+  .strip b{color:var(--font)} .strip span{color:var(--font2)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+  .b-crit{background:var(--danger-badge);color:var(--danger)}
+  .b-major{background:#FFF0B8;color:var(--warning)}
+  .b-minor{background:var(--success-bg);color:var(--primary)}
+  .b-done{background:var(--success-bg);color:var(--success)}
+  .b-partial{background:#FFF0B8;color:var(--warning)}
+  .b-fail{background:var(--danger-badge);color:var(--danger)}
+  .b-carry{background:var(--light);color:var(--font2);border:1px solid var(--sep)}
+  .personas{display:flex;gap:12px;flex-wrap:wrap}
+  .pcard{flex:1;min-width:240px;border:1px solid var(--sep);border-radius:12px;padding:12px 14px;background:var(--surface);box-shadow:0 2px 6px rgba(0,0,0,.04)}
+  .pcard .av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;margin-right:8px}
+  .pcard h3{display:inline;font-size:14px;margin:0}
+  .pcard .meta{color:var(--font2);font-size:12px;margin:6px 0}
+  details{border:1px solid var(--sep);border-radius:10px;margin:8px 0;background:var(--surface)}
+  details>summary{cursor:pointer;padding:10px 14px;font-weight:600;background:var(--light);border-radius:10px;list-style-position:inside}
+  details[open]>summary{border-bottom:1px solid var(--sep);border-radius:10px 10px 0 0}
+  details .inner{padding:10px 14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--font2);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--sep)}
+  td{padding:6px 8px;border-bottom:1px solid var(--sep);vertical-align:top}
+  tr:nth-child(even) td{background:var(--surface-darker)}
+  .warn-row td{background:var(--danger-bg)!important}
+  .finding{border:1px solid var(--sep);border-radius:12px;padding:16px;margin:14px 0;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .finding h3{margin:0 0 6px;font-size:15px}
+  .tags{font-size:12px;color:var(--font2);margin-bottom:10px}
+  .tag{background:var(--bg);border:1px solid var(--sep);border-radius:99px;padding:1px 8px;margin-right:4px}
+  .caption{font-size:11px;color:var(--font2);font-style:italic;margin-top:4px}
+  .mock{width:370px;max-width:100%;background:var(--bg);border:1px solid var(--sep);border-radius:14px;padding:12px;font-size:13px}
+  .mockpair{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .card{background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 4px 7px rgba(0,0,0,.07)}
+  .row{display:flex;align-items:center;gap:10px}
+  .avatar{width:42px;height:42px;border-radius:50%;background:#E8E8ED;display:flex;align-items:center;justify-content:center;color:var(--font2);font-weight:700;flex-shrink:0}
+  .nm{font-weight:600} .sub{color:var(--font2);font-size:12px}
+  .banner{margin-top:8px;background:var(--danger-bg);color:var(--danger);border-radius:8px;padding:7px 8px;font-size:13px}
+  .banner.warn{background:var(--warning-bg);color:var(--warning)}
+  .pill{display:inline-block;background:var(--danger-bg);color:var(--danger);border-radius:99px;padding:3px 12px;font-weight:600;font-size:13px}
+  .bell{margin-left:auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--sep);background:var(--bg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .bell.on{background:var(--success-bg)}
+  .check{margin-left:auto;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:2px solid var(--sep);color:transparent}
+  .check.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700}
+  .fab{display:inline-block;border-radius:99px;padding:9px 18px;font-weight:600;margin-right:6px;box-shadow:0 6px 16px rgba(0,0,0,.1)}
+  .fab.pri{background:var(--primary);color:#fff}
+  .fab.sec{background:var(--surface);color:var(--font2);border:1px solid var(--sep)}
+  .fab.sel{background:var(--success-bg);color:var(--primary)}
+  .problem{outline:2px dashed var(--danger);outline-offset:3px;border-radius:10px}
+  .fixed{outline:2px dashed var(--success);outline-offset:3px;border-radius:10px}
+  .sol{background:#F0FBF6;border:1px solid #BFE8D6;border-radius:10px;margin-top:12px}
+  .sol>summary{background:#E2F6EC;color:#0F3B36}
+  .codeblock{background:#1C1C1E;color:#E8E8ED;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;overflow-x:auto;white-space:pre}
+  .sechead{font-size:12px;color:var(--font2);margin:8px 0 4px}
+  .verdict{background:var(--bg);border-left:4px solid var(--primary);padding:12px 16px;border-radius:0 10px 10px 0}
+  .delta{background:var(--success-bg);border:1px solid #BFE8D6;border-radius:10px;padding:10px 16px;margin:8px 0;font-size:13px}
+</style>
+</head>
+<body>
+
+<h1>Usability Re-test — Attendance issues in my line → notify <span class="badge b-done">MVP off</span></h1>
+<div class="strip">
+  <span><b>App</b> Workable iOS · V6 Exec · notifications enabled (`attendanceMVP = false`)</span>
+  <span><b>Task</b> Find direct reports with attendance issues, notify them to fix time entries</span>
+  <span><b>Date</b> 12 Jun 2026</span>
+  <span><b>Mode</b> Code-based simulation (SwiftUI)</span>
+  <span><b>Completion</b> <span class="badge b-done">1/3 full</span> <span class="badge b-partial">1 partial</span> <span class="badge b-fail">1 abandoned</span></span>
+  <span><b>Issues</b> 7 · 2 critical</span>
+</div>
+<div class="delta">Δ vs previous run (MVP on): completion 0/3 → 1/3. Per-row bells, Select mode and the "Notify N" bar are now live in the Attendance list. P-F1 (no notify path) resolved <i>there</i> — but not on the Direct reports page, and enabling selection activated a previously latent bug (P-F6, now F2).</div>
+
+<h2>Personas</h2>
+<div class="personas">
+  <div class="pcard">
+    <span class="av">L</span><h3>Lily Brooks</h3> <span class="badge b-done">✓ Completed</span>
+    <div class="meta">Manager HR Operations · knowledge 75% · usage 55%</div>
+    Systematic, persistent. Previous run: partial (no notify path).
+  </div>
+  <div class="pcard">
+    <span class="av" style="background:#BD5B01">L</span><h3>Leo Thomas</h3> <span class="badge b-fail">✗ Abandoned</span>
+    <div class="meta">Finance Director · knowledge 55% · usage 35%</div>
+    Glance-speed, 2 wrong taps → delegates. Previous run: abandoned. <b>Same outcome — his entry point didn't change.</b>
+  </div>
+  <div class="pcard">
+    <span class="av" style="background:#8A8986">M</span><h3>Max Carter</h3> <span class="badge b-partial">~ Partial</span>
+    <div class="meta">Territory Manager · knowledge 60% · usage 20%</div>
+    Consumer-app mental model. Previous run: abandoned. Now notifies 1 of 2 — believes he's done.
+  </div>
+</div>
+
+<h2>Journeys</h2>
+
+<details>
+<summary>Lily Brooks · <span class="badge b-done">✓ Completed</span> · 6 steps · succeeded, but hesitated at the blind one-tap notify</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home (Today V6)</td><td>Taps "Attendance · 13 Issues"</td><td>✓</td></tr>
+<tr class="warn-row"><td>2</td><td>Attendance list</td><td>Reads stats cards 2 + 5 + 3</td><td>⚠ Still ≠ 13 (F5, carried)</td></tr>
+<tr><td>3</td><td>Attendance list</td><td>Scans "Direct reports"</td><td>✓ Doe + Gutmann flagged; both rows now show a bell</td></tr>
+<tr class="warn-row"><td>4</td><td>Attendance list</td><td>Hovers over Doe's bell — "what exactly will this send?"</td><td>⚠ No preview/confirm; taps anyway (F3)</td></tr>
+<tr><td>5</td><td>Attendance list</td><td>Bell rings, "Notified" label for 2s, turns green</td><td>✓ Feedback OK, though label vanishes; green bell is the only trace</td></tr>
+<tr><td>6</td><td>Attendance list</td><td>Taps Gutmann's bell</td><td>✓ Task complete — both line reports notified</td></tr>
+</table></div>
+</details>
+
+<details>
+<summary>Leo Thomas · <span class="badge b-fail">✗ Abandoned</span> · 4 steps · the "Direct reports" surface still has no notify</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home</td><td>Taps "Direct reports ②" chip — the surface named after his task</td><td>✓ Strong scent</td></tr>
+<tr class="warn-row"><td>2</td><td>Direct reports</td><td>Sees red banners on Doe + Gutmann; looks for an action</td><td>⚠ DirectReportRow renders no bell — notify was never built here (F1)</td></tr>
+<tr class="warn-row"><td>3</td><td>Employee detail (Gutmann)</td><td>Taps row expecting "Notify"</td><td>⚠ Week calendar, no action. Wrong tap #1</td></tr>
+<tr class="warn-row"><td>4</td><td>Direct reports</td><td>Back; taps banner — inert</td><td>⚠ Wrong tap #2 → abandons. Never discovers the working bells one screen away</td></tr>
+</table></div>
+</details>
+
+<details>
+<summary>Max Carter · <span class="badge b-partial">~ Partial</span> · 5 steps · filter trap → notifies 1 of 2 and believes he's done</summary>
+<div class="inner"><table>
+<tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+<tr><td>1</td><td>Home (Today V6)</td><td>Taps Attendance chip</td><td>✓</td></tr>
+<tr class="warn-row"><td>2</td><td>Attendance list</td><td>Taps "Missed clock-ins" card expecting drill-down</td><td>⚠ Silent filter; Gutmann disappears from his view (F4, carried)</td></tr>
+<tr><td>3</td><td>Attendance list (filtered)</td><td>Direct reports shows Doe with a bell — recognizable!</td><td>✓ Bell affordance reads instantly even for a novice</td></tr>
+<tr><td>4</td><td>Attendance list</td><td>Taps bell → "Notified"</td><td>✓ Satisfying feedback</td></tr>
+<tr class="warn-row"><td>5</td><td>Attendance list</td><td>Leaves, confident the job is done</td><td>⚠ Gutmann never notified — false sense of completion</td></tr>
+</table></div>
+</details>
+
+<h2>Findings</h2>
+
+<!-- F1 -->
+<div class="finding">
+<h3>F1 <span class="badge b-crit">🔴 Critical</span> &nbsp;Direct reports page — the "my line" surface — still has zero notify controls</h3>
+<div class="tags"><span class="tag">Leo</span> · Home → Direct reports chip → DirectReportsView</div>
+<p>Disabling MVP enabled bells in the Attendance <i>list</i>, but `DirectReportRow` never had a bell to unhide. The entry point literally labelled with the task's scope (and badged ②) is now the only dead end — and it's the one an exec picks first. Leo failed identically in both runs.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">Direct reports — as built</div>
+  <div class="card problem">
+    <div class="row"><div class="avatar">EG</div><div><div class="nm">Gutmann, Elyssa</div><div class="sub">Working: 09:30 - Ongoing…</div></div></div>
+    <div class="banner">Exceeding work hours by 1.5h</div>
+  </div>
+  <div class="caption">rendered from code. Same employee has a bell one screen away in the Attendance list.</div>
+</div>
+<div class="mock"><div class="sechead">Proposed</div>
+  <div class="card fixed">
+    <div class="row"><div class="avatar">EG</div><div><div class="nm">Gutmann, Elyssa</div><div class="sub">Working: 09:30 - Ongoing…</div></div><div class="bell">🔔</div></div>
+    <div class="banner">Exceeding work hours by 1.5h</div>
+  </div>
+</div>
+</div>
+<details><summary>▸ Code evidence</summary><div class="inner"><div class="codeblock">// DirectReportsView.swift — DirectReportRow body
+// renders avatar, name, schedule line, issue banner…
+// no EmployeeAnomalyRow reuse, no bell, no attendanceMVP gate to flip</div></div></details>
+<details class="sol"><summary>✦ Proposed solution S1 — reuse EmployeeAnomalyRow in DirectReportsView [S]</summary><div class="inner">Swap `DirectReportRow` for the existing `EmployeeAnomalyRow` (it already handles bells, MVP gating, V6 banners). One component, both surfaces stay in sync.</div></details>
+</div>
+
+<!-- F2 -->
+<div class="finding">
+<h3>F2 <span class="badge b-crit">🔴 Critical</span> &nbsp;Now live: Select mode silently adds non-notifiable people to "Notify N"</h3>
+<div class="tags"><span class="tag">latent → active</span> · Attendance list, Select mode (was P-F6)</div>
+<p>With selection enabled, every visible row toggles on tap — but warning-level rows (Late arrival, Exceeded hours, Unplanned) render no checkbox. Tapping one, or using "Select all", adds them invisibly to the count. A user who taps "Select all → Notify 14" notifies people who show no selection state and who individually have no bell. Trust-breaking and unauditable.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">Select mode — as built</div>
+  <div class="card">
+    <div class="row"><div class="avatar">JD</div><div><div class="nm">Doe, Joanne</div><div class="sub">Scheduled: 09:30 - 17:30</div></div><div class="check on">✓</div></div>
+    <div class="banner">Missed clock-in</div>
+  </div>
+  <div style="height:8px"></div>
+  <div class="card problem">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Working: 09:33 - Ongoing…</div></div></div>
+    <div class="banner">Late arrival</div>
+  </div>
+  <div style="margin-top:12px"><span class="fab sec">Cancel</span><span class="fab sel">Select all</span><span class="fab pri">🔔 Notify 2</span></div>
+  <div class="caption">Both rows selected — Wright shows nothing, yet counts toward "Notify 2".</div>
+</div>
+</div>
+<details><summary>▸ Code evidence</summary><div class="inner"><div class="codeblock">// employeeSection — selection Button wraps EVERY row when isSelecting
+if isSelecting && !attendanceMVP { Button { toggle(employee.id) } ... }
+
+// EmployeeAnomalyRow — checkbox only when hasNotifyBellSlot
+private var hasNotifyBellSlot: Bool {
+    isActionable && type != .onTrack && ... && !type.isWarningLevel
+}
+// selectableEmployeeIDs (Select all) = ALL filteredEmployees</div></div></details>
+<details class="sol"><summary>✦ Proposed solution S2 — selection only where a checkbox exists [S]</summary><div class="inner">
+<p>Gate the toggle and `selectableEmployeeIDs` on `hasNotifyBellSlot`; dim non-notifiable rows in Select mode.</p>
+<div class="mock"><div class="sechead">Fixed</div>
+  <div class="card fixed" style="opacity:.45">
+    <div class="row"><div class="avatar">AW</div><div><div class="nm">Wright, Amara</div><div class="sub">Not notifiable</div></div></div>
+    <div class="banner warn">Late arrival</div>
+  </div>
+</div>
+</div></details>
+</div>
+
+<!-- F3 -->
+<div class="finding">
+<h3>F3 <span class="badge b-major">🟡 Major</span> &nbsp;Notify is a blind one-tap: no preview, no confirm, silent un-notify</h3>
+<div class="tags"><span class="tag">Lily</span> · Bell control, both single and batch</div>
+<p>The bell fires instantly. Nothing says what the employee receives ("fix your time entries"? a push? an email?). Re-tapping silently revokes — indistinguishable from a mis-tap. The "Notified" label evaporates after 2s, leaving a green bell as the only audit trail. Lily completed but couldn't say what she actually sent. Batch "Notify 5" has the same opacity at higher stakes.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built</div>
+  <div class="card problem"><div class="row"><div class="avatar">JD</div><div><div class="nm">Doe, Joanne</div><div class="sub">Scheduled: 09:30 - 17:30</div></div><div class="bell on">🔔</div></div><div class="banner">Missed clock-in</div></div>
+  <div class="caption">Tapped. Sent… something. Tap again = silent undo.</div>
+</div>
+<div class="mock"><div class="sechead">Proposed — confirm sheet</div>
+  <div class="card fixed">
+    <div class="nm" style="margin-bottom:6px">Notify Doe, Joanne?</div>
+    <div class="sub" style="margin-bottom:10px">"You have a missed clock-in today (09:30 – 17:30 shift). Please review your time entries in Workable."</div>
+    <span class="fab pri" style="font-size:13px">Send reminder</span><span class="fab sec" style="font-size:13px">Cancel</span>
+  </div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S3 — confirmation sheet with message preview + toast undo [M]</summary><div class="inner">One sheet for single and batch ("Send 5 reminders"). After send, a 5s toast with Undo replaces the toggle-to-revoke pattern; bell becomes a permanent "Reminded at 14:02" state.</div></details>
+</div>
+
+<!-- F4 -->
+<div class="finding">
+<h3>F4 <span class="badge b-major">🟡 Major</span> <span class="badge b-carry">carried</span> &nbsp;Stat-card filter trap now causes half-done notifications</h3>
+<div class="tags"><span class="tag">Max</span> · Attendance list stats row (was P-F4)</div>
+<p>Unchanged code, worse consequence: previously Max merely mis-identified; now he notifies the one visible person and leaves confident, with Gutmann silently filtered out. A hidden filter plus a working action = confidently incomplete work. Fix as previously proposed (checkmark + dismissible "Filtered: …" bar).</p>
+<details class="sol"><summary>✦ Proposed solution S4 — same as previous report S4 [S]</summary><div class="inner">Checkmark on selected card + persistent active-filter bar above sections. Priority raised by the new failure mode.</div></details>
+</div>
+
+<!-- F5 -->
+<div class="finding">
+<h3>F5 <span class="badge b-major">🟡 Major</span> <span class="badge b-carry">carried</span> &nbsp;"13 Issues" vs 10 in stat cards — unchanged</h3>
+<div class="tags"><span class="tag">Lily</span> · Today widget → stats row (was P-F2)</div>
+<p>Counting logic untouched by the MVP flip. Still erodes trust at step 2 of every journey. Same fix: single shared issue-type set + "+3 more" overflow card.</p>
+<details class="sol"><summary>✦ Proposed solution S5 — same as previous report S2 [S]</summary><div class="inner">One `attendanceIssueTypes` source of truth; overflow card for the remaining categories; decide missed clock-outs in or out.</div></details>
+</div>
+
+<!-- F6 -->
+<div class="finding">
+<h3>F6 <span class="badge b-minor">🟢 Minor</span> &nbsp;Red banner + no bell: warning rows now look broken, not just severe</h3>
+<div class="tags"><span class="tag">Lily</span> · Employee rows (was P-F5, consequence shifted)</div>
+<p>All banners are still danger-red, but now danger rows carry bells and warning rows don't. Identical-looking rows with and without an action read as a bug ("why does Wright have no bell?"). Severity tinting (reuse V5's `isWarningLevel` switch) would explain the difference at a glance.</p>
+<details class="sol"><summary>✦ Proposed solution S6 — per-severity banner colors [S]</summary><div class="inner">Same two-line fix as previous report S5; now also disambiguates notifiable vs non-notifiable rows.</div></details>
+</div>
+
+<!-- F7 -->
+<div class="finding">
+<h3>F7 <span class="badge b-minor">🟢 Minor</span> &nbsp;"Select" lives on the Direct reports header but selects the whole list</h3>
+<div class="tags"><span class="tag">scope confusion</span> · Attendance list section headers</div>
+<p>The Select button renders only next to "Direct reports", implying line-scoped selection — but Select mode and "Select all" span Other employees too. A user batch-notifying "their" people may notify the entire org's filtered list.</p>
+<div class="mockpair">
+<div class="mock"><div class="sechead">As built</div>
+  <div class="problem" style="padding:6px 10px;display:flex;justify-content:space-between;background:var(--bg);border-radius:8px"><span class="sub">Direct reports</span><span style="color:var(--primary);font-weight:600">Select</span></div>
+  <div class="caption">"Select all" then selects all 20+ filtered employees, not these 4.</div>
+</div>
+<div class="mock"><div class="sechead">Proposed</div>
+  <div class="fixed" style="padding:6px 10px;display:flex;justify-content:space-between;background:var(--bg);border-radius:8px"><span class="sub">Direct reports</span><span style="color:var(--primary);font-weight:600">Select all in section</span></div>
+</div>
+</div>
+<details class="sol"><summary>✦ Proposed solution S7 — per-section selection scope [M]</summary><div class="inner">Either move Select to the toolbar (clearly global) or scope "Select all" to the section whose header initiated selection.</div></details>
+</div>
+
+<h2>Verdict</h2>
+<p class="verdict">Turning MVP off makes the task achievable — for the persona who takes the right door and tolerates ambiguity. The Direct reports page (F1) is now the single worst gap: it's the task-named entry point and the only one without notify. Fix F1 and F2 next; both are small, and together they take expected completion from 1/3 to 3/3.</p>
+
+</body>
+</html>

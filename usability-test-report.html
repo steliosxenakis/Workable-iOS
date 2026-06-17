@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usability Test — Attendance Issues Scannability (V2–V8)</title>
+<style>
+  :root{
+    --ink:#1a2b3c; --muted:#6b7a89; --line:#e6eaee; --bg:#fff; --soft:#f6f8fa;
+    --crit:#d93025; --major:#9a6c00; --minor:#1e8e3e; --accent:#163a5f;
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:32px;max-width:980px;margin-inline:auto;font-size:14px;line-height:1.45}
+  h1{font-size:20px;color:var(--accent);margin:0 0 4px}
+  h2{font-size:15px;color:var(--accent);margin:32px 0 12px;text-transform:uppercase;letter-spacing:.04em}
+  .strip{display:flex;flex-wrap:wrap;gap:8px 20px;padding:10px 14px;background:var(--soft);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:13px;margin-top:12px}
+  .strip b{color:var(--ink);font-weight:600}
+  .cards{display:flex;gap:12px;margin-top:8px}
+  .card{flex:1;border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;margin-right:8px}
+  .card .who{font-weight:600}
+  .card .meta{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .card .pct{color:var(--muted);font-size:11.5px;margin-top:6px}
+  .card .pct b{color:var(--ink)}
+  .badge{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;margin-top:8px}
+  .ok{background:#e6f4ea;color:var(--minor)} .partial{background:#fdf3d7;color:var(--major)} .fail{background:#fce8e6;color:var(--crit)}
+  details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;overflow:hidden}
+  summary{cursor:pointer;padding:10px 14px;background:var(--soft);font-weight:500;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  summary:hover{background:#eef2f6}
+  summary .kf{color:var(--muted);font-weight:400;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:8px 14px;border-bottom:1px solid var(--line)}
+  td{padding:7px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:nth-child(even) td{background:var(--soft)}
+  .warn td{background:#fff8f7 !important}
+  .matrix td,.matrix th{text-align:center}
+  .matrix td:first-child,.matrix th:first-child{text-align:left;font-weight:600}
+  .good{color:var(--minor);font-weight:700}.mid{color:var(--major);font-weight:700}.bad{color:var(--crit);font-weight:700}
+  .finding{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .sev{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-right:8px}
+  .sev.c{background:#fce8e6;color:var(--crit)} .sev.m{background:#fdf3d7;color:var(--major)} .sev.n{background:#e6f4ea;color:var(--minor)}
+  .fid{color:var(--muted);font-weight:700;margin-right:6px}
+  .tag{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:999px;font-size:11.5px;padding:1px 8px;color:var(--muted);margin-right:4px}
+  .loc{color:var(--muted);font-size:12.5px;margin:6px 0}
+  .shotcap{font-size:11.5px;color:var(--muted);margin-top:5px}
+  .effort{font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:4px;background:var(--soft);border:1px solid var(--line);margin-left:8px}
+  .verdict{padding:14px;border-left:3px solid var(--accent);background:var(--soft);border-radius:0 8px 8px 0;margin-top:8px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:12px}
+  details.code{border:none;margin:8px 0 0;border-radius:8px}
+  details.code summary{background:none;padding:2px 0;font-size:12px;color:var(--muted);font-weight:600}
+  details.code summary:hover{background:none;color:var(--ink)}
+  details.code pre{background:#0f1b28;color:#d8e2ec;font-size:12px;line-height:1.5;padding:12px;border-radius:8px;overflow-x:auto;max-width:640px;margin:6px 0 0}
+  details.code pre .hl{color:#ff8d85}
+  details.sol{border:none;margin:10px 0 0;background:#f4faf7;border-radius:8px}
+  details.sol summary{background:#e6f4ea;color:var(--minor);font-size:12.5px;font-weight:700;padding:7px 12px}
+  details.sol summary:hover{background:#d9eee0}
+  details.sol .solbody{padding:10px 12px 12px}
+
+  /* ===== Code-rendered UI mockups (Workable iOS design tokens) ===== */
+  .phone{width:372px;max-width:100%;border:1px solid #EEEDEC;border-radius:14px;overflow:hidden;background:#fff;margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .phone .vlabel{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#8A8986;background:#FBF9F6;padding:5px 12px;border-bottom:1px solid #EEEDEC;text-transform:uppercase}
+  .phone .vlabel.fix{color:#00665B;background:#E9FCF4}
+  .mrow{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-bottom:1px solid #EEEDEC}
+  .mrow:last-child{border-bottom:none}
+  .mtop{display:flex;align-items:center;gap:10px}
+  .mav{width:40px;height:40px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:14px}
+  .mid2{min-width:0;flex:1}
+  .mname{font-size:14.5px;font-weight:600;color:#323234;letter-spacing:-.2px}
+  .msub{font-size:12.5px;color:#8A8986;margin-top:1px}
+  .mbanner{font-size:12.5px;padding:7px 10px;border-radius:8px;display:flex;justify-content:space-between;gap:8px}
+  .mbell{margin-left:auto;width:30px;height:30px;border-radius:50%;border:1px solid #EEEDEC;background:#F8F5F2;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .mpill{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;flex:none;white-space:nowrap}
+  .mcap{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;display:inline-block}
+  .mbar{display:flex;align-items:center;gap:8px}
+  .mhours{font-size:11px;color:#8A8986;flex:none}
+  .mtrack{height:4px;border-radius:2px;background:#EEF8FF;flex:1;position:relative;overflow:hidden}
+  .mfill{position:absolute;left:0;top:0;bottom:0;background:#226BD1;border-radius:2px}
+  .mover{position:absolute;top:0;bottom:0;background:#FFB420}
+  .annot{outline:2.5px dashed #d93025;outline-offset:2px;border-radius:8px}
+  .annot-fix{outline:2.5px dashed #009E6A;outline-offset:2px;border-radius:8px}
+</style>
+</head>
+<body>
+
+<h1>Usability Test — Attendance Issues Scannability</h1>
+<div class="strip">
+  <span>App: <b>Workable iOS (SwiftUI codebase)</b></span>
+  <span>Task: <b>Spot all attendance issues today (12 seeded) &amp; notify</b></span>
+  <span>Date: <b>11 Jun 2026</b></span>
+  <span>Mode: <b>Code-based · 6 UI versions (V2, V3, V4, V5, V6 default, V7/V8)</b></span>
+  <span>Completion: <b>2/3</b></span>
+  <span><b>6 issues · 2 critical</b></span>
+</div>
+
+<h2>Personas <span style="font-weight:400;color:var(--muted);text-transform:none;font-size:12px">— Workable standard roster (persona-creator)</span></h2>
+<div class="cards">
+  <div class="card">
+    <span class="avatar" style="background:#00665B">PP</span><span class="who">Priya Patel</span> <span class="tag">primary</span>
+    <div class="meta">Finance Manager. Systematic top-to-bottom; expects per-row status like an inbox. Medium patience.</div>
+    <div class="pct">Knowledge <b>72%</b> · Usage <b>40%</b></div>
+    <span class="badge ok">✓ Completed</span>
+  </div>
+  <div class="card">
+    <span class="avatar" style="background:#5C7FB8">LT</span><span class="who">Leo Thomas</span>
+    <div class="meta">Finance Director. Checks between meetings, glance-speed; mental model: "red = act now". Low patience.</div>
+    <div class="pct">Knowledge <b>55%</b> · Usage <b>32%</b></div>
+    <span class="badge partial">~ Partial</span>
+  </div>
+  <div class="card">
+    <span class="avatar" style="background:#C2557F">LB</span><span class="who">Lily Brooks</span>
+    <div class="meta">Manager HR Operations. Audits attendance across departments; reads labels literally, trusts colour = severity. High patience.</div>
+    <div class="pct">Knowledge <b>80%</b> · Usage <b>60%</b></div>
+    <span class="badge ok">✓ Completed</span>
+  </div>
+</div>
+
+<h2>Detection matrix — danger issues found (of 12)</h2>
+<table class="matrix">
+  <tr><th>Version</th><th>Status treatment</th><th>Leo (glance)</th><th>Priya (scan)</th><th>Lily (read)</th><th>False alarms</th></tr>
+  <tr><td>V2</td><td>Pills under role</td><td class="mid">10</td><td class="good">12</td><td class="good">12</td><td>0</td></tr>
+  <tr><td>V3</td><td>Progress bars</td><td class="bad">abandoned</td><td class="mid">11</td><td class="good">12</td><td>0</td></tr>
+  <tr><td>V4</td><td>Neutral banner</td><td class="mid">9</td><td class="good">12</td><td class="good">12</td><td>0</td></tr>
+  <tr><td>V5</td><td>Tinted banner</td><td class="good">12</td><td class="good">12</td><td class="good">12</td><td>0</td></tr>
+  <tr><td>V6 (default)</td><td>All-red banner</td><td class="good">12</td><td class="good">12</td><td class="good">12</td><td class="bad">+3</td></tr>
+  <tr><td>V7/V8</td><td>Right inline pill</td><td class="bad">7</td><td class="mid">11</td><td class="good">12</td><td>0</td></tr>
+</table>
+
+<h2>Journeys</h2>
+
+<details>
+  <summary><span class="avatar" style="background:#5C7FB8">LT</span> Leo Thomas <span class="badge partial">~</span> 6 passes <span class="kf">— quit V3; missed 5 right-pills in V7; perfect only on banners</span></summary>
+  <table>
+    <tr><th>#</th><th>Version</th><th>Action</th><th>Observation</th></tr>
+    <tr><td>1</td><td>V2</td><td>2s glance per screenful</td><td>Red pills pop; 10/12. Missed Elordi &amp; Novak — grey "Missed clock-out" capsule reads as metadata</td></tr>
+    <tr class="warn"><td>2</td><td>V3</td><td>Glances, sees bars + numbers</td><td>⚠ "This is a fitness app?" — needs to read hours to judge. Quits after 4 rows</td></tr>
+    <tr class="warn"><td>3</td><td>V4</td><td>Glance</td><td>⚠ Grey banner bg blends with row; only icon/text colored. 9/12</td></tr>
+    <tr><td>4</td><td>V5</td><td>Glance</td><td>Tinted strips = instant. 12/12, red vs orange triage for free</td></tr>
+    <tr class="warn"><td>5</td><td>V6</td><td>Glance</td><td>12/12 fastest — but flags Wright (late), Alonso, Torres as urgent. ⚠ 3 false alarms, starts notifying a warning-level row</td></tr>
+    <tr class="warn"><td>6</td><td>V7</td><td>Glance</td><td>⚠ Right pills outside scan path (names left). 7/12; Wilhelham's 3-line name buries her pill</td></tr>
+  </table>
+</details>
+
+<details>
+  <summary><span class="avatar" style="background:#00665B">PP</span> Priya Patel <span class="badge ok">✓</span> 6 passes <span class="kf">— completes everywhere except V3/V7 slips; blocked notifying Wright (no bell)</span></summary>
+  <table>
+    <tr><th>#</th><th>Version</th><th>Action</th><th>Observation</th></tr>
+    <tr><td>1</td><td>V2</td><td>Row-by-row</td><td>12/12 but slow — double-checks because "No attendance" and "Missed clock-out" use different visual grammar</td></tr>
+    <tr class="warn"><td>2</td><td>V3</td><td>Reads each bar</td><td>⚠ 11/12 — Torres (unplanned, 0h scheduled) renders empty bar; skipped as "no schedule"</td></tr>
+    <tr><td>3</td><td>V4</td><td>Row-by-row</td><td>12/12; banner text small (13pt), leans in</td></tr>
+    <tr><td>4</td><td>V5</td><td>Row-by-row</td><td>12/12, fastest of her passes</td></tr>
+    <tr class="warn"><td>5</td><td>V6</td><td>Scans, then notifies</td><td>12/12 — then tries to nudge Wright (late): ⚠ no bell on warning rows; assumes a bug</td></tr>
+    <tr class="warn"><td>6</td><td>V7</td><td>Row-by-row</td><td>⚠ 11/12 — pill and bell share right rail; Okafor's pill sits next to bell, read as one control</td></tr>
+  </table>
+</details>
+
+<details>
+  <summary><span class="avatar" style="background:#C2557F">LB</span> Lily Brooks <span class="badge ok">✓</span> 6 passes <span class="kf">— finds all 12 everywhere, but V6 reads as "everyone is in trouble"</span></summary>
+  <table>
+    <tr><th>#</th><th>Version</th><th>Action</th><th>Observation</th></tr>
+    <tr><td>1</td><td>V2</td><td>Reads every pill</td><td>12/12; asks why "Exceeding work hours" shows "+2h" capsule but "No attendance" doesn't</td></tr>
+    <tr><td>2</td><td>V3</td><td>Reads bars + labels</td><td>12/12, slowest pass; likes detail, wrong tool for a scan</td></tr>
+    <tr><td>3</td><td>V4</td><td>Reads banners</td><td>12/12; icon meanings unclear (same icon for late &amp; exceeded)</td></tr>
+    <tr><td>4</td><td>V5</td><td>Reads banners</td><td>12/12; colour matches severity — highest stated confidence</td></tr>
+    <tr class="warn"><td>5</td><td>V6</td><td>Reads banners</td><td>12/12 but ⚠ "is the whole team in trouble?" — all-red flattens severity; role line replaced by schedule, can't tell departments apart when auditing company-wide</td></tr>
+    <tr><td>6</td><td>V7</td><td>Reads rows</td><td>12/12; second pass needed to confirm "no pill = on track"</td></tr>
+  </table>
+</details>
+
+<h2>Findings</h2>
+<p class="shotcap" style="margin:0 0 10px">Visuals rendered from the SwiftUI code with the app's real design tokens (DesignTokens.swift) — not simulator screenshots. Dashed red = problem area; dashed green (in solutions) = the fix.</p>
+
+<div class="finding">
+  <span class="sev c">🔴 CRITICAL</span><span class="fid">F1</span><b>V6 (current default) renders every issue danger-red — severity flattened</b>
+  <div class="loc"><span class="tag">Leo</span><span class="tag">Lily</span> · <code>EmployeeAnomalyV6IssueBanner.bannerBackground</code> — always <code>dangerBackground</code>, ignores <code>isWarningLevel</code></div>
+  Late arrival gets the same red as a missed clock-in. 3 false alarms per scan; Leo began notifying a non-actionable row.
+  <div class="phone">
+    <div class="vlabel">V6 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#7A6FF0">JD</div>
+        <div class="mid2"><div class="mname">Doe, Joanne</div><div class="msub">Scheduled: 09:30 - 17:30</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <div class="mbanner" style="background:#FFF1F1;color:#CC2C11"><span>Missed clock-in</span></div>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#E08A3C">AW</div>
+        <div class="mid2"><div class="mname">Wright, Amara</div><div class="msub">Working: 09:33 - Ongoing…</div></div>
+      </div>
+      <div class="mbanner annot" style="background:#FFF1F1;color:#CC2C11"><span>Late arrival</span></div>
+    </div>
+  </div>
+  <div class="shotcap">Danger and warning are visually identical.</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>// TimeAttendanceModels.swift — EmployeeAnomalyV6IssueBanner
+private var bannerBackground: Color {
+    <span class="hl">AppColors.dangerBackground   // always danger — ignores isWarningLevel</span>
+}
+...
+.foregroundColor(<span class="hl">AppColors.dangerDefault</span>)  // text also always danger</pre></details>
+  <details class="sol"><summary>✦ Proposed solution S1 — Map banner colour to severity <span class="effort">S</span></summary>
+    <div class="solbody">
+      Reuse V5's mapping in <code>EmployeeAnomalyV6IssueBanner</code>: <code>isWarningLevel ? warningBackground : dangerBackground</code> (+ matching text colour). One line — makes V6 the clear winner.
+      <div class="phone">
+        <div class="vlabel fix">V6 + S1 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#7A6FF0">JD</div>
+            <div class="mid2"><div class="mname">Doe, Joanne</div><div class="msub">Scheduled: 09:30 - 17:30</div></div>
+            <div class="mbell">🔔</div>
+          </div>
+          <div class="mbanner" style="background:#FFF1F1;color:#CC2C11"><span>Missed clock-in</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#E08A3C">AW</div>
+            <div class="mid2"><div class="mname">Wright, Amara</div><div class="msub">Working: 09:33 - Ongoing…</div></div>
+          </div>
+          <div class="mbanner annot-fix" style="background:#FFFADF;color:#BD5B01"><span>Late arrival</span></div>
+        </div>
+      </div>
+      <div class="shotcap">Warning issues now render in warning orange (#FFFADF/#BD5B01) — red means "act", orange means "aware".</div>
+    </div>
+  </details>
+</div>
+
+<div class="finding">
+  <span class="sev c">🔴 CRITICAL</span><span class="fid">F2</span><b>V7/V8 right-aligned pill is outside the scan path</b>
+  <div class="loc"><span class="tag">Leo</span><span class="tag">Priya</span> · <code>EmployeeAnomalyV7IssuePill</code> (<code>.fixedSize()</code>, right rail) in <code>v4RowBody</code></div>
+  Names anchor the eye left; the signal sits far right. Glance detection 7/12. Long names wrap into the pill; pill + bell share the right rail and read as one control. Same failure as last test's Design A.
+  <div class="phone">
+    <div class="vlabel">V7 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#9E9D9C">W</div>
+        <div class="mid2"><div class="mname">Wilhelham, Minnie Laris Julie</div><div class="msub">Working: 08:00 - Ongoing…</div></div>
+        <span class="mpill annot" style="background:#FFF1F1;color:#CC2C11">Exceeded by 2h</span>
+      </div>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#3C8AE0">CO</div>
+        <div class="mid2"><div class="mname">Okafor, Chidi</div><div class="msub">Scheduled: 09:00 - 17:00</div></div>
+        <span class="mpill annot" style="background:#FFF1F1;color:#CC2C11">Missed clock-in</span>
+        <div class="mbell annot">🔔</div>
+      </div>
+    </div>
+  </div>
+  <div class="shotcap">Row 1: long name compresses the pill. Row 2: pill and bell collide — Priya read them as one control.</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>// v4RowBody — right rail stacks pill + bell
+Spacer(minLength: 0)
+if attendanceUIVersion.usesV7InlinePillStyle {
+    <span class="hl">EmployeeAnomalyV7IssuePill(employee: employee)</span>  // .fixedSize(), right-aligned
+}
+... notifyBellControlV2  // same edge</pre></details>
+  <details class="sol"><summary>✦ Proposed solution S2 — Move the pill under the name, left-aligned <span class="effort">S</span></summary>
+    <div class="solbody">
+      Pill drops into the banner slot (where V5/V6 sit); right rail keeps the bell alone. Cheaper alt: drop V7/V8 in favour of V6+S1.
+      <div class="phone">
+        <div class="vlabel fix">V7 + S2 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#9E9D9C">W</div>
+            <div class="mid2"><div class="mname">Wilhelham, Minnie Laris Julie</div><div class="msub">Working: 08:00 - Ongoing…</div></div>
+            <div class="mbell">🔔</div>
+          </div>
+          <div><span class="mpill annot-fix" style="background:#FFF1F1;color:#CC2C11">Exceeded by 2h</span></div>
+        </div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#3C8AE0">CO</div>
+            <div class="mid2"><div class="mname">Okafor, Chidi</div><div class="msub">Scheduled: 09:00 - 17:00</div></div>
+            <div class="mbell">🔔</div>
+          </div>
+          <div><span class="mpill" style="background:#FFF1F1;color:#CC2C11">Missed clock-in</span></div>
+        </div>
+      </div>
+      <div class="shotcap">Issue signal sits in the left scan path under every name; no collision with the bell.</div>
+    </div>
+  </details>
+</div>
+
+<div class="finding">
+  <span class="sev m">🟡 MAJOR</span><span class="fid">F3</span><b>No notify affordance on warning-level rows</b>
+  <div class="loc"><span class="tag">Priya</span> · <code>EmployeeAnomalyRow.hasNotifyBellSlot</code> excludes <code>isWarningLevel</code></div>
+  Task is "notify those who haven't" — but late arrivals can't be nudged at all. Read as a bug, not a decision.
+  <div class="phone">
+    <div class="vlabel">V6 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#7A6FF0">JD</div>
+        <div class="mid2"><div class="mname">Doe, Joanne</div><div class="msub">Scheduled: 09:30 - 17:30</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <div class="mbanner" style="background:#FFF1F1;color:#CC2C11"><span>Missed clock-in</span></div>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#E08A3C">AW</div>
+        <div class="mid2"><div class="mname">Wright, Amara</div><div class="msub">Working: 09:33 - Ongoing…</div></div>
+        <div style="width:30px;height:30px;flex:none" class="annot"></div>
+      </div>
+      <div class="mbanner" style="background:#FFF1F1;color:#CC2C11"><span>Late arrival</span></div>
+    </div>
+  </div>
+  <div class="shotcap">Identical-looking issues (F1), but only the top row can be notified — the bell slot is simply empty.</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>private var hasNotifyBellSlot: Bool {
+    isActionable
+        && employee.anomalyType != .onTrack && ...
+        && <span class="hl">!employee.anomalyType.isWarningLevel</span>  // late/exceeded/unplanned: no bell
+}</pre></details>
+  <details class="sol"><summary>✦ Proposed solution S3 — Bell (or explicit "FYI") on warning rows <span class="effort">M</span></summary>
+    <div class="solbody">
+      Either extend <code>hasNotifyBellSlot</code> to warnings, or render a neutral "FYI" marker so the empty slot reads as intent, not a bug.
+      <div class="phone">
+        <div class="vlabel fix">V6 + S3 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#E08A3C">AW</div>
+            <div class="mid2"><div class="mname">Wright, Amara</div><div class="msub">Working: 09:33 - Ongoing…</div></div>
+            <div class="mbell annot-fix">🔔</div>
+          </div>
+          <div class="mbanner" style="background:#FFFADF;color:#BD5B01"><span>Late arrival</span></div>
+        </div>
+      </div>
+      <div class="shotcap">Late arrivals become nudgeable — consistent with the "notify those who haven't" job.</div>
+    </div>
+  </details>
+</div>
+
+<div class="finding">
+  <span class="sev m">🟡 MAJOR</span><span class="fid">F4</span><b>V4 banner background is neutral grey — no peripheral signal</b>
+  <div class="loc"><span class="tag">Leo</span> · <code>EmployeeAnomalyV4IssueBanner</code> — <code>.background(AppColors.surfaceDarker)</code></div>
+  Only the 13pt text and icon carry colour; the strip blends with the row. Glance detection 9/12.
+  <div class="phone">
+    <div class="vlabel">V4 vs V5 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#C2557F">EG</div>
+        <div class="mid2"><div class="mname">Gutmann, Elyssa</div><div class="msub">Marketing Director</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <div class="mbanner annot" style="background:#FCF9F7;color:#CC2C11"><span>⚠ Exceeding work hours</span><span>+1.5h</span></div>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#C2557F">EG</div>
+        <div class="mid2"><div class="mname">Gutmann, Elyssa</div><div class="msub">Marketing Director</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <div class="mbanner" style="background:#FFF1F1;color:#CC2C11;justify-content:center"><span>Exceeding work hours (+1.5h)</span></div>
+    </div>
+  </div>
+  <div class="shotcap">Top: V4 grey strip (#FCF9F7) — invisible peripherally. Bottom: V5 tinted strip (#FFF1F1) — pops at glance speed.</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>// EmployeeAnomalyV4IssueBanner
+.padding(8)
+.background(<span class="hl">AppColors.surfaceDarker</span>)  // grey strip, colour only in text/icon</pre></details>
+  <details class="sol"><summary>✦ Proposed solution S4 — Tint the banner by severity, or fold V4 into V5 <span class="effort">S</span></summary>
+    <div class="solbody">
+      Same mapping as S1; V4 and V5 then differ only by icon, so merging them is the cheaper end state.
+      <div class="phone">
+        <div class="vlabel fix">V4 + S4 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#C2557F">EG</div>
+            <div class="mid2"><div class="mname">Gutmann, Elyssa</div><div class="msub">Marketing Director</div></div>
+            <div class="mbell">🔔</div>
+          </div>
+          <div class="mbanner annot-fix" style="background:#FFF1F1;color:#CC2C11"><span>⚠ Exceeding work hours</span><span>+1.5h</span></div>
+        </div>
+      </div>
+      <div class="shotcap">Strip carries the colour, not just the 13pt text — visible peripherally.</div>
+    </div>
+  </details>
+</div>
+
+<div class="finding">
+  <span class="sev m">🟡 MAJOR</span><span class="fid">F5</span><b>V3 progress bars make a binary question arithmetical</b>
+  <div class="loc"><span class="tag">Leo</span><span class="tag">Priya</span> · <code>AnomalyProgressBar</code> — 11pt hours, 4pt bar; <code>scheduledHours == 0</code> → empty bar</div>
+  "Does this person have an issue?" requires reading hours and comparing segments. Leo abandoned; Torres (unplanned, 0h scheduled) renders an empty bar and was skipped.
+  <div class="phone">
+    <div class="vlabel">V3 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#4C9E6E">AP</div>
+        <div class="mid2"><div class="mname">Petrov, Andrei</div><div class="msub">QA Lead</div></div>
+      </div>
+      <span class="mcap" style="background:#FFFADF;color:#BD5B01">Exceeding work hours</span>
+      <div class="mbar"><span class="mhours">11h / 8h</span><div class="mtrack"><div class="mfill" style="width:72%"></div><div class="mover" style="left:72%;width:28%"></div></div></div>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#5C7FB8">DT</div>
+        <div class="mid2"><div class="mname">Torres, Diego</div><div class="msub">Data Analyst</div></div>
+      </div>
+      <span class="mcap" style="background:#FFFADF;color:#BD5B01">Unplanned attendance</span>
+      <div class="mbar annot"><span class="mhours">4h / 0h</span><div class="mtrack"></div></div>
+    </div>
+  </div>
+  <div class="shotcap">Bottom row: 4 hours worked, but the bar is empty — Priya skipped it as "no schedule today".</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>// AnomalyProgressBar
+private var fillRatio: Double {
+    <span class="hl">guard scheduledHours > 0 else { return 0 }</span>  // unplanned → empty bar
+    return workedHours / scheduledHours
+}</pre></details>
+  <details class="sol"><summary>✦ Proposed solution S5 — Drop V3 from the list; chip for unplanned <span class="effort">S</span></summary>
+    <div class="solbody">
+      Keep the progress bar in <code>EmployeeTimeTrackingDetailView</code> where reading hours is the job. If V3 stays: unplanned (0h scheduled) shows a labelled chip, not an empty track.
+      <div class="phone">
+        <div class="vlabel fix">V3 + S5 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#5C7FB8">DT</div>
+            <div class="mid2"><div class="mname">Torres, Diego</div><div class="msub">Data Analyst</div></div>
+          </div>
+          <div class="annot-fix" style="display:inline-flex;gap:8px;align-self:flex-start"><span class="mcap" style="background:#FFFADF;color:#BD5B01">Unplanned · 4h worked, none scheduled</span></div>
+        </div>
+      </div>
+      <div class="shotcap">The anomaly is stated, not implied by an empty 4pt track.</div>
+    </div>
+  </details>
+</div>
+
+<div class="finding">
+  <span class="sev n">🟢 MINOR</span><span class="fid">F6</span><b>V2 uses two visual grammars for equal-severity issues</b>
+  <div class="loc"><span class="tag">Priya</span><span class="tag">Lily</span> · <code>EmployeeAnomalyStatusPills</code></div>
+  "No attendance" = red capsule; "Missed clock-out" = grey label + separate red gap capsule. Same severity, different look — Leo missed both grey-label rows.
+  <div class="phone">
+    <div class="vlabel">V2 — as coded</div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#8A6FD0">TK</div>
+        <div class="mid2"><div class="mname">Kovarek, Tomas</div><div class="msub">Territory Manager</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <span class="mcap" style="background:#FFF1F1;color:#CC2C11;font-weight:700">No attendance</span>
+    </div>
+    <div class="mrow">
+      <div class="mtop">
+        <div class="mav" style="background:#3CA0A0">XE</div>
+        <div class="mid2"><div class="mname">Elordi, Xavier</div><div class="msub">Account Executive</div></div>
+        <div class="mbell">🔔</div>
+      </div>
+      <div style="display:flex;gap:8px" class="annot">
+        <span class="mcap" style="background:#FFF1F1;color:#CC2C11;font-weight:700">-3h</span>
+        <span class="mcap" style="background:#FBF9F6;color:#8A8986;border:1px solid #EEEDEC">Missed clock-out</span>
+      </div>
+    </div>
+  </div>
+  <div class="shotcap">Both danger-level — but the grey "Missed clock-out" label reads as metadata at glance speed.</div>
+  <details class="code"><summary>▸ Code evidence</summary><pre>// EmployeeAnomalyStatusPills
+case .noClockIn:        // red text, red background
+case .noClockInNorOut, .missedClockOut, .exceededWorkSchedule:
+    <span class="hl">// grey label capsule + separate gap capsule</span></pre></details>
+  <details class="sol"><summary>✦ Proposed solution S6 — One tinted capsule per issue <span class="effort">S</span></summary>
+    <div class="solbody">
+      Label + optional gap inside a single capsule; severity = colour. Only needed if V2 stays shippable.
+      <div class="phone">
+        <div class="vlabel fix">V2 + S6 — proposed</div>
+        <div class="mrow">
+          <div class="mtop">
+            <div class="mav" style="background:#3CA0A0">XE</div>
+            <div class="mid2"><div class="mname">Elordi, Xavier</div><div class="msub">Account Executive</div></div>
+            <div class="mbell">🔔</div>
+          </div>
+          <span class="mcap annot-fix" style="background:#FFF1F1;color:#CC2C11;font-weight:700">Missed clock-out · -3h</span>
+        </div>
+      </div>
+      <div class="shotcap">Same grammar as "No attendance" — one red capsule, label and gap together.</div>
+    </div>
+  </details>
+</div>
+
+<h2>Verdict</h2>
+<div class="verdict">
+  <b>V5 is the most scannable version as shipped</b> — 12/12 detection for all three personas with zero false alarms; V6 (current default) matches its speed but flattens severity into all-red, costing 3 false alarms per scan. <b>6 issues · 2 critical</b> — apply S1 (one line) and V6 becomes the recommended default.
+</div>
+
+</body>
+</html>
