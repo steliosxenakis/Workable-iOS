@@ -6,8 +6,8 @@ struct TodayDetailView: View {
     @AppStorage("settings.showAttendanceIssuesUI") private var showsAttendanceIssuesUI = true
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
-    @State private var selectedDepartment: String?
-    @State private var selectedEntity: String?
+    @State private var selectedDepartments: Set<String> = []
+    @State private var selectedEntities: Set<String> = []
     @State private var searchText = ""
     @State private var showSearchRow = false
 
@@ -41,6 +41,7 @@ struct TodayDetailView: View {
             Group {
                 tabContent
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             if !showsAttendanceIssuesUI && selectedTab == anomaliesTabIndex {
@@ -221,7 +222,7 @@ struct TodayDetailView: View {
     // MARK: - Time Tracking Tab
 
     private var filteredEmployees: [EmployeeAnomaly] {
-        var result = employees.filtered(by: selectedFilters, department: selectedDepartment, entity: selectedEntity)
+        var result = employees.filtered(by: selectedFilters, departments: selectedDepartments, entities: selectedEntities)
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             result = result.filter {
@@ -233,20 +234,40 @@ struct TodayDetailView: View {
     }
 
     private var timeTrackingTab: some View {
-        VStack(spacing: 0) {
+        ScrollView {
+            employeeListContent
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
             AnomalyFilterBar(
                 selectedFilters: $selectedFilters,
-                selectedDepartment: $selectedDepartment,
-                selectedEntity: $selectedEntity,
+                selectedDepartments: $selectedDepartments,
+                selectedEntities: $selectedEntities,
                 searchText: $searchText,
                 isSearchRowVisible: $showSearchRow,
                 attendanceVersion: attendanceUIVersion
             )
-
-            TimeAttendanceAnomaliesListContent(
-                employees: filteredEmployees
-            )
-            .padding(.horizontal, 16)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var employeeListContent: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(filteredEmployees.enumerated()), id: \.element.id) { index, employee in
+                NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
+                    EmployeeAnomalyRow(employee: employee, isNotified: .constant(false))
+                }
+                .buttonStyle(.plain)
+                if index < filteredEmployees.count - 1 {
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(height: 1)
+                }
+            }
+        }
+        .background(AppColors.surface)
+        .cornerRadius(16)
     }
 }

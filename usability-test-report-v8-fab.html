@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usability Test — v8 · FAB+Swipe — Notify Employees with Attendance Issues</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#F0EDE8;color:#323234;line-height:1.5;padding:24px 16px}
+  .report{max-width:980px;margin:0 auto}
+
+  /* Strip */
+  .strip{background:#323234;color:#fff;border-radius:12px;padding:12px 20px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:13px}
+  .strip span{opacity:.5}
+  .strip strong{color:#E9FCF4}
+  .diff-strip{background:#00665B;color:#E9FCF4;border-radius:12px;padding:10px 20px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:28px;font-size:13px;font-weight:500}
+  .diff-strip span{opacity:.5;color:#E9FCF4}
+
+  /* Personas */
+  .personas{display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap}
+  .pcard{flex:1;min-width:220px;background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid #EEEDEC}
+  .pavatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#fff;margin-bottom:10px}
+  .pname{font-size:15px;font-weight:600}
+  .prole{font-size:13px;color:#8A8986;margin-bottom:6px}
+  .pdelta{font-size:12px;color:#8A8986;background:#F8F5F2;border-radius:6px;padding:3px 8px;display:inline-block;margin-bottom:10px}
+  .outcome{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .oc{background:#E9FCF4;color:#00665B}
+  .op{background:#FFFADF;color:#BD5B01}
+  .oa{background:#FFF1F1;color:#CC2C11}
+
+  /* Headings */
+  h2{font-size:20px;font-weight:700;color:#323234;margin:32px 0 14px;padding-bottom:8px;border-bottom:2px solid #00665B;display:inline-block}
+
+  /* Journey tables */
+  details{margin-bottom:10px}
+  details>summary{cursor:pointer;padding:11px 16px;background:#fff;border-radius:10px;border:1px solid #EEEDEC;font-size:14px;font-weight:600;color:#323234;list-style:none;display:flex;align-items:center;gap:10px;user-select:none}
+  details>summary::-webkit-details-marker{display:none}
+  details[open]>summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .jcontent{background:#fff;border:1px solid #EEEDEC;border-top:none;border-bottom-left-radius:10px;border-bottom-right-radius:10px;overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#F8F5F2;padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:#8A8986;text-transform:uppercase;letter-spacing:.4px}
+  td{padding:9px 12px;border-top:1px solid #EEEDEC;vertical-align:top;line-height:1.4}
+  tr:nth-child(even) td{background:#FAFAFA}
+  .fx{color:#CC2C11;font-weight:500}
+  .ok{color:#00665B;font-weight:500}
+  .fab-ok{color:#00665B;font-weight:500}
+
+  /* Severity */
+  .sc{background:#CC2C11;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
+  .sm{background:#BD5B01;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
+  .sn{background:#226BD1;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
+  .sr{background:#00665B;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
+
+  /* Finding cards */
+  .fcard{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;border:1px solid #EEEDEC;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .fcard.resolved{border-color:#00665B;background:#F8FFF9}
+  .fcard.new{border-color:#226BD1;background:#F7FAFF}
+  .fheader{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .fid{font-size:12px;font-weight:700;color:#8A8986}
+  .ftitle{font-size:16px;font-weight:700;color:#323234}
+  .fmeta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .ptag{background:#F8F5F2;color:#8A8986;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500}
+  .ltag{background:#EEF8FF;color:#226BD1;border-radius:6px;padding:3px 8px;font-size:12px}
+  .fdesc{font-size:14px;color:#323234;line-height:1.6;margin-bottom:16px}
+
+  /* Phone mockups */
+  .mwrap{display:flex;gap:20px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-start}
+  .mcol{display:flex;flex-direction:column;gap:6px}
+  .mlabel{font-size:11px;font-weight:600;color:#8A8986;text-transform:uppercase;letter-spacing:.4px}
+  .phone{width:370px;max-width:100%;background:#F8F5F2;border-radius:16px;overflow:hidden;border:1px solid #EEEDEC;font-family:-apple-system,BlinkMacSystemFont,sans-serif;position:relative}
+  .nav{background:#fff;padding:0 16px;display:flex;align-items:center;height:44px;border-bottom:1px solid #EEEDEC;position:relative}
+  .nav-back{font-size:17px;color:#00665B;display:flex;align-items:center;gap:3px}
+  .nav-title{font-size:17px;font-weight:600;color:#323234;position:absolute;left:50%;transform:translateX(-50%)}
+  .tabs{background:#fff;display:flex;border-bottom:1px solid #EEEDEC}
+  .tab{padding:10px 0;font-size:14px;font-weight:600;color:#8A8986;flex:1;text-align:center;position:relative}
+  .tab.active{color:#00665B}
+  .tab.active::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:2px;background:#00665B;border-radius:2px}
+  .rows{background:#fff;margin:12px;border-radius:12px;overflow:hidden}
+  .row{padding:14px 16px;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid #EEEDEC;position:relative}
+  .row:last-child{border-bottom:none}
+  .av{width:48px;height:48px;border-radius:50%;flex-shrink:0;background:#E8E8ED;display:flex;align-items:center;justify-content:center;font-size:20px}
+  .rc{flex:1;min-width:0}
+  .rname{font-size:17px;font-weight:600;color:#323234}
+  .rsub{font-size:13px;color:#8A8986;margin-top:1px}
+  .banner{margin-top:8px;padding:8px 10px;border-radius:8px;font-size:13px;display:flex;justify-content:space-between}
+  .b-danger{background:#FFF1F1;color:#CC2C11}
+  .b-warning{background:#FFFADF;color:#BD5B01}
+  .b-success{background:#E9FCF4;color:#009E6A}
+  .bell{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.85);border:0.5px solid #EEEDEC;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#00665B;font-size:15px;margin-left:8px;align-self:center}
+  .bell.notified{background:#E9FCF4;color:#009E6A}
+  .no-bell{width:36px;height:36px;flex-shrink:0;margin-left:8px}
+  .problem-zone{border:2px dashed #CC2C11;border-radius:8px;padding:10px 12px;background:#FFF8F8;color:#CC2C11;font-size:12px;font-weight:500;margin:10px 12px;text-align:center;line-height:1.4}
+  .fix-zone{border:2px dashed #00665B;border-radius:8px;padding:10px 12px;background:#F0FDF5;color:#00665B;font-size:12px;font-weight:500;margin:10px 12px;text-align:center;line-height:1.4}
+  .info-zone{border:2px dashed #226BD1;border-radius:8px;padding:10px 12px;background:#EEF8FF;color:#226BD1;font-size:12px;font-weight:500;margin:10px 12px;text-align:center;line-height:1.4}
+  .section-lbl{font-size:13px;color:#8A8986;padding:12px 12px 4px}
+  .chip-row{display:flex;gap:8px;padding:12px;flex-wrap:wrap}
+  .chip{padding:8px 12px;background:#fff;border-radius:26px;font-size:15px;color:#8A8986;border:1px solid #EEEDEC;display:inline-flex;align-items:center;gap:6px}
+  .chip-badge{background:#FFD2CF;color:#CC2C11;font-size:12px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+  /* Stats pills (v6/v8 style) */
+  .stats-row{display:flex;gap:8px;padding:4px 12px 12px;overflow-x:auto}
+  .stat-pill{background:#fff;border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 7px rgba(0,0,0,.07);flex-shrink:0}
+  .stat-label{font-size:15px;color:#323234}
+  .stat-count{font-size:14px;font-weight:600;background:#FFF1F1;color:#CC2C11;border-radius:20px;padding:4px 12px;display:inline-block;align-self:flex-start}
+  .stat-count.warn{background:#FFFADF;color:#BD5B01}
+
+  /* FAB */
+  .fab{position:absolute;bottom:16px;right:20px;width:56px;height:56px;border-radius:50%;background:#00665B;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;box-shadow:0 6px 12px rgba(0,0,0,.18);z-index:10}
+
+  /* Floating bar */
+  .float-bar{background:rgba(248,245,242,.95);padding:12px 16px;display:flex;gap:10px;align-items:center;border-top:1px solid #EEEDEC;flex-wrap:wrap}
+  .fbtn{padding:10px 16px;border-radius:20px;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+  .fbtn-pri{background:#00665B;color:#fff}
+  .fbtn-sec{background:#E9FCF4;color:#00665B}
+  .fbtn-ter{background:rgba(255,255,255,.7);color:#8A8986;border:0.5px solid #EEEDEC}
+
+  /* Checkbox rows (selection mode) */
+  .check{width:22px;height:22px;border-radius:50%;border:2px solid #00665B;flex-shrink:0;display:flex;align-items:center;justify-content:center;align-self:center}
+  .check.on{background:#00665B;color:#fff;font-size:12px}
+
+  /* Solution */
+  details.sol>summary{background:#F0FDF5;border-color:#00665B;color:#00665B;border-radius:8px;font-size:13px;padding:8px 14px}
+  details.sol[open]>summary{border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .solcontent{background:#F8FFF9;border:1px solid #00665B;border-top:none;border-bottom-left-radius:8px;border-bottom-right-radius:8px;padding:16px}
+  .soldesc{font-size:14px;color:#323234;line-height:1.6;margin-bottom:10px}
+  .effort{display:inline-flex;background:#E9FCF4;color:#00665B;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
+  details.code>summary{background:#F8F5F2;border-color:#EEEDEC;color:#8A8986;font-size:12px;border-radius:6px;padding:6px 10px;margin-top:8px}
+  pre{background:#1C1C1E;color:#d4d4d4;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;line-height:1.6;margin-top:8px}
+  .hl-red{color:#f88}
+  .hl-grn{color:#7ec8a4}
+  .hl-cmt{color:#6a9955}
+
+  /* Delta table */
+  .delta-table{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
+  .delta-table th{background:#F8F5F2;padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:#8A8986;text-transform:uppercase;letter-spacing:.4px}
+  .delta-table td{padding:9px 12px;border-top:1px solid #EEEDEC;vertical-align:top}
+  .delta-table tr:nth-child(even) td{background:#FAFAFA}
+
+  /* Verdict */
+  .verdict{background:#323234;color:#fff;border-radius:16px;padding:20px 24px;margin-top:32px;font-size:15px;line-height:1.7}
+  .verdict strong{color:#E9FCF4}
+</style>
+</head>
+<body>
+<div class="report">
+
+<!-- Summary strips -->
+<div class="strip">
+  <strong>Workable iOS</strong>
+  <span>|</span>
+  Task: HR Admin notifies employees with attendance issues
+  <span>|</span>
+  Entry: HomeView
+  <span>|</span>
+  18 Jun 2026
+</div>
+<div class="diff-strip">
+  &#9654;&nbsp; Variant run: <strong>AttendanceUIVersion.v8 &nbsp;&middot;&nbsp; notifyStyle = .fab &nbsp;&middot;&nbsp; swipe enabled</strong>
+  <span>|</span>
+  Completion: <strong>1 / 3</strong> (unchanged)
+  <span>|</span>
+  <strong>4 issues remain &middot; F4 resolved by FAB &middot; 1 new issue</strong>
+</div>
+
+<!-- How FAB changes the mechanics -->
+<div class="fcard" style="margin-bottom:24px;border-color:#226BD1;background:#F7FAFF">
+  <div class="fheader">
+    <span style="background:#226BD1;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">v8 + FAB mechanics</span>
+    <span class="ftitle" style="color:#226BD1">What's different in this configuration</span>
+  </div>
+  <div class="fdesc">
+    Three behaviour changes vs the base run: <strong>(1) Per-row bell icons are hidden</strong> (<code>hidesBellForFab = true</code>). <strong>(2) The "Select" section-header button is hidden</strong> (<code>!usesFabNotifyStyle</code> gate). <strong>(3) A 56&nbsp;px teal FAB bell button</strong> is permanently visible at the bottom-right of the Attendance tab.<br><br>Tapping the FAB calls <code>enterFabSelection()</code>: it saves the current filters, force-sets <code>selectedFilters = actionableFilterCategories</code> (danger-level only), sets <code>isSelecting = true</code>, and pre-selects <strong>all currently visible danger-level employees</strong> via <code>selectedForNotification = selectableEmployeeIDs</code>. The floating bar then shows <em>Cancel / Deselect all / Notify all (N)</em>.<br><br>Swipe-to-notify is unchanged and still works for danger-level rows when NOT in selection mode.
+  </div>
+</div>
+
+<!-- Persona cards -->
+<div class="personas">
+  <div class="pcard">
+    <div class="pavatar" style="background:#00665B">LB</div>
+    <div class="pname">Lily Brooks</div>
+    <div class="prole">Manager, HR Operations</div>
+    <div class="pdelta">10 steps &mdash; 1 fewer than base run</div>
+    <span class="outcome oc">&#10003; Completed</span>
+  </div>
+  <div class="pcard">
+    <div class="pavatar" style="background:#8736DC">LT</div>
+    <div class="pname">Leo Thomas</div>
+    <div class="prole">Finance Director</div>
+    <div class="pdelta">10 steps &mdash; same as base run</div>
+    <span class="outcome oa">&#10005; Abandoned</span>
+  </div>
+  <div class="pcard">
+    <div class="pavatar" style="background:#BD5B01">PP</div>
+    <div class="pname">Priya Patel</div>
+    <div class="prole">Finance Manager</div>
+    <div class="pdelta">12 steps &mdash; 1 more than base run</div>
+    <span class="outcome op">~ Partial (2/3)</span>
+  </div>
+</div>
+
+<h2>Persona Journeys</h2>
+
+<!-- Lily -->
+<details>
+  <summary>
+    <span class="outcome oc" style="font-size:12px">&#10003;</span>
+    Lily Brooks &nbsp;&middot;&nbsp; Completed &nbsp;&middot;&nbsp; 10 steps &nbsp;&middot;&nbsp; FAB saves ~1 step; dead-end detour still costs 6
+  </summary>
+  <div class="jcontent">
+    <table>
+      <tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+      <tr><td>1</td><td>HomeView</td><td>Spots "Direct reports" chip badge (2). Taps.</td><td>NavigationLink &rarr; DirectReportsView. (Same as base.)</td></tr>
+      <tr><td>2</td><td>DirectReportsView</td><td>Scans rows. No bell icons. Swipes Doe row.</td><td class="fx">No swipeActions in DirectReportsView. Dead end — same as base.</td></tr>
+      <tr><td>3</td><td>DirectReportsView</td><td>Taps Doe row.</td><td>EmployeeTimeTrackingDetailView.</td></tr>
+      <tr><td>4</td><td>EmployeeTimeTrackingDetailView</td><td>Tabs all three — Information, Time off, Attendance.</td><td class="fx">No notify action anywhere. Same dead end as base.</td></tr>
+      <tr><td>5</td><td>HomeView</td><td>Back &times;2. Scrolls past To-dos. Spots attendance widget pill "No attendance &middot; 3". Taps.</td><td>TimeAttendanceAnomaliesListView, Attendance tab (index 1, auto). Same path as base.</td></tr>
+      <tr><td>6</td><td>TimeAttendanceAnomaliesListView</td><td>Lands on Attendance tab. Scans rows. No bells. <em>Notices large teal FAB bell at bottom right.</em></td><td class="fab-ok">FAB is 56px, high contrast, always visible — spotted immediately. No hunting for per-row bells.</td></tr>
+      <tr><td>7</td><td>TimeAttendanceAnomaliesListView</td><td>Stats row at top shows "No attendance 3" pill. Taps FAB.</td><td class="fab-ok">enterFabSelection(): filter snaps to danger, list shows danger-only employees, all pre-selected. Floating bar: [Cancel] [Deselect all] [Notify all (3)].</td></tr>
+      <tr><td>8</td><td>TimeAttendanceAnomaliesListView</td><td>Reviews 3 pre-selected rows (checkmarks). Satisfied. Taps "Notify all (3)".</td><td class="ok">All 3 employees notified. Bell icon on each row fills. FAB mode exits.</td></tr>
+      <tr><td>9</td><td>TimeAttendanceAnomaliesListView</td><td>Bar disappears. Scans rows — all show notified state.</td><td>Task complete. 3 employees notified. No summary toast (same gap as base F5).</td></tr>
+      <tr><td colspan="4" style="background:#F0FDF5;color:#00665B;font-size:12px;padding:8px 12px">&#9654;&nbsp; vs base run: steps 6–9 replace steps 9–11. FAB saves ~1 step and is far more discoverable than hunting for per-row bells. Dead-end detour (steps 1–5) is identical.</td></tr>
+    </table>
+  </div>
+</details>
+
+<!-- Leo -->
+<details>
+  <summary>
+    <span class="outcome oa" style="font-size:12px">&#10005;</span>
+    Leo Thomas &nbsp;&middot;&nbsp; Abandoned &nbsp;&middot;&nbsp; 10 steps &nbsp;&middot;&nbsp; FAB is irrelevant — he never reaches the view
+  </summary>
+  <div class="jcontent">
+    <table>
+      <tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+      <tr><td>1</td><td>HomeView</td><td>Spots "Direct reports" badge. Taps.</td><td>DirectReportsView.</td></tr>
+      <tr><td>2</td><td>DirectReportsView</td><td>Scans rows. No bell, no swipe. Taps Gutmann.</td><td class="fx">EmployeeTimeTrackingDetailView — no notify. Dead end.</td></tr>
+      <tr><td>3</td><td>HomeView</td><td>Back &times;2. Scans quick-action pills.</td><td class="fx">Pills are self-service (Clock in / New request / Search). No attendance shortcut.</td></tr>
+      <tr><td>4</td><td>HomeView</td><td>Taps timeTrackingCard running timer.</td><td class="fx">PersonalTimeTrackingView — personal calendar only. Wrong screen.</td></tr>
+      <tr><td>5</td><td>HomeView</td><td>Back. 4 fruitless taps. Doesn't scroll to attendance widget.</td><td class="fx">Widget sits below To-dos section. Not visible on first glance on a 6" phone.</td></tr>
+      <tr><td>6</td><td>HomeView</td><td>Abandons. Delegates to desktop.</td><td class="fx">&#10005; Leo never reaches TimeAttendanceAnomaliesListView where the FAB lives. v8+FAB is no help.</td></tr>
+      <tr><td colspan="4" style="background:#FFF8F8;color:#CC2C11;font-size:12px;padding:8px 12px">&#9654;&nbsp; vs base run: identical abandonment. The FAB is inside <code>TimeAttendanceAnomaliesListView</code> — it cannot be seen from HomeView. F1+F2 (dead-end path, buried entry) remain the blocking problems for Leo.</td></tr>
+    </table>
+  </div>
+</details>
+
+<!-- Priya -->
+<details>
+  <summary>
+    <span class="outcome op" style="font-size:12px">~</span>
+    Priya Patel &nbsp;&middot;&nbsp; Partial (2/3) &nbsp;&middot;&nbsp; 12 steps &nbsp;&middot;&nbsp; FAB auto-filter causes Wright to vanish mid-task (+1 step of confusion)
+  </summary>
+  <div class="jcontent">
+    <table>
+      <tr><th>#</th><th>Screen</th><th>Action</th><th>Observation</th></tr>
+      <tr><td>1</td><td>HomeView</td><td>Taps "Direct reports" chip.</td><td>DirectReportsView.</td></tr>
+      <tr><td>2</td><td>DirectReportsView</td><td>Swipes Doe and Gutmann rows.</td><td class="fx">No swipeActions in DirectReportsView. Same dead end as base.</td></tr>
+      <tr><td>3</td><td>DirectReportsView</td><td>Taps Doe &rarr; detail &rarr; no notify. Back &times;2.</td><td class="fx">Dead end, same as base.</td></tr>
+      <tr><td>4</td><td>HomeView</td><td>Finds widget pills. Taps "View all".</td><td>TimeAttendanceAnomaliesListView, Attendance tab.</td></tr>
+      <tr><td>5</td><td>TimeAttendanceAnomaliesListView</td><td>Sees rows with no bells (hidden). Tries iOS swipe gesture on Doe row.</td><td class="ok">Swipe works: danger-level row, not in FAB selection mode. "Notify" action appears. Taps &rarr; Doe notified.</td></tr>
+      <tr><td>6</td><td>TimeAttendanceAnomaliesListView</td><td>Swipes Gutmann row &rarr; "Notify". Taps.</td><td class="ok">Gutmann notified. 2/3 done.</td></tr>
+      <tr><td>7</td><td>TimeAttendanceAnomaliesListView</td><td>Scrolls to Wright, Amara ("Late arrival"). Swipes.</td><td class="fx">No swipe action (isWarningLevel = true &rarr; canSwipeNotify = false). Row doesn't respond. Same as base F3.</td></tr>
+      <tr><td>8</td><td>TimeAttendanceAnomaliesListView</td><td>Notices FAB. Taps it hoping to notify Wright.</td><td class="fx"><strong>enterFabSelection() fires: selectedFilters = actionableFilterCategories (danger-only). Wright (warning-level) disappears from the list.</strong> Pre-selected: Doe + Gutmann (already notified). Bar shows [Cancel] [Deselect all] [Notify all (2)].</td></tr>
+      <tr><td>9</td><td>TimeAttendanceAnomaliesListView</td><td>Looks for Wright — not visible. Confused. Taps Cancel.</td><td>exitFabSelection() restores original filters. Wright reappears.</td></tr>
+      <tr><td>10</td><td>TimeAttendanceAnomaliesListView</td><td>Taps Wright row &rarr; EmployeeTimeTrackingDetailView.</td><td class="fx">No bell in toolbar. No notify on any tab. Dead end.</td></tr>
+      <tr><td>11</td><td>TimeAttendanceAnomaliesListView</td><td>Back. No other mechanisms tried.</td><td class="fx">Wright unnotifiable. Partial completion: 2/3.</td></tr>
+      <tr><td colspan="4" style="background:#FFF8F8;color:#CC2C11;font-size:12px;padding:8px 12px">&#9654;&nbsp; vs base run: same partial outcome. FAB adds 1 extra step of confusion — tapping it makes Wright disappear, which is more disorienting than simply not finding a bell. Swipe still works for the 2 danger employees.</td></tr>
+    </table>
+  </div>
+</details>
+
+<h2>Findings Delta vs Base Run</h2>
+
+<!-- F1 — unchanged -->
+<div class="fcard">
+  <div class="fheader">
+    <span class="fid">F1</span>
+    <span class="sc">Critical &mdash; unchanged</span>
+    <span class="ftitle">"Direct reports" path still leads to a no-notify dead end</span>
+  </div>
+  <div class="fdesc">No change. <code>DirectReportsView</code> and <code>EmployeeTimeTrackingDetailView</code> have no notification affordance in v8. All three personas hit this dead end first. The FAB is not visible from these views. Solution S1 from the base report (add bell to employee detail toolbar + swipeActions to DirectReportRow) still applies.</div>
+</div>
+
+<!-- F2 — unchanged -->
+<div class="fcard">
+  <div class="fheader">
+    <span class="fid">F2</span>
+    <span class="sc">Critical &mdash; unchanged</span>
+    <span class="ftitle">Attendance notification entry buried below the fold on Home</span>
+  </div>
+  <div class="fdesc">No change. The FAB is inside <code>TimeAttendanceAnomaliesListView</code> — it doesn't help users who can't find the view in the first place. Leo abandoned because the widget link is below To-dos and not visible without scrolling. Solution S2 (top-level "Notify" chip on Home) still applies.</div>
+</div>
+
+<!-- F3 — unchanged but new wrinkle -->
+<div class="fcard">
+  <div class="fheader">
+    <span class="fid">F3</span>
+    <span class="sm">Major &mdash; unchanged + new confusion</span>
+    <span class="ftitle">Warning-level employees still unnotifiable; FAB makes them disappear</span>
+  </div>
+  <div class="fdesc">
+    The warning-level exclusion (<code>isWarningLevel</code> guard) is unchanged. In the base run, Priya simply found no bell and no swipe on Wright's row. In v8+FAB, it's worse: tapping the FAB to try to reach Wright causes <code>enterFabSelection()</code> to force-set <code>selectedFilters = actionableFilterCategories</code>, which hides warning-level employees entirely. Wright vanishes from the list mid-task with no explanation. This is more disorienting than a missing bell.
+  </div>
+  <div class="mwrap">
+    <div class="mcol">
+      <div class="mlabel">Before FAB tap — Wright visible</div>
+      <div class="phone" style="width:370px">
+        <div class="nav">
+          <span class="nav-back">&#8249; Back</span>
+          <span class="nav-title">18 June 2025</span>
+        </div>
+        <div class="tabs">
+          <div class="tab">Events</div>
+          <div class="tab active">Attendance</div>
+          <div class="tab">On leave</div>
+          <div class="tab">Celebrations</div>
+        </div>
+        <div class="section-lbl">Direct reports</div>
+        <div class="rows" style="margin-top:0">
+          <div class="row" style="align-items:center">
+            <div class="av">&#x1F464;</div>
+            <div class="rc"><div class="rname">Doe, Joanne</div><div class="banner b-danger" style="margin-top:6px">Missed clock-in</div></div>
+          </div>
+          <div class="row" style="align-items:center">
+            <div class="av">&#x1F464;</div>
+            <div class="rc"><div class="rname">Gutmann, Elyssa</div><div class="banner b-danger" style="margin-top:6px">Exceeding schedule</div></div>
+          </div>
+        </div>
+        <div class="section-lbl">Other employees</div>
+        <div class="rows" style="margin-top:0">
+          <div class="row" style="align-items:center">
+            <div class="av">&#x1F464;</div>
+            <div class="rc"><div class="rname">Wright, Amara</div><div class="banner b-warning" style="margin-top:6px">Late arrival</div></div>
+          </div>
+        </div>
+        <div class="fab">&#128276;</div>
+        <div style="height:80px"></div>
+      </div>
+    </div>
+    <div class="mcol">
+      <div class="mlabel">After FAB tap — Wright gone</div>
+      <div class="phone" style="width:370px">
+        <div class="nav">
+          <span class="nav-back">&#8249; Back</span>
+          <span class="nav-title">18 June 2025</span>
+        </div>
+        <div class="tabs">
+          <div class="tab">Events</div>
+          <div class="tab active">Attendance</div>
+          <div class="tab">On leave</div>
+          <div class="tab">Celebrations</div>
+        </div>
+        <div class="section-lbl">Direct reports</div>
+        <div class="rows" style="margin-top:0">
+          <div class="row" style="align-items:center">
+            <div class="check on">&#10003;</div>
+            <div class="av" style="margin-left:0">&#x1F464;</div>
+            <div class="rc"><div class="rname">Doe, Joanne</div><div class="banner b-danger" style="margin-top:6px">Missed clock-in</div></div>
+          </div>
+          <div class="row" style="align-items:center">
+            <div class="check on">&#10003;</div>
+            <div class="av" style="margin-left:0">&#x1F464;</div>
+            <div class="rc"><div class="rname">Gutmann, Elyssa</div><div class="banner b-danger" style="margin-top:6px">Exceeding schedule</div></div>
+          </div>
+        </div>
+        <div class="float-bar">
+          <div class="fbtn fbtn-ter" style="font-size:13px">Cancel</div>
+          <div class="fbtn fbtn-sec" style="font-size:13px">Deselect all</div>
+          <div class="fbtn fbtn-pri" style="font-size:13px">&#128276; Notify all (2)</div>
+        </div>
+        <div class="problem-zone" style="margin:8px 12px">Wright has vanished. Filter auto-snapped to danger-only. User doesn't know why. No "1 employee hidden" indicator.</div>
+      </div>
+    </div>
+  </div>
+  <details class="code">
+    <summary>&#9654; Code path</summary>
+    <pre><span class="hl-cmt">// enterFabSelection() — called on FAB tap</span>
+private func enterFabSelection() {
+    filtersBeforeFab = selectedFilters
+    <span class="hl-red">selectedFilters = Self.actionableFilterCategories  // danger only; warning excluded</span>
+    isSelecting = true
+    selectedForNotification = selectableEmployeeIDs   // pre-selects visible (danger) employees
+}
+<span class="hl-cmt">// filteredEmployees uses selectedFilters — warning rows filtered out of otherEmployees</span></pre>
+  </details>
+  <details class="sol">
+    <summary>&#10022; Proposed fix &mdash; Show "N employees with minor issues not shown" when FAB hides warning rows &nbsp;<span class="effort">S</span></summary>
+    <div class="solcontent">
+      <div class="soldesc">When <code>fabSelecting</code> is true and any warning-level employees exist, show a small informational footer below the list: <em>"1 employee with a minor issue is not included &mdash; late arrivals and overruns are excluded from bulk notify."</em> This explains the disappearance and sets expectations, while keeping the FAB flow clean.</div>
+      <span class="effort">Effort: S</span>
+    </div>
+  </details>
+</div>
+
+<!-- F4 — resolved -->
+<div class="fcard resolved">
+  <div class="fheader">
+    <span class="fid">F4</span>
+    <span class="sr">Resolved by v8+FAB</span>
+    <span class="ftitle">"Select" label ambiguity eliminated</span>
+  </div>
+  <div class="fdesc">
+    In the base run, the "Select" section-header button didn't communicate notification intent. In v8+FAB, <code>showsSelectionAction &amp;&amp; !usesFabNotifyStyle</code> hides the "Select" button entirely. The FAB bell replaces it with an unambiguous visual: a bell icon in a teal circle. There is no ambiguity about what tapping the bell will do. <strong>F4 is fully resolved in this configuration.</strong>
+  </div>
+</div>
+
+<!-- F5 — mostly unchanged -->
+<div class="fcard">
+  <div class="fheader">
+    <span class="fid">F5</span>
+    <span class="sn">Minor &mdash; mostly unchanged</span>
+    <span class="ftitle">No persistent toast after bulk notify</span>
+  </div>
+  <div class="fdesc">
+    Slightly improved: the FAB bar labels the action as "Notify all (3)" before firing, so users see the exact count they're about to notify. But after tapping, the bar disappears and there is still no summary toast. The solution (S5, a brief 3s banner) from the base report still applies.
+  </div>
+</div>
+
+<!-- N1 — new -->
+<div class="fcard new">
+  <div class="fheader">
+    <span class="fid">N1</span>
+    <span class="sm">Major &mdash; new in v8+FAB</span>
+    <span class="ftitle">FAB pre-selects ALL danger employees across the whole list, not just direct reports</span>
+  </div>
+  <div class="fmeta">
+    <span class="ptag">Lily</span><span class="ptag">Priya</span>
+    <span class="ltag">enterFabSelection()</span>
+    <span class="ltag">selectableEmployeeIDs</span>
+  </div>
+  <div class="fdesc">
+    <code>enterFabSelection()</code> sets <code>selectedForNotification = selectableEmployeeIDs</code>, which is every danger-level employee in the filtered list — not just the user's direct reports. In a real org with 20+ employees on the Attendance tab, tapping the FAB pre-selects all of them. An HR Admin managing a small team could accidentally bulk-notify dozens of employees they don't manage. There's no scope confirmation before tapping "Notify all (N)".
+  </div>
+  <div class="mwrap">
+    <div class="mcol">
+      <div class="mlabel">FAB pre-selects entire list (real org size)</div>
+      <div class="phone" style="width:370px">
+        <div class="nav">
+          <span class="nav-back">&#8249; Back</span>
+          <span class="nav-title">18 June 2025</span>
+        </div>
+        <div class="section-lbl">Direct reports (2 of 2 selected)</div>
+        <div class="rows" style="margin-top:0">
+          <div class="row" style="align-items:center">
+            <div class="check on">&#10003;</div>
+            <div class="av" style="margin-left:0">&#x1F464;</div>
+            <div class="rc"><div class="rname">Doe, Joanne</div><div class="banner b-danger" style="margin-top:6px">Missed clock-in</div></div>
+          </div>
+        </div>
+        <div class="section-lbl">Other employees (16 of 16 selected)</div>
+        <div class="rows" style="margin-top:0">
+          <div class="row" style="align-items:center">
+            <div class="check on">&#10003;</div>
+            <div class="av" style="margin-left:0">&#x1F464;</div>
+            <div class="rc"><div class="rname">Kovarek, Tomas</div><div class="banner b-danger" style="margin-top:6px">Missed clock-in</div></div>
+          </div>
+          <div class="row" style="align-items:center">
+            <div class="check on">&#10003;</div>
+            <div class="av" style="margin-left:0">&#x1F464;</div>
+            <div class="rc"><div class="rname">Nguyen, Mai</div><div class="banner b-danger" style="margin-top:6px">Missed clock-in</div></div>
+          </div>
+        </div>
+        <div class="float-bar">
+          <div class="fbtn fbtn-ter" style="font-size:13px">Cancel</div>
+          <div class="fbtn fbtn-sec" style="font-size:13px">Deselect all</div>
+          <div class="fbtn fbtn-pri" style="font-size:13px">&#128276; Notify all (18)</div>
+        </div>
+        <div class="problem-zone" style="margin:8px 12px">Manager sees "Notify all (18)". She only manages 2. But there's no scope warning — tapping sends 18 notifications.</div>
+      </div>
+    </div>
+  </div>
+  <details class="sol">
+    <summary>&#10022; Proposed fix N1a &mdash; Scope FAB pre-selection to direct reports only &nbsp;<span class="effort">S</span></summary>
+    <div class="solcontent">
+      <div class="soldesc">Change <code>enterFabSelection()</code> to pre-select only direct-report employees: <code>selectedForNotification = Set(directReportEmployees.map(\.id))</code>. Other employees remain visible and selectable but start unchecked — the user must opt them in explicitly. This keeps the "one-tap for your team" speed while preventing accidental org-wide notifications.</div>
+      <span class="effort">Effort: XS</span>
+    </div>
+  </details>
+  <details class="sol">
+    <summary>&#10022; Proposed fix N1b &mdash; Show scope confirmation before firing Notify all (&gt;5) &nbsp;<span class="effort">S</span></summary>
+    <div class="solcontent">
+      <div class="soldesc">When <code>selectedForNotification.count &gt; 5</code>, replace the direct fire with a confirmation sheet: <em>"Notify 18 employees about their attendance issues today?"</em> + Cancel / Confirm. Under 5, fire immediately (current behaviour). Threshold is configurable.</div>
+      <span class="effort">Effort: S</span>
+    </div>
+  </details>
+</div>
+
+<!-- Summary delta table -->
+<h2>Issue Tracker</h2>
+<div class="fcard" style="padding:0;overflow:hidden">
+  <table class="delta-table">
+    <tr>
+      <th>Issue</th><th>Severity</th><th>Base run</th><th>v8+FAB</th>
+    </tr>
+    <tr>
+      <td><strong>F1</strong> Direct reports chip &rarr; dead end</td>
+      <td><span class="sc" style="white-space:nowrap">Critical</span></td>
+      <td>&#10005; Open</td>
+      <td>&#10005; Unchanged</td>
+    </tr>
+    <tr>
+      <td><strong>F2</strong> Notify entry buried on Home</td>
+      <td><span class="sc" style="white-space:nowrap">Critical</span></td>
+      <td>&#10005; Open</td>
+      <td>&#10005; Unchanged</td>
+    </tr>
+    <tr>
+      <td><strong>F3</strong> Warning-level employees have no notify path</td>
+      <td><span class="sm" style="white-space:nowrap">Major</span></td>
+      <td>&#10005; Open</td>
+      <td>&#10005; Worse (employee disappears)</td>
+    </tr>
+    <tr>
+      <td><strong>F4</strong> "Select" label doesn't communicate intent</td>
+      <td><span class="sm" style="white-space:nowrap">Major</span></td>
+      <td>&#10005; Open</td>
+      <td style="color:#00665B;font-weight:500">&#10003; Resolved — FAB replaces Select</td>
+    </tr>
+    <tr>
+      <td><strong>F5</strong> No persistent toast after bulk notify</td>
+      <td><span class="sn" style="white-space:nowrap">Minor</span></td>
+      <td>&#10005; Open</td>
+      <td>&#9654; Slightly better (count shown in bar)</td>
+    </tr>
+    <tr>
+      <td><strong>N1</strong> FAB pre-selects entire org, not just direct reports <em>(new)</em></td>
+      <td><span class="sm" style="white-space:nowrap">Major</span></td>
+      <td>n/a</td>
+      <td>&#10005; New — v8+FAB only</td>
+    </tr>
+  </table>
+</div>
+
+<!-- Verdict -->
+<div class="verdict">
+  <strong>The FAB is a better in-list mechanism</strong> &mdash; larger and more discoverable than per-row bells, and it resolves the F4 "Select" label ambiguity entirely. But it doesn't move the completion rate: <strong>1 of 3 personas still succeeded</strong> because F1 and F2 (the structural navigation failures) sit upstream of the list where the FAB lives. The FAB also introduces a new major risk (N1): it pre-selects every danger employee org-wide, not just the manager's direct reports. Fix F1+F2 first (they block 2 of 3 personas), then scope the FAB pre-selection to direct reports by default.
+</div>
+
+</div>
+</body>
+</html>

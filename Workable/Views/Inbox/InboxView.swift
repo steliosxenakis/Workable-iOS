@@ -2,9 +2,18 @@ import SwiftUI
 
 struct InboxView: View {
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+    @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
 
-    private var inboxItems: [SurveyItem] {
-        surveysEnabled ? SurveyMockData.items : []
+    private var inboxItems: [InboxEntry] {
+        var items: [InboxEntry] = []
+        if timeOffEnabled {
+            items.append(.timeOff(TimeOffInboxMockData.reviewRequest))
+            items.append(.timeOff(TimeOffInboxMockData.cancelledRequest))
+        }
+        if surveysEnabled {
+            items.append(contentsOf: SurveyMockData.items.map(InboxEntry.survey))
+        }
+        return items
     }
 
     var body: some View {
@@ -31,10 +40,8 @@ struct InboxView: View {
                 List {
                     ForEach(inboxItems) { item in
                         ZStack {
-                            NavigationLink(value: item) {
-                                EmptyView()
-                            }
-                            .opacity(0)
+                            inboxNavigationLink(for: item)
+                                .opacity(0)
 
                             InboxItemRow(item: item)
                         }
@@ -56,6 +63,24 @@ struct InboxView: View {
             .navigationDestination(for: SurveyItem.self) { item in
                 SurveyDetailView(survey: item)
             }
+            .navigationDestination(for: TimeOffInboxItem.self) { item in
+                switch item.kind {
+                case .reviewRequest:
+                    TimeOffRequestDetailView(item: item)
+                case .cancelled:
+                    TimeOffCancelledDetailView(item: item)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func inboxNavigationLink(for item: InboxEntry) -> some View {
+        switch item {
+        case .survey(let survey):
+            NavigationLink(value: survey) { EmptyView() }
+        case .timeOff(let timeOff):
+            NavigationLink(value: timeOff) { EmptyView() }
         }
     }
 
@@ -72,7 +97,7 @@ struct InboxView: View {
 }
 
 private struct InboxItemRow: View {
-    let item: SurveyItem
+    let item: InboxEntry
 
     var body: some View {
         HStack(alignment: .top, spacing: 4) {
@@ -80,13 +105,13 @@ private struct InboxItemRow: View {
                 .padding(.top, 8)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.isReminder ? "Reminder to complete \(item.surveyName)" : "Start \(item.surveyName)")
+                Text(item.title)
                     .font(AppFonts.headline())
                     .foregroundColor(AppColors.fontDefault)
                     .tracking(-0.41)
                     .lineLimit(2)
 
-                Text("\(item.timeAgo) · \(item.category)")
+                Text(item.subtitle)
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.iconDefault)
                     .tracking(-0.24)
@@ -102,11 +127,13 @@ private struct InboxItemRow: View {
 
             Spacer(minLength: 12)
 
-            Image(item.senderAvatar)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 30, height: 30)
-                .clipShape(Circle())
+            if item.showsAvatar {
+                Image(item.avatarName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 30, height: 30)
+                    .clipShape(Circle())
+            }
         }
     }
 

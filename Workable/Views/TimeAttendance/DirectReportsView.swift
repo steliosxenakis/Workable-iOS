@@ -93,10 +93,8 @@ private struct DirectReportRow: View {
                         .foregroundColor(AppColors.fontDefault)
                         .tracking(-0.41)
                     if attendanceUIVersion.usesV6IssueBannerStyle {
-                        if let range = employee.scheduleTimeRange {
-                            let isOngoing = range.contains("Ongoing")
-                            let prefix = (employee.anomalyType == .scheduleNotStarted || employee.workedHours == 0) ? "Scheduled: " : (isOngoing ? "Working: " : "Worked: ")
-                            Text("\(prefix)\(range)")
+                        if let label = employee.scheduleTimeLabel {
+                            Text(label)
                                 .font(AppFonts.subheadline())
                                 .foregroundColor(AppColors.fontSecondary)
                         }

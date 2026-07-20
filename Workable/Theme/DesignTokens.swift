@@ -12,6 +12,7 @@ enum AppColors {
     static let separator        = Color(light: "EEEDEC", dark: "38383A")   // Neutral ☀️300 ☽700
     static let iconInactive     = Color(light: "C8C7C7", dark: "8A8986")   // Neutral ☀️400 ☽600
     static let iconDefault      = Color(light: "9E9D9C", dark: "C8C7C7")   // Neutral ☀️500 ☽400
+    static let dashboardCardFill = Color(light: "F2F2F2", dark: "2C2C2E")  // Redesign — metric card / icon fill
     static let fontSecondary    = Color(light: "8A8986", dark: "9E9D9C")   // Neutral ☀️600 ☽500
     static let fontDefault      = Color(light: "323234", dark: "FFFFFF")   // Neutral ☀️700 ☽0
 

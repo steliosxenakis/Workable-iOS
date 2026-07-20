@@ -4,6 +4,10 @@ struct TimeAttendanceAnomaliesListView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.attendanceUIVersion) private var attendanceUIVersion
     @Environment(\.attendanceMVP) private var attendanceMVP
+    @Environment(\.attendanceNoIssues) private var attendanceNoIssues
+    @Environment(\.attendanceWorkingCase) private var attendanceWorkingCase
+    @Environment(\.attendanceNotifyStyle) private var notifyStyle
+    @AppStorage("settings.showDirectReports") private var showDirectReports = true
     @State private var selectedTab: Int
     @State private var selectedFilters: Set<AnomalyFilterCategory>
 
@@ -16,8 +20,8 @@ struct TimeAttendanceAnomaliesListView: View {
         let defaultTab = (version == .v6 || version == .v7 || version == .v8) ? 1 : version.usesModernAttendanceChrome ? 3 : 1
         _selectedTab = State(initialValue: initialTab ?? defaultTab)
     }
-    @State private var selectedDepartment: String?
-    @State private var selectedEntity: String?
+    @State private var selectedDepartments: Set<String> = []
+    @State private var selectedEntities: Set<String> = []
     @State private var searchText = ""
     @State private var selectedDate = Date()
     @State private var showSearchRow = false
@@ -43,9 +47,15 @@ struct TimeAttendanceAnomaliesListView: View {
         return formatter.string(from: selectedDate)
     }
     @State private var notifiedEmployees: Set<UUID> = []
+    @State private var notifiedTimestamps: [UUID: Date] = [:]
     @State private var allNotified = false
     @State private var isSelecting = false
     @State private var selectedForNotification: Set<UUID> = []
+    @State private var filtersBeforeFab: Set<AnomalyFilterCategory>?
+
+    private static let actionableFilterCategories: Set<AnomalyFilterCategory> = [
+        .noClockInNorOut, .missedClockOut, .exceededWorkSchedule, .noClockIn, .workedLess
+    ]
 
     private var tabs: [String] {
         switch attendanceUIVersion {
@@ -85,6 +95,36 @@ struct TimeAttendanceAnomaliesListView: View {
             && (!attendanceUIVersion.usesModernAttendanceChrome || isSelecting)
     }
 
+    private var usesFabNotifyStyle: Bool {
+        notifyStyle == .fab && !attendanceMVP
+    }
+
+    private func notifiedLabel(for employeeID: UUID) -> String? {
+        guard let timestamp = notifiedTimestamps[employeeID] else { return nil }
+        let seconds = Int(Date().timeIntervalSince(timestamp))
+        if seconds < 60 { return "just now" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        return "\(hours)h ago"
+    }
+
+    private func enterFabSelection() {
+        filtersBeforeFab = selectedFilters
+        selectedFilters = Self.actionableFilterCategories
+        isSelecting = true
+        selectedForNotification = selectableEmployeeIDs
+    }
+
+    private func exitFabSelection() {
+        selectedForNotification.removeAll()
+        isSelecting = false
+        if let saved = filtersBeforeFab {
+            selectedFilters = saved
+            filtersBeforeFab = nil
+        }
+    }
+
     private var employees: [EmployeeAnomaly] {
         if attendanceUIVersion == .v5 || attendanceUIVersion == .v6 || attendanceUIVersion == .v7 || attendanceUIVersion == .v8 {
             return TimeAttendanceMockData.employees(for: selectedDate)
@@ -92,23 +132,46 @@ struct TimeAttendanceAnomaliesListView: View {
         return TimeAttendanceMockData.employees
     }
 
-    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Joe", "Tomasevic, George"])
+    private let directReportNames = Set(["Doe, Joanne", "Gutmann, Elyssa", "Carty, Jonathan-Augustus", "Tomasevic, George"])
 
     private var eligibleEmployees: [EmployeeAnomaly] {
-        if attendanceUIVersion.usesV6IssueBannerStyle { return employees }
-        return employees.filter { !$0.hasScheduleIcon }
+        let base: [EmployeeAnomaly]
+        if attendanceUIVersion.usesV6IssueBannerStyle {
+            base = employees
+        } else {
+            base = employees.filter { !$0.hasScheduleIcon }
+        }
+        if attendanceWorkingCase {
+            return base.filter(\.countsTowardAttendanceIssues)
+        }
+        if attendanceNoIssues {
+            return base.filter {
+                $0.anomalyType == .onTrack || $0.anomalyType == .scheduleNotStarted
+            }
+        }
+        return base
+    }
+
+    private var isNotifiableCategory: (AnomalyFilterCategory) -> Bool {{ category in
+        let types = category.matchingTypes
+        return !types.isSubset(of: [.onTrack, .scheduleNotStarted, .late, .exceededHours, .unplanned])
+    }}
+
+    private var departmentEntityScopedEmployees: [EmployeeAnomaly] {
+        eligibleEmployees.filtered(by: [], departments: selectedDepartments, entities: selectedEntities)
     }
 
     private var filterCounts: [AnomalyFilterCategory: Int] {
+        let base = departmentEntityScopedEmployees
         var counts: [AnomalyFilterCategory: Int] = [:]
         for category in AnomalyFilterCategory.allCases {
-            counts[category] = eligibleEmployees.filter { category.matchingTypes.contains($0.anomalyType) }.count
+            counts[category] = base.filter { category.matchingTypes.contains($0.anomalyType) }.count
         }
         return counts
     }
 
     private var filteredEmployees: [EmployeeAnomaly] {
-        var result = eligibleEmployees.filtered(by: selectedFilters, department: selectedDepartment, entity: selectedEntity)
+        var result = eligibleEmployees.filtered(by: selectedFilters, departments: selectedDepartments, entities: selectedEntities)
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             result = result.filter {
@@ -120,14 +183,23 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var directReportEmployees: [EmployeeAnomaly] {
-        filteredEmployees.filter { directReportNames.contains($0.name) }
+        filteredEmployees.filter {
+            directReportNames.contains($0.name) && !$0.hasMultipleIssuePills
+        }
     }
 
     private var otherEmployees: [EmployeeAnomaly] {
-        filteredEmployees.filter {
+        var result = filteredEmployees.filter {
             !directReportNames.contains($0.name) &&
-            !(attendanceUIVersion.usesV6IssueBannerStyle && $0.hasScheduleIcon && $0.anomalyType == .onTrack)
+            !(attendanceUIVersion.usesV6IssueBannerStyle && $0.hasScheduleIcon && $0.anomalyType == .onTrack) &&
+            !$0.hasMultipleIssuePills
         }
+        result.append(contentsOf: filteredEmployees.filter(\.hasMultipleIssuePills))
+        return result
+    }
+
+    private var fabSelecting: Bool {
+        usesFabNotifyStyle && isSelecting
     }
 
     private var v6StatsRow: some View {
@@ -136,33 +208,38 @@ struct TimeAttendanceAnomaliesListView: View {
                 ForEach(Array(AnomalyFilterCategory.allCases.filter { $0 != .onTrack && $0 != .missedClockOut }.prefix(3)), id: \.self) { filter in
                     let count = filterCounts[filter] ?? 0
                     let isSelected = selectedFilters.contains(filter)
+                    let isActionable = isNotifiableCategory(filter)
+                    let dimmed = fabSelecting && !isActionable
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            if isSelected { selectedFilters.remove(filter) }
-                            else { selectedFilters.insert(filter) }
+                        if !dimmed {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if isSelected { selectedFilters.remove(filter) }
+                                else { selectedFilters.insert(filter) }
+                            }
                         }
                     } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(filter.rawValue)
                                 .font(AppFonts.subheadline())
                                 .tracking(-0.24)
-                                .foregroundColor(AppColors.fontDefault)
+                                .foregroundColor(dimmed ? AppColors.fontSecondary.opacity(0.4) : AppColors.fontDefault)
 
                             Text("\(count)")
                                 .font(AppFonts.subheadStrong())
-                                .foregroundColor(count > 0 ? AppColors.dangerDefault : AppColors.fontSecondary)
+                                .foregroundColor(dimmed ? AppColors.fontSecondary.opacity(0.4) : (count > 0 ? AppColors.dangerDefault : AppColors.fontSecondary))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 4)
-                                .background(count > 0 ? AppColors.dangerBackground : AppColors.lightBackground)
+                                .background(dimmed ? AppColors.lightBackground.opacity(0.5) : (count > 0 ? AppColors.dangerBackground : AppColors.lightBackground))
                                 .clipShape(Capsule())
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(isSelected ? AppColors.danger100 : AppColors.surface)
+                        .background(dimmed ? AppColors.surface.opacity(0.5) : (isSelected ? AppColors.danger100 : AppColors.surface))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+                        .shadow(color: .black.opacity(dimmed ? 0.02 : 0.07), radius: 7, y: 4)
                     }
                     .buttonStyle(.plain)
+                    .allowsHitTesting(!dimmed)
                 }
             }
             .padding(.horizontal, 16)
@@ -186,11 +263,16 @@ struct TimeAttendanceAnomaliesListView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
-                tabBar
+                if attendanceUIVersion.usesV6IssueBannerStyle {
+                    v6NavBar
+                } else {
+                    tabBar
+                }
 
                 Group {
                     tabContent
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .onChange(of: attendanceUIVersion) { version in
                 selectedTab = attendanceTabIndex
@@ -207,51 +289,92 @@ struct TimeAttendanceAnomaliesListView: View {
                 }
             }
 
-            if showsFloatingSelectionBar {
+            if showsFloatingSelectionBar && !usesFabNotifyStyle {
                 floatingSelectionBar
+            }
+
+            if usesFabNotifyStyle && !isViewingNonTodayDate && selectedTab == attendanceTabIndex {
+                fabOverlay
             }
         }
         .background(AppColors.background)
-        .navigationTitle(navigationDateTitle)
+        .navigationTitle(attendanceUIVersion.usesV6IssueBannerStyle ? "" : navigationDateTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .navigationBarHidden(attendanceUIVersion.usesV6IssueBannerStyle)
         .toolbarBackground(AppColors.surface, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button { dismiss() } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Back")
-                            .font(AppFonts.body())
+            if !attendanceUIVersion.usesV6IssueBannerStyle {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    attendanceBackButton
+                        .fixedSize()
+                }
+                if attendanceUIVersion.usesModernAttendanceChrome {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
                     }
-                    .foregroundColor(AppColors.primaryDark)
                 }
-            }
-            if attendanceUIVersion.usesModernAttendanceChrome && !attendanceUIVersion.usesV6IssueBannerStyle {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    AttendanceV2SearchToolbarButton(isSearchVisible: $showSearchRow)
+                    attendanceCalendarButton
+                        .fixedSize()
                 }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                attendanceCalendarPicker
             }
         }
     }
 
-    private var attendanceCalendarPicker: some View {
-        Image(systemName: "calendar")
-            .font(.system(size: 18))
-            .foregroundColor(AppColors.primaryDark)
-            .frame(width: 44, height: 44)
-            .overlay {
-                DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                    .labelsHidden()
-                    .colorMultiply(.clear)
-                    .frame(width: 44, height: 44)
+    // MARK: - V6 Nav Bar (Figma 390-15733)
+
+    private var v6NavBar: some View {
+        VStack(spacing: 0) {
+            HStack {
+                attendanceBackButton
+                    .frame(width: 96, alignment: .leading)
+
+                Spacer(minLength: 0)
+
+                attendanceCalendarButton
+                    .frame(minWidth: 96, alignment: .trailing)
             }
-            .contentShape(Rectangle())
+            .overlay {
+                Text(navigationDateTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+
+            attendanceTabItems(horizontalPadding: 26)
+                .padding(.top, 8)
+        }
+        .background(AppColors.surface)
+        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
+    }
+
+    private var attendanceBackButton: some View {
+        GlassSymbolButton(
+            systemName: "chevron.left",
+            fontWeight: .semibold,
+            accessibilityLabel: "Back",
+            action: { dismiss() }
+        )
+    }
+
+    private var attendanceCalendarButton: some View {
+        ZStack {
+            GlassSymbolButton(
+                systemName: "calendar",
+                accessibilityLabel: "Select date",
+                action: {}
+            )
+            .allowsHitTesting(false)
+
+            DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                .labelsHidden()
+                .colorMultiply(.clear)
+                .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+        }
+        .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
     }
 
     @ViewBuilder
@@ -286,6 +409,13 @@ struct TimeAttendanceAnomaliesListView: View {
     // MARK: - Tab Bar
 
     private var tabBar: some View {
+        attendanceTabItems(horizontalPadding: 0)
+            .padding(.top, 8)
+            .background(AppColors.surface)
+            .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
+    }
+
+    private func attendanceTabItems(horizontalPadding: CGFloat) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(Array(tabs.enumerated()), id: \.offset) { index, title in
@@ -306,65 +436,64 @@ struct TimeAttendanceAnomaliesListView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, horizontalPadding)
         }
-        .padding(.top, 8)
-        .background(AppColors.surface)
-        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
     }
 
     // MARK: - Time & Attendance Content
 
     private var timeAttendanceContent: some View {
-        VStack(spacing: 0) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if attendanceUIVersion.usesV6IssueBannerStyle {
+                    v6StatsRow
+                }
+
+                if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
+                    VStack(spacing: 12) {
+                        Image("illustration-empty-list")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 140, height: 140)
+                        Text("No employees to show")
+                            .font(AppFonts.headline())
+                            .foregroundColor(AppColors.fontDefault)
+                        Text(!selectedFilters.isEmpty || !selectedDepartments.isEmpty || !selectedEntities.isEmpty ? "Try modifying your filters." : "Try modifying your search.")
+                            .font(AppFonts.subheadline())
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+                } else {
+                    if !directReportEmployees.isEmpty {
+                        employeeSection(
+                            title: "Direct reports",
+                            employees: directReportEmployees,
+                            showsSelectionAction: !attendanceMVP && !isViewingNonTodayDate && attendanceUIVersion.usesModernAttendanceChrome
+                        )
+                    }
+                    if !otherEmployees.isEmpty {
+                        employeeSection(title: "Other employees", employees: otherEmployees)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
             AnomalyFilterBar(
                 selectedFilters: $selectedFilters,
-                selectedDepartment: $selectedDepartment,
-                selectedEntity: $selectedEntity,
+                selectedDepartments: $selectedDepartments,
+                selectedEntities: $selectedEntities,
                 searchText: $searchText,
                 isSearchRowVisible: $showSearchRow,
                 filterCounts: filterCounts,
-                attendanceVersion: attendanceUIVersion
+                attendanceVersion: attendanceUIVersion,
+                filteredResultCount: filteredEmployees.count
             )
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if attendanceUIVersion.usesV6IssueBannerStyle {
-                        v6StatsRow
-                    }
-
-                    if filteredEmployees.isEmpty && attendanceUIVersion.usesV6IssueBannerStyle {
-                        VStack(spacing: 12) {
-                            Image("illustration-empty-list")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 140, height: 140)
-                            Text("No employees to show")
-                                .font(AppFonts.headline())
-                                .foregroundColor(AppColors.fontDefault)
-                            Text(!selectedFilters.isEmpty || selectedDepartment != nil || selectedEntity != nil ? "Try modifying your filters." : "Try modifying your search.")
-                                .font(AppFonts.subheadline())
-                                .foregroundColor(AppColors.fontSecondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 40)
-                    } else {
-                        if !directReportEmployees.isEmpty {
-                            employeeSection(
-                                title: "Direct reports",
-                                employees: directReportEmployees,
-                                showsSelectionAction: !attendanceMVP && !isViewingNonTodayDate && attendanceUIVersion.usesModernAttendanceChrome
-                            )
-                        }
-                        if !otherEmployees.isEmpty {
-                            employeeSection(title: "Other employees", employees: otherEmployees)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
-            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
     }
 
@@ -415,14 +544,18 @@ struct TimeAttendanceAnomaliesListView: View {
                     }
 
                     if isSelecting && !selectedForNotification.isEmpty {
+                        let allSel = allFilteredEmployeesSelected
+                        let cnt = selectedForNotification.count
                         floatingCapsuleButton(
-                            "Notify \(selectedForNotification.count)",
+                            allSel ? "Notify all (\(cnt))" : "Notify (\(cnt))",
                             icon: "bell",
                             style: .primary
                         ) {
                             withAnimation(.easeInOut(duration: 0.25)) {
+                                let now = Date()
                                 for id in selectedForNotification {
                                     notifiedEmployees.insert(id)
+                                    notifiedTimestamps[id] = now
                                 }
                                 selectedForNotification.removeAll()
                                 isSelecting = false
@@ -443,6 +576,101 @@ struct TimeAttendanceAnomaliesListView: View {
                 .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var fabOverlay: some View {
+        ZStack(alignment: .bottom) {
+            if isSelecting {
+                ZStack(alignment: .bottom) {
+                    LinearGradient(
+                        stops: [
+                            .init(color: AppColors.background.opacity(0), location: 0),
+                            .init(color: AppColors.background.opacity(0.92), location: 0.55),
+                            .init(color: AppColors.background, location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: Self.floatingBarGradientHeight + 52)
+                    .frame(maxWidth: .infinity)
+                    .allowsHitTesting(false)
+
+                    HStack(spacing: 12) {
+                        floatingCapsuleButton(
+                            "Cancel",
+                            foreground: AppColors.fontSecondary,
+                            style: .tertiary
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                exitFabSelection()
+                            }
+                        }
+
+                        if !filteredEmployees.isEmpty {
+                            floatingCapsuleButton(
+                                allFilteredEmployeesSelected ? "Deselect all" : "Select all",
+                                style: .selectAll
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    let ids = selectableEmployeeIDs
+                                    if allFilteredEmployeesSelected {
+                                        selectedForNotification.subtract(ids)
+                                    } else {
+                                        selectedForNotification.formUnion(ids)
+                                    }
+                                }
+                            }
+                        }
+
+                        if !selectedForNotification.isEmpty {
+                            let allSelected = allFilteredEmployeesSelected
+                            let count = selectedForNotification.count
+                            floatingCapsuleButton(
+                                allSelected ? "Notify all (\(count))" : "Notify (\(count))",
+                                icon: "bell",
+                                style: .primary
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    let now = Date()
+                                    for id in selectedForNotification {
+                                        _ = notifiedEmployees.insert(id)
+                                        notifiedTimestamps[id] = now
+                                    }
+                                    exitFabSelection()
+                                }
+                            }
+                        }
+
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                enterFabSelection()
+                            }
+                        } label: {
+                            Image(systemName: "bell")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(AppColors.primaryDark)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 20)
+                    }
+                    .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
+                }
+            }
+        }
     }
 
     private enum FloatingCapsuleButtonStyle {
@@ -511,7 +739,7 @@ struct TimeAttendanceAnomaliesListView: View {
 
                 Spacer(minLength: 8)
 
-                if showsSelectionAction {
+                if showsSelectionAction && !usesFabNotifyStyle {
                     if !isSelecting {
                         tertiarySelectionButton(title: "Select", icon: nil, foreground: AppColors.primaryDark) {
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -539,25 +767,58 @@ struct TimeAttendanceAnomaliesListView: View {
                                 isNotified: .constant(notifiedEmployees.contains(employee.id) || allNotified),
                                 isSelectionMode: true,
                                 isSelectedForNotification: selectedForNotification.contains(employee.id),
-                                isActionable: true
+                                isActionable: true,
+                                hidesBellForFab: usesFabNotifyStyle,
+                                lastNotifiedText: notifiedLabel(for: employee.id)
                             )
                         }
                         .buttonStyle(.plain)
                     } else {
-                        NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
+                        let rowView = NavigationLink(destination: EmployeeTimeTrackingDetailView(employee: employee)) {
                             EmployeeAnomalyRow(
                                 employee: employee,
                                 isNotified: Binding(
                                     get: { notifiedEmployees.contains(employee.id) || allNotified },
                                     set: { newValue in
-                                        if newValue { notifiedEmployees.insert(employee.id) }
-                                        else { notifiedEmployees.remove(employee.id); allNotified = false }
+                                        if newValue {
+                                            notifiedEmployees.insert(employee.id)
+                                            notifiedTimestamps[employee.id] = Date()
+                                        } else {
+                                            notifiedEmployees.remove(employee.id)
+                                            notifiedTimestamps.removeValue(forKey: employee.id)
+                                            allNotified = false
+                                        }
                                     }
                                 ),
-                                isActionable: !attendanceMVP && !isViewingNonTodayDate
+                                isActionable: usesFabNotifyStyle ? !isViewingNonTodayDate : (!attendanceMVP && !isViewingNonTodayDate),
+                                hidesBellForFab: usesFabNotifyStyle,
+                                lastNotifiedText: notifiedLabel(for: employee.id)
                             )
                         }
                         .buttonStyle(.plain)
+
+                        let canSwipeNotify = !attendanceMVP && !isViewingNonTodayDate
+                            && employee.anomalyType != .onTrack
+                            && employee.anomalyType != .scheduleNotStarted
+                            && !employee.anomalyType.isWarningLevel
+
+                        if canSwipeNotify {
+                            let alreadyNotified = notifiedEmployees.contains(employee.id) || allNotified
+                            rowView
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            _ = notifiedEmployees.insert(employee.id)
+                                            notifiedTimestamps[employee.id] = Date()
+                                        }
+                                    } label: {
+                                        Label(alreadyNotified ? "Notify\nagain" : "Notify", systemImage: "bell")
+                                    }
+                                    .tint(AppColors.primaryDark)
+                                }
+                        } else {
+                            rowView
+                        }
                     }
                     if index < employees.count - 1 {
                         Rectangle()
