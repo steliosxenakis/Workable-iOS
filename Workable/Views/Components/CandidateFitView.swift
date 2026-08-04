@@ -123,60 +123,46 @@ struct CandidateFitView: View {
     
     private var summaryText: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Group {
-                (Text("The candidate holds a ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("Bachelor's degree")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" and demonstrates ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("Thai fluency")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" (native/bilingual). The background includes customer-facing coordination via email and phone in ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("Account Executive")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" and Program Coordinator roles.")
-                    .font(AppFonts.subheadline()))
-                .foregroundColor(AppColors.fontDefault)
-            }
-            
-            Group {
-                (Text("Holds a Bachelor's degree and demonstrates ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("Thai fluency")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" (native/bilingual). The background includes customer-facing coordination via email and phone in ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("Account Executive")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" and Program Coordinator roles.")
-                    .font(AppFonts.subheadline()))
-                .foregroundColor(AppColors.fontDefault)
-            }
-            
-            Group {
-                (Text("However, the candidate stated they do not have 2+ years of direct contact-centre experience, which is a must-have. No ")
-                    .font(AppFonts.subheadline())
-                +
-                Text("FX/financial services")
-                    .font(AppFonts.subheadStrong())
-                +
-                Text(" support experience is evidenced, and clarification is needed on SOP exposure, English proficiency level, and shift-schedule availability.")
-                    .font(AppFonts.subheadline()))
-                .foregroundColor(AppColors.fontDefault)
-            }
+            summaryParagraph1
+            summaryParagraph2
+            summaryParagraph3
         }
+    }
+    
+    private var summaryParagraph1: Text {
+        let regular = AppFonts.subheadline()
+        let strong = AppFonts.subheadStrong()
+        let part1 = Text("The candidate holds a ").font(regular)
+        let part2 = Text("Bachelor's degree").font(strong)
+        let part3 = Text(" and demonstrates ").font(regular)
+        let part4 = Text("Thai fluency").font(strong)
+        let part5 = Text(" (native/bilingual). The background includes customer-facing coordination via email and phone in ").font(regular)
+        let part6 = Text("Account Executive").font(strong)
+        let part7 = Text(" and Program Coordinator roles.").font(regular)
+        return (part1 + part2 + part3 + part4 + part5 + part6 + part7)
+            .foregroundColor(AppColors.fontDefault)
+    }
+    
+    private var summaryParagraph2: Text {
+        let regular = AppFonts.subheadline()
+        let strong = AppFonts.subheadStrong()
+        let part1 = Text("Holds a Bachelor's degree and demonstrates ").font(regular)
+        let part2 = Text("Thai fluency").font(strong)
+        let part3 = Text(" (native/bilingual). The background includes customer-facing coordination via email and phone in ").font(regular)
+        let part4 = Text("Account Executive").font(strong)
+        let part5 = Text(" and Program Coordinator roles.").font(regular)
+        return (part1 + part2 + part3 + part4 + part5)
+            .foregroundColor(AppColors.fontDefault)
+    }
+    
+    private var summaryParagraph3: Text {
+        let regular = AppFonts.subheadline()
+        let strong = AppFonts.subheadStrong()
+        let part1 = Text("However, the candidate stated they do not have 2+ years of direct contact-centre experience, which is a must-have. No ").font(regular)
+        let part2 = Text("FX/financial services").font(strong)
+        let part3 = Text(" support experience is evidenced, and clarification is needed on SOP exposure, English proficiency level, and shift-schedule availability.").font(regular)
+        return (part1 + part2 + part3)
+            .foregroundColor(AppColors.fontDefault)
     }
     
     // MARK: - Tab Section

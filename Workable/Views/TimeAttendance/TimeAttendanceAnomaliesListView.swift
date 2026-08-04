@@ -52,10 +52,18 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var isSelecting = false
     @State private var selectedForNotification: Set<UUID> = []
     @State private var filtersBeforeFab: Set<AnomalyFilterCategory>?
+    @State private var showsReminderToast = false
+    @State private var lastReminderSentCount = 0
+    @State private var showsResendReminderAlert = false
+    @State private var pendingReminderTargets: Set<UUID> = []
+    @State private var showsNotifySheet = false
 
     private static let actionableFilterCategories: Set<AnomalyFilterCategory> = [
         .noClockInNorOut, .missedClockOut, .exceededWorkSchedule, .noClockIn, .workedLess
     ]
+
+    /// Grabber + header + 3 toggle rows + bottom padding — hugs content (not a full/medium page).
+    private static let notifySheetDetentHeight: CGFloat = 268
 
     private var tabs: [String] {
         switch attendanceUIVersion {
@@ -74,7 +82,7 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     /// Matches `TabBarView` height; FABs sit 16pt above the menu (V1).
-    private static let mainTabBarHeight: CGFloat = 83
+    private static let mainTabBarHeight: CGFloat = TabBarView.barHeight
     private static let floatingBarGapAboveMenu: CGFloat = 16
     /// V2/V3 — shift floating actions 16pt lower (flush with tab bar top).
     private static let modernFloatingBarExtraLowerOffset: CGFloat = 16
@@ -96,32 +104,97 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var usesFabNotifyStyle: Bool {
-        notifyStyle == .fab && !attendanceMVP
+        notifyStyle.usesFabChrome && !attendanceMVP
     }
 
-    private func notifiedLabel(for employeeID: UUID) -> String? {
-        guard let timestamp = notifiedTimestamps[employeeID] else { return nil }
-        let seconds = Int(Date().timeIntervalSince(timestamp))
-        if seconds < 60 { return "just now" }
-        let minutes = seconds / 60
-        if minutes < 60 { return "\(minutes)m ago" }
-        let hours = minutes / 60
-        return "\(hours)h ago"
+    private var usesFilterOnlyNotify: Bool {
+        notifyStyle.isFilterOnlyNotify && !attendanceMVP
+    }
+
+    private var usesNotifySheet: Bool {
+        notifyStyle.usesNotifySheet && !attendanceMVP
     }
 
     private func enterFabSelection() {
+        if usesNotifySheet {
+            openNotifySheet()
+            return
+        }
         filtersBeforeFab = selectedFilters
         selectedFilters = Self.actionableFilterCategories
         isSelecting = true
-        selectedForNotification = selectableEmployeeIDs
+        if usesFilterOnlyNotify {
+            selectedForNotification.removeAll()
+        } else {
+            selectedForNotification = selectableEmployeeIDs
+        }
     }
 
-    private func exitFabSelection() {
+    private func openNotifySheet() {
+        showsNotifySheet = true
+    }
+
+    private func notifyTargets(for categories: Set<AnomalyFilterCategory>) -> Set<UUID> {
+        Set(
+            departmentEntityScopedEmployees
+                .filter { employee in
+                    categories.contains {
+                        $0.matchingTypes.contains(employee.anomalyType)
+                    }
+                }
+                .map(\.id)
+        )
+    }
+
+    private func exitFabSelection(restoreFilters: Bool = true) {
         selectedForNotification.removeAll()
         isSelecting = false
-        if let saved = filtersBeforeFab {
+        if restoreFilters, let saved = filtersBeforeFab {
             selectedFilters = saved
+        }
+        filtersBeforeFab = nil
+    }
+
+    private func attemptSendFilterReminders() {
+        attemptSendReminders(to: selectableEmployeeIDs)
+    }
+
+    private func attemptSendReminders(to targets: Set<UUID>) {
+        guard !targets.isEmpty else { return }
+        if !targets.isDisjoint(with: notifiedEmployees) {
+            pendingReminderTargets = targets
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showsResendReminderAlert = true
+            }
+        } else {
+            sendFilterReminders(to: targets)
+        }
+    }
+
+    private func sendFilterReminders(to targets: Set<UUID>) {
+        guard !targets.isEmpty else { return }
+        let now = Date()
+        for id in targets {
+            _ = notifiedEmployees.insert(id)
+            notifiedTimestamps[id] = now
+        }
+        pendingReminderTargets = []
+        showsResendReminderAlert = false
+        showsNotifySheet = false
+        selectedForNotification.removeAll()
+        isSelecting = false
+        if usesFilterOnlyNotify {
+            selectedFilters.removeAll()
             filtersBeforeFab = nil
+        }
+        lastReminderSentCount = targets.count
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showsReminderToast = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showsReminderToast = false
+            }
         }
     }
 
@@ -218,40 +291,71 @@ struct TimeAttendanceAnomaliesListView: View {
                             }
                         }
                     } label: {
-                        VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
                             Text(filter.rawValue)
-                                .font(AppFonts.subheadline())
-                                .tracking(-0.24)
-                                .foregroundColor(dimmed ? AppColors.fontSecondary.opacity(0.4) : AppColors.fontDefault)
+                                .font(AppFonts.subheadStrong())
+                                .foregroundColor(
+                                    dimmed
+                                        ? AppColors.fontSecondary.opacity(0.4)
+                                        : (isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
+                                )
 
                             Text("\(count)")
                                 .font(AppFonts.subheadStrong())
-                                .foregroundColor(dimmed ? AppColors.fontSecondary.opacity(0.4) : (count > 0 ? AppColors.dangerDefault : AppColors.fontSecondary))
+                                .foregroundColor(
+                                    dimmed
+                                        ? AppColors.fontSecondary.opacity(0.4)
+                                        : (isSelected || count > 0 ? AppColors.fontDefault : AppColors.fontSecondary)
+                                )
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 4)
-                                .background(dimmed ? AppColors.lightBackground.opacity(0.5) : (count > 0 ? AppColors.dangerBackground : AppColors.lightBackground))
-                                .clipShape(Capsule())
+                                .background(
+                                    dimmed
+                                        ? AppColors.lightBackground.opacity(0.5)
+                                        : (isSelected
+                                           ? AppColors.successBackground
+                                           : (count > 0 ? AppColors.background : AppColors.lightBackground))
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(dimmed ? AppColors.surface.opacity(0.5) : (isSelected ? AppColors.danger100 : AppColors.surface))
+                        .background(
+                            dimmed
+                                ? AppColors.surface.opacity(0.5)
+                                : (isSelected ? AppColors.activeBackground : AppColors.surface)
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: .black.opacity(dimmed ? 0.02 : 0.07), radius: 7, y: 4)
+                        .shadow(color: .black.opacity(dimmed ? 0.02 : 0.07), radius: 14, y: 4)
                     }
                     .buttonStyle(.plain)
                     .allowsHitTesting(!dimmed)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 12)
+            .padding(.vertical, 18)
         }
+        .scrollClipDisabled()
         .padding(.horizontal, -16)
+        .padding(.vertical, -18)
     }
 
     /// IDs visible with current filters & search — used for select all / deselect all.
     private var selectableEmployeeIDs: Set<UUID> {
         Set(filteredEmployees.map(\.id))
+    }
+
+    /// Everyone in scope who can receive a reminder (actionable issue types).
+    private var allNotifiableEmployeeIDs: Set<UUID> {
+        Set(
+            departmentEntityScopedEmployees
+                .filter { employee in
+                    Self.actionableFilterCategories.contains {
+                        $0.matchingTypes.contains(employee.anomalyType)
+                    }
+                }
+                .map(\.id)
+        )
     }
 
     private var allFilteredEmployeesSelected: Bool {
@@ -295,6 +399,36 @@ struct TimeAttendanceAnomaliesListView: View {
 
             if usesFabNotifyStyle && !isViewingNonTodayDate && selectedTab == attendanceTabIndex {
                 fabOverlay
+            }
+
+            if showsReminderToast {
+                reminderSentToast
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(10)
+            }
+
+            if showsResendReminderAlert {
+                resendReminderAlert
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(11)
+            }
+        }
+        .sheet(isPresented: $showsNotifySheet) {
+            NotifyEmployeesSheet(
+                filterCounts: filterCounts,
+                targets: { notifyTargets(for: $0) },
+                onCancel: { showsNotifySheet = false },
+                onConfirm: { targets in
+                    showsNotifySheet = false
+                    attemptSendReminders(to: targets)
+                }
+            )
+            .presentationDetents([.height(Self.notifySheetDetentHeight)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(34)
+            .presentationBackground {
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(.regularMaterial)
             }
         }
         .background(AppColors.background)
@@ -482,16 +616,18 @@ struct TimeAttendanceAnomaliesListView: View {
             .padding(.bottom, showsFloatingSelectionBar ? 140 : 80)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            AnomalyFilterBar(
-                selectedFilters: $selectedFilters,
-                selectedDepartments: $selectedDepartments,
-                selectedEntities: $selectedEntities,
-                searchText: $searchText,
-                isSearchRowVisible: $showSearchRow,
-                filterCounts: filterCounts,
-                attendanceVersion: attendanceUIVersion,
-                filteredResultCount: filteredEmployees.count
-            )
+            if !fabSelecting {
+                AnomalyFilterBar(
+                    selectedFilters: $selectedFilters,
+                    selectedDepartments: $selectedDepartments,
+                    selectedEntities: $selectedEntities,
+                    searchText: $searchText,
+                    isSearchRowVisible: $showSearchRow,
+                    filterCounts: filterCounts,
+                    attendanceVersion: attendanceUIVersion,
+                    filteredResultCount: filteredEmployees.count
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppColors.background)
@@ -580,7 +716,8 @@ struct TimeAttendanceAnomaliesListView: View {
 
     private var fabOverlay: some View {
         ZStack(alignment: .bottom) {
-            if isSelecting {
+            // Sheet style never enters in-list selection — FAB only opens the bottom sheet.
+            if isSelecting && !usesNotifySheet {
                 ZStack(alignment: .bottom) {
                     LinearGradient(
                         stops: [
@@ -591,86 +728,272 @@ struct TimeAttendanceAnomaliesListView: View {
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: Self.floatingBarGradientHeight + 52)
+                    .frame(height: Self.floatingBarGradientHeight + 72)
                     .frame(maxWidth: .infinity)
                     .allowsHitTesting(false)
 
-                    HStack(spacing: 12) {
-                        floatingCapsuleButton(
-                            "Cancel",
-                            foreground: AppColors.fontSecondary,
-                            style: .tertiary
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                exitFabSelection()
-                            }
-                        }
-
-                        if !filteredEmployees.isEmpty {
-                            floatingCapsuleButton(
-                                allFilteredEmployeesSelected ? "Deselect all" : "Select all",
-                                style: .selectAll
-                            ) {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    let ids = selectableEmployeeIDs
-                                    if allFilteredEmployeesSelected {
-                                        selectedForNotification.subtract(ids)
-                                    } else {
-                                        selectedForNotification.formUnion(ids)
-                                    }
-                                }
-                            }
-                        }
-
-                        if !selectedForNotification.isEmpty {
-                            let allSelected = allFilteredEmployeesSelected
-                            let count = selectedForNotification.count
-                            floatingCapsuleButton(
-                                allSelected ? "Notify all (\(count))" : "Notify (\(count))",
-                                icon: "bell",
-                                style: .primary
-                            ) {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    let now = Date()
-                                    for id in selectedForNotification {
-                                        _ = notifiedEmployees.insert(id)
-                                        notifiedTimestamps[id] = now
-                                    }
-                                    exitFabSelection()
-                                }
-                            }
-                        }
-
+                    if usesFilterOnlyNotify {
+                        finalNotifyFloatingBar
+                    } else {
+                        fabSelectionFloatingBar
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
                 }
-                .frame(maxWidth: .infinity)
-            } else {
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            } else if !isSelecting {
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
                         Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                enterFabSelection()
+                            if usesNotifySheet {
+                                openNotifySheet()
+                            } else {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    enterFabSelection()
+                                }
                             }
                         } label: {
-                            Image(systemName: "bell")
-                                .font(.system(size: 22, weight: .semibold))
+                            Image("icon-notification-add")
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 24, height: 24)
                                 .foregroundColor(.white)
                                 .frame(width: 56, height: 56)
                                 .background(AppColors.primaryDark)
                                 .clipShape(Circle())
-                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                                .shadow(color: .black.opacity(0.07), radius: 9.8, y: 5.6)
                         }
                         .buttonStyle(.plain)
                         .padding(.trailing, 20)
+                        .accessibilityLabel("Remind employees")
                     }
                     .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
+
+    /// Sit Final notify actions closer to the tab bar than the legacy floating bar.
+    private var finalNotifyBottomInset: CGFloat {
+        max(Self.mainTabBarHeight - 8, 72)
+    }
+
+    /// Final notify — glass close + Notify all / Notify (N); filters drive the target list.
+    private var finalNotifyFloatingBar: some View {
+        let targets = selectableEmployeeIDs
+        let count = targets.count
+        let isNotifyingAll = !targets.isEmpty && targets == allNotifiableEmployeeIDs
+        let notifyTitle = isNotifyingAll ? "Notify all (\(count))" : "Notify (\(count))"
+        return HStack(spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    exitFabSelection(restoreFilters: true)
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color(hex: "1A1A1A"))
+                    .frame(width: 54, height: 54)
+                    .background {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .background(Circle().fill(Color.white.opacity(0.85)))
+                    }
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel")
+
+            Button {
+                guard count > 0 else { return }
+                attemptSendFilterReminders()
+            } label: {
+                Text(notifyTitle)
+                    .font(AppFonts.subheadlineBold())
+                    .tracking(-0.41)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 54)
+                    .background(count > 0 ? AppColors.primaryDark : AppColors.primaryDark.opacity(0.4))
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.22), radius: 16, y: 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(count == 0)
+            .accessibilityLabel(notifyTitle)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, finalNotifyBottomInset)
+    }
+
+    /// Legacy FAB + swipe — Cancel / Select all / Notify with per-employee selection.
+    private var fabSelectionFloatingBar: some View {
+        HStack(spacing: 12) {
+            floatingCapsuleButton(
+                "Cancel",
+                foreground: AppColors.fontSecondary,
+                style: .tertiary
+            ) {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    exitFabSelection()
+                }
+            }
+
+            if !filteredEmployees.isEmpty {
+                floatingCapsuleButton(
+                    allFilteredEmployeesSelected ? "Deselect all" : "Select all",
+                    style: .selectAll
+                ) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        let ids = selectableEmployeeIDs
+                        if allFilteredEmployeesSelected {
+                            selectedForNotification.subtract(ids)
+                        } else {
+                            selectedForNotification.formUnion(ids)
+                        }
+                    }
+                }
+            }
+
+            if !selectedForNotification.isEmpty {
+                let allSelected = allFilteredEmployeesSelected
+                let count = selectedForNotification.count
+                floatingCapsuleButton(
+                    allSelected ? "Notify all (\(count))" : "Notify (\(count))",
+                    icon: "bell",
+                    style: .primary
+                ) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        let now = Date()
+                        for id in selectedForNotification {
+                            _ = notifiedEmployees.insert(id)
+                            notifiedTimestamps[id] = now
+                        }
+                        exitFabSelection()
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, floatingBarBottomInset(for: attendanceUIVersion))
+    }
+
+    private var reminderSentToast: some View {
+        Text(reminderSentToastCopy)
+            .font(AppFonts.subheadline())
+            .tracking(-0.24)
+            .foregroundColor(AppColors.surface)
+            .padding(16)
+            .background(AppColors.fontDefault)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .allowsHitTesting(false)
+    }
+
+    private var reminderSentToastCopy: String {
+        let count = lastReminderSentCount
+        let noun = count == 1 ? "employee" : "employees"
+        return "Notifications sent to \(count) \(noun)"
+    }
+
+    /// Figma 1392-36602 — shown when Notify all includes already-notified employees.
+    private var resendReminderAlert: some View {
+        ZStack {
+            Color.black.opacity(0.28)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showsResendReminderAlert = false
+                        pendingReminderTargets = []
+                    }
+                }
+
+            VStack(spacing: 10) {
+                VStack(spacing: 10) {
+                    Text("Notification already sent to some employees")
+                        .font(.system(size: 17, weight: .semibold))
+                        .tracking(-0.43)
+                        .foregroundColor(AppColors.fontDefault)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    Text("Do you want to send another notification?")
+                        .font(.system(size: 17, weight: .regular))
+                        .tracking(-0.43)
+                        .foregroundColor(AppColors.fontDefault)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
+
+                VStack(spacing: 10) {
+                    Button {
+                        sendFilterReminders(to: pendingReminderTargets)
+                    } label: {
+                        Text("Send again to all")
+                            .font(.system(size: 17, weight: .medium))
+                            .tracking(-0.43)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(AppColors.primaryDark)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        let onlyNew = pendingReminderTargets.subtracting(notifiedEmployees)
+                        sendFilterReminders(to: onlyNew)
+                    } label: {
+                        Text("Send only to new")
+                            .font(.system(size: 17, weight: .medium))
+                            .tracking(-0.43)
+                            .foregroundColor(AppColors.fontDefault)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color(hex: "787880").opacity(0.16))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showsResendReminderAlert = false
+                            pendingReminderTargets = []
+                        }
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 17, weight: .medium))
+                            .tracking(-0.43)
+                            .foregroundColor(AppColors.fontDefault)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color(hex: "787880").opacity(0.16))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(14)
+            .frame(width: 300)
+            .background {
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .background(
+                        RoundedRectangle(cornerRadius: 34, style: .continuous)
+                            .fill(Color.white.opacity(0.72))
+                    )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private enum FloatingCapsuleButtonStyle {
@@ -752,7 +1075,7 @@ struct TimeAttendanceAnomaliesListView: View {
 
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(employees.enumerated()), id: \.element.id) { index, employee in
-                    if isSelecting && !attendanceMVP && !isViewingNonTodayDate {
+                    if isSelecting && !attendanceMVP && !isViewingNonTodayDate && !usesFilterOnlyNotify {
                         Button {
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 if selectedForNotification.contains(employee.id) {
@@ -768,8 +1091,7 @@ struct TimeAttendanceAnomaliesListView: View {
                                 isSelectionMode: true,
                                 isSelectedForNotification: selectedForNotification.contains(employee.id),
                                 isActionable: true,
-                                hidesBellForFab: usesFabNotifyStyle,
-                                lastNotifiedText: notifiedLabel(for: employee.id)
+                                hidesBellForFab: usesFabNotifyStyle
                             )
                         }
                         .buttonStyle(.plain)
@@ -791,13 +1113,14 @@ struct TimeAttendanceAnomaliesListView: View {
                                     }
                                 ),
                                 isActionable: usesFabNotifyStyle ? !isViewingNonTodayDate : (!attendanceMVP && !isViewingNonTodayDate),
-                                hidesBellForFab: usesFabNotifyStyle,
-                                lastNotifiedText: notifiedLabel(for: employee.id)
+                                hidesBellForFab: usesFabNotifyStyle
                             )
                         }
                         .buttonStyle(.plain)
 
-                        let canSwipeNotify = !attendanceMVP && !isViewingNonTodayDate
+                        let canSwipeNotify = !attendanceMVP
+                            && !isViewingNonTodayDate
+                            && !usesFilterOnlyNotify
                             && employee.anomalyType != .onTrack
                             && employee.anomalyType != .scheduleNotStarted
                             && !employee.anomalyType.isWarningLevel
@@ -960,6 +1283,108 @@ struct TimeAttendanceAnomaliesListView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Notify employees sheet (Figma 1705:148411)
+
+/// Owns toggle state so the confirm checkmark is enabled on first presentation.
+private struct NotifyEmployeesSheet: View {
+    private static let categoryOrder: [AnomalyFilterCategory] = [
+        .noClockInNorOut, .exceededWorkSchedule, .noClockIn
+    ]
+
+    let filterCounts: [AnomalyFilterCategory: Int]
+    let targets: (Set<AnomalyFilterCategory>) -> Set<UUID>
+    let onCancel: () -> Void
+    let onConfirm: (Set<UUID>) -> Void
+
+    /// Seeded on init — avoids empty parent `@State` being captured when the sheet first opens.
+    @State private var enabledCategories: Set<AnomalyFilterCategory> = Set(categoryOrder)
+
+    private var canConfirm: Bool { !enabledCategories.isEmpty }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                GlassSymbolButton(
+                    systemName: "xmark",
+                    foregroundColor: Color(hex: "727272"),
+                    accessibilityLabel: "Cancel",
+                    action: onCancel
+                )
+
+                Spacer(minLength: 8)
+
+                Text("Notify employees with...")
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(-0.43)
+                    .foregroundColor(AppColors.fontDefault)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
+                Spacer(minLength: 8)
+
+                Button {
+                    guard canConfirm else { return }
+                    let selected = targets(enabledCategories)
+                    guard !selected.isEmpty else { return }
+                    onConfirm(selected)
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+                        .background(canConfirm ? AppColors.primaryDark : AppColors.primaryDark.opacity(0.35))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canConfirm)
+                .accessibilityLabel("Send notifications")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+
+            VStack(spacing: 8) {
+                ForEach(Self.categoryOrder, id: \.self) { category in
+                    let count = filterCounts[category] ?? 0
+                    HStack {
+                        Text("\(category.rawValue) (\(count))")
+                            .font(.system(size: 17, weight: .regular))
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+
+                        Spacer(minLength: 12)
+
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: { enabledCategories.contains(category) },
+                                set: { enabled in
+                                    if enabled {
+                                        enabledCategories.insert(category)
+                                    } else {
+                                        enabledCategories.remove(category)
+                                    }
+                                }
+                            )
+                        )
+                        .labelsHidden()
+                        .tint(AppColors.successDefault)
+                    }
+                    .padding(10)
+                }
+            }
+            .padding(.horizontal, 11)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            // Sheet content can be built before `@State` settles; re-seed so confirm is enabled on first open.
+            enabledCategories = Set(Self.categoryOrder)
+        }
     }
 }
 

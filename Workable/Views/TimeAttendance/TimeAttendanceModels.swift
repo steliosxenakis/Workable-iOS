@@ -211,7 +211,121 @@ struct DayHours {
     let day: String
     let scheduled: (Double, Double)?
     let worked: (Double, Double)?
+    /// Break intervals on the chart axis (informational gaps inside worked time).
+    var breaks: [(Double, Double)] = []
     var hasAnomaly: Bool = false
+    /// Hour (chart axis) for the red anomaly marker when `hasAnomaly` is true.
+    var anomalyHour: Double? = nil
+    /// Detail opened when tapping this day column in the calendar chart.
+    var timeEntry: TimeEntryDetail? = nil
+}
+
+/// Single break within a time entry (Epic PROD-82468).
+struct TimeEntryBreak: Hashable, Identifiable {
+    var id: String { "\(start)-\(end)" }
+    let start: String
+    let end: String
+    let duration: String
+    /// Optional emoji from V5/V6/V7/V8/V10 break composers.
+    var emoji: String? = nil
+
+    var rangeText: String { "\(start) - \(end)" }
+}
+
+/// Read-only time entry detail (Figma 15640-637684).
+struct TimeEntryDetail: Hashable {
+    let dateLabel: String
+    let scheduleRange: String
+    let start: String
+    let end: String
+    let duration: String
+    var note: String? = nil
+    var breaks: [TimeEntryBreak] = []
+
+    var periodText: String {
+        "\(start) - \(end) (\(duration) in total)"
+    }
+
+    var scheduleBannerText: String {
+        "Day’s work schedule: \(scheduleRange)"
+    }
+
+    var noteText: String {
+        if let note, !note.isEmpty { return note }
+        return "-"
+    }
+
+    var hasBreaks: Bool { !breaks.isEmpty }
+
+    /// Report-style summary e.g. `09:00-09:15, 13:00-13:30`.
+    var breaksColumnText: String {
+        breaks.map { "\($0.start)-\($0.end)" }.joined(separator: ", ")
+    }
+
+    var breakHoursText: String {
+        guard !breaks.isEmpty else { return "0h" }
+        let totalMinutes = breaks.reduce(0) { $0 + Self.minutes(from: $1.duration) }
+        let hours = totalMinutes / 60
+        let mins = totalMinutes % 60
+        if hours > 0, mins > 0 { return "\(hours)h \(mins)m" }
+        if hours > 0 { return "\(hours)h" }
+        return "\(mins)m"
+    }
+
+    private static func minutes(from duration: String) -> Int {
+        var total = 0
+        let lower = duration.lowercased()
+        if let hRange = lower.range(of: #"(\d+)\s*h"#, options: .regularExpression) {
+            total += (Int(lower[hRange].filter(\.isNumber)) ?? 0) * 60
+        }
+        if let mRange = lower.range(of: #"(\d+)\s*m"#, options: .regularExpression) {
+            total += Int(lower[mRange].filter(\.isNumber)) ?? 0
+        }
+        return total
+    }
+}
+
+struct TimesheetListEntry: Identifiable {
+    let id = UUID()
+    let start: String
+    let end: String
+    let duration: String
+    var scheduleRange: String = "09:00 - 17:00"
+    var note: String? = nil
+    var breaks: [TimeEntryBreak] = []
+
+    var hasBreaks: Bool { !breaks.isEmpty }
+
+    /// List subtitle, e.g. `30m break · 12:00 - 12:30`.
+    var breakListSummary: String {
+        guard !breaks.isEmpty else { return "" }
+        let detail = detail(dateLabel: "")
+        let ranges = breaks.map { "\($0.start) - \($0.end)" }.joined(separator: ", ")
+        let noun = breaks.count == 1 ? "break" : "breaks"
+        return "\(detail.breakHoursText) \(noun) · \(ranges)"
+    }
+
+    func detail(dateLabel: String) -> TimeEntryDetail {
+        TimeEntryDetail(
+            dateLabel: dateLabel,
+            scheduleRange: scheduleRange,
+            start: start,
+            end: end,
+            duration: duration,
+            note: note,
+            breaks: breaks
+        )
+    }
+}
+
+struct TimesheetListDay: Identifiable {
+    let id = UUID()
+    let title: String
+    /// Full date shown on the time entry detail page (may match `title`).
+    var dateLabel: String? = nil
+    let entries: [TimesheetListEntry]
+
+    var detailDateLabel: String { dateLabel ?? title }
 }
 
 // MARK: - Mock Data
@@ -238,15 +352,83 @@ enum TimeAttendanceMockData {
     static let departments = ["Engineering", "Marketing", "Sales", "Operations"]
     static let entities = ["Workable Inc.", "Workable EU", "Workable UK"]
 
-    /// Shared week chart data for personal and employee time-tracking calendar views.
+    /// Shared week chart data for personal and employee time-tracking calendar views (Figma 15616-17727).
     static let defaultWeekHours: [DayHours] = [
-        .init(day: "M", scheduled: (8, 16), worked: (8.5, 15.5)),
-        .init(day: "T", scheduled: (8, 16), worked: (8, 15)),
-        .init(day: "W", scheduled: (8, 16), worked: (8, 16)),
-        .init(day: "T", scheduled: (8, 16), worked: (8.5, 15)),
-        .init(day: "F", scheduled: (8, 16), worked: (9, 13), hasAnomaly: true),
+        .init(
+            day: "M", scheduled: (8, 16), worked: (8, 16),
+            breaks: [(12, 12.5)],
+            timeEntry: .init(
+                dateLabel: "Monday, July 8, 2024",
+                scheduleRange: "09:00 - 17:00",
+                start: "09:00",
+                end: "17:00",
+                duration: "8h",
+                breaks: [.init(start: "12:00", end: "12:30", duration: "30m", emoji: "☕")]
+            )
+        ),
+        .init(
+            day: "T", scheduled: (8, 16), worked: (8, 16),
+            breaks: [(10, 10.25), (13, 13.5)],
+            timeEntry: .init(
+                dateLabel: "Tuesday, July 9, 2024",
+                scheduleRange: "09:00 - 17:00",
+                start: "09:00",
+                end: "17:00",
+                duration: "8h",
+                breaks: [
+                    .init(start: "10:00", end: "10:15", duration: "15m", emoji: "☕"),
+                    .init(start: "13:00", end: "13:30", duration: "30m", emoji: "🍽️"),
+                ]
+            )
+        ),
+        .init(
+            day: "W", scheduled: (8, 16), worked: (8, 15.5),
+            timeEntry: .init(dateLabel: "Wednesday, July 10, 2024", scheduleRange: "09:00 - 17:00", start: "09:00", end: "16:30", duration: "7h 30m")
+        ),
+        .init(
+            day: "T", scheduled: (8, 16), worked: (8, 17),
+            breaks: [(12, 13)],
+            timeEntry: .init(
+                dateLabel: "Thursday, July 11, 2024",
+                scheduleRange: "09:00 - 17:00",
+                start: "09:00",
+                end: "18:00",
+                duration: "9h",
+                breaks: [.init(start: "12:00", end: "13:00", duration: "1h", emoji: "🍽️")]
+            )
+        ),
+        .init(day: "F", scheduled: (8, 16), worked: nil, hasAnomaly: true, anomalyHour: 8),
         .init(day: "S", scheduled: nil, worked: nil),
         .init(day: "S", scheduled: nil, worked: nil),
+    ]
+
+    /// Timesheet list groups (Figma 15616-173383). Includes break cases for Break support prototypes.
+    static let defaultTimesheetListDays: [TimesheetListDay] = [
+        .init(title: "Yesterday", dateLabel: "Friday, July 5, 2024", entries: [
+            .init(
+                start: "09:00", end: "17:00", duration: "8h",
+                breaks: [.init(start: "12:00", end: "12:30", duration: "30m", emoji: "☕")]
+            ),
+        ]),
+        .init(title: "Monday, July 8, 2024", entries: [
+            .init(
+                start: "09:00", end: "17:00", duration: "8h",
+                breaks: [
+                    .init(start: "10:00", end: "10:15", duration: "15m", emoji: "☕"),
+                    .init(start: "13:00", end: "13:30", duration: "30m", emoji: "🍽️"),
+                ]
+            ),
+        ]),
+        .init(title: "Sunday, July 7, 2024", entries: [
+            .init(
+                start: "09:00", end: "17:00", duration: "8h",
+                breaks: [.init(start: "12:15", end: "12:45", duration: "30m", emoji: "🚶")]
+            ),
+            .init(start: "18:00", end: "19:00", duration: "1h"),
+        ]),
+        .init(title: "Saturday, July 6, 2024", entries: [
+            .init(start: "09:00", end: "17:00", duration: "8h"),
+        ]),
     ]
 
     static let loggedInUser = EmployeeAnomaly(
@@ -812,27 +994,29 @@ struct AnomalyFilterBar: View {
     }
 
     private func v6FilterChip(filter: AnomalyFilterCategory, count: Int, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 8) {
             Text(filter.rawValue)
-                .font(AppFonts.subheadline())
-                .tracking(-0.24)
-                .foregroundColor(AppColors.fontDefault)
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
 
-            if count > 0 {
-                Text("\(count)")
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(AppColors.dangerDefault)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(AppColors.dangerBackground)
-                    .clipShape(Capsule())
-            }
+            Text("\(count)")
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(isSelected || count > 0 ? AppColors.fontDefault : AppColors.fontSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(
+                    isSelected
+                        ? AppColors.successBackground
+                        : (count > 0 ? AppColors.background : AppColors.lightBackground)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(isSelected ? AppColors.dangerBackground : AppColors.surface)
+        .frame(height: 40)
+        .background(isSelected ? AppColors.activeBackground : AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+        .shadow(color: .black.opacity(0.07), radius: 14, y: 4)
     }
 
     private var searchFieldRow: some View {
@@ -981,10 +1165,11 @@ struct AnomalyFilterBar: View {
 
     private var filterIconLabel: some View {
         let isActive = attendanceVersion.usesV6IssueBannerStyle ? hasAnyActiveFilter : hasActiveContextFilters
+        let size: CGFloat = attendanceVersion.usesV6IssueBannerStyle ? 36 : 40
         return Image(systemName: "slider.horizontal.3")
-            .font(.system(size: 18, weight: .regular))
+            .font(.system(size: attendanceVersion.usesV6IssueBannerStyle ? 16 : 18, weight: .regular))
             .foregroundColor(isActive ? AppColors.primaryDark : AppColors.fontSecondary)
-            .frame(width: 40, height: 40)
+            .frame(width: size, height: size)
             .background(isActive ? AppColors.activeBackground : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())

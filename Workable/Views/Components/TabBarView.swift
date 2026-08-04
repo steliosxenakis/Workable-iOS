@@ -6,7 +6,7 @@ enum TabItem: String, CaseIterable {
     case employees = "Employees"
     case inbox = "Inbox"
     case settings = "Settings"
-    
+
     var assetIcon: String {
         switch self {
         case .home: return "tab-home"
@@ -18,54 +18,92 @@ enum TabItem: String, CaseIterable {
     }
 }
 
+/// Liquid-glass floating tab bar (Figma 15629-634787).
 struct TabBarView: View {
     @Binding var selectedTab: TabItem
-    
+    @Namespace private var selectionNamespace
+
+    /// Outer chrome height including top/bottom padding (FABs / content insets).
+    static let barHeight: CGFloat = 95
+
+    private let selectionSpring = Animation.spring(response: 0.38, dampingFraction: 0.82)
+
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: -8) {
             ForEach(TabItem.allCases, id: \.self) { tab in
                 TabBarItemView(
                     tab: tab,
-                    isSelected: selectedTab == tab
+                    isSelected: selectedTab == tab,
+                    selectionNamespace: selectionNamespace
                 ) {
-                    selectedTab = tab
+                    withAnimation(selectionSpring) {
+                        selectedTab = tab
+                    }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(width: 75)
             }
         }
-        .frame(height: 83)
-        .background(AppColors.surfaceDarker)
-        .overlay(
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(AppColors.separator),
-            alignment: .top
-        )
+        .padding(.horizontal, 2)
+        .background {
+            Capsule(style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular.interactive())
+                .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+                .padding(-4)
+        }
+        .padding(.horizontal, 25)
+        .padding(.top, 16)
+        .padding(.bottom, 25)
+        .frame(maxWidth: .infinity)
     }
 }
 
 struct TabBarItemView: View {
     let tab: TabItem
     let isSelected: Bool
+    var selectionNamespace: Namespace.ID
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: isSelected ? 1 : 0.5) {
                 Image(tab.assetIcon)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 24, height: 24)
-                    .foregroundColor(isSelected ? AppColors.primary : AppColors.iconDefault)
-                
+                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontDefault)
+
                 Text(tab.rawValue)
-                    .font(AppFonts.tabBar())
-                    .foregroundColor(isSelected ? AppColors.primary : AppColors.iconDefault)
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(isSelected ? -0.1 : 0)
+                    .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontDefault)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 7)
+            .frame(height: 54)
+            .background {
+                if isSelected {
+                    Capsule(style: .continuous)
+                        .fill(Color(hex: "EDEDED"))
+                        .padding(.horizontal, -2)
+                        .matchedGeometryEffect(id: "tabSelection", in: selectionNamespace)
+                }
+            }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(tab.rawValue)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+#Preview {
+    ZStack(alignment: .bottom) {
+        AppColors.background.ignoresSafeArea()
+        TabBarView(selectedTab: .constant(.home))
     }
 }

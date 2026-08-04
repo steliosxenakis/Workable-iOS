@@ -55,6 +55,7 @@ struct HomeView: View {
                     originalScrollContent
                 }
             }
+            .scrollClipDisabled()
             .background(AppColors.background)
             .safeAreaInset(edge: .top, spacing: 0) {
                 if redesign { redesignNavBarArea } else { homeNavBarArea }
@@ -89,7 +90,9 @@ struct HomeView: View {
 
             timeTrackingCard
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                // Room below for the hold halo to overflow without colliding with To-dos.
+                .padding(.bottom, 20)
+                .zIndex(10)
 
             todosSection
                 .padding(.bottom, 12)
@@ -748,75 +751,8 @@ struct HomeView: View {
 
     // MARK: - Time Tracking
 
-    /// Figma 15353-17275: running timer, stop control, drill-in chevron; summary row below
     private var timeTrackingCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 24) {
-                NavigationLink {
-                    PersonalTimeTrackingView()
-                } label: {
-                    HStack(alignment: .lastTextBaseline, spacing: 4) {
-                        Text("8h 00m")
-                            .font(.system(size: 22, weight: .semibold))
-                            .tracking(0.35)
-                            .foregroundColor(AppColors.fontDefault)
-                        Text("00s")
-                            .font(.system(size: 16, weight: .regular))
-                            .tracking(-0.32)
-                            .foregroundColor(AppColors.fontSecondary)
-                            .frame(height: 20)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                Spacer(minLength: 0)
-
-                Button {} label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: "24272c"))
-                            .frame(width: 56, height: 56)
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(AppColors.surface)
-                            .frame(width: 12, height: 12)
-                    }
-                    .shadow(color: Color(hex: "333E49").opacity(0.48), radius: 8.5, x: 0, y: 0)
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    PersonalTimeTrackingView()
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColors.iconDefault)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(AppColors.surface)
-            .cornerRadius(16)
-
-            HStack {
-                Text("Today · 8h in total")
-                    .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontDefault)
-                    .tracking(-0.24)
-
-                Spacer()
-
-                Text("8:00-16:00")
-                    .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontSecondary)
-                    .tracking(-0.24)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-        }
-        .background(AppColors.lightBackground)
-        .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        TimeTrackingHomeCard()
     }
 
     // MARK: - To-dos
@@ -840,7 +776,8 @@ struct HomeView: View {
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
                     .tracking(-0.41)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 16)
                     .background(AppColors.surface)
                     .cornerRadius(16)
