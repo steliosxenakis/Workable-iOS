@@ -146,6 +146,18 @@ struct HoursBalanceCapsuleModel {
         if anomalyType == .noClockInNorOut {
             return "0h"
         }
+        let magnitude = gapMagnitudeDisplayText
+        if magnitude == "0h" {
+            return magnitude
+        }
+        return gapHours > 0 ? "+\(magnitude)" : "−\(magnitude)"
+    }
+
+    /// Hours/minutes delta without a leading sign — for copy like "Worked 15m less".
+    var gapMagnitudeDisplayText: String {
+        if anomalyType == .noClockInNorOut {
+            return "0h"
+        }
         let g = gapHours
         if abs(g) < 0.05 {
             return "0h"
@@ -153,15 +165,13 @@ struct HoursBalanceCapsuleModel {
         let totalMinutes = Int(round(abs(g) * 60))
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        let formatted: String
         if hours > 0 && minutes > 0 {
-            formatted = "\(hours)h \(minutes)m"
+            return "\(hours)h \(minutes)m"
         } else if hours > 0 {
-            formatted = "\(hours)h"
+            return "\(hours)h"
         } else {
-            formatted = "\(minutes)m"
+            return "\(minutes)m"
         }
-        return g > 0 ? "+\(formatted)" : "−\(formatted)"
     }
 
     var lateDeviationText: String {

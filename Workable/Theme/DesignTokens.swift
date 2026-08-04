@@ -12,6 +12,7 @@ enum AppColors {
     static let separator        = Color(light: "EEEDEC", dark: "38383A")   // Neutral ☀️300 ☽700
     static let iconInactive     = Color(light: "C8C7C7", dark: "8A8986")   // Neutral ☀️400 ☽600
     static let iconDefault      = Color(light: "9E9D9C", dark: "C8C7C7")   // Neutral ☀️500 ☽400
+    static let dashboardCardFill = Color(light: "F2F2F2", dark: "2C2C2E")  // Redesign — metric card / icon fill
     static let fontSecondary    = Color(light: "8A8986", dark: "9E9D9C")   // Neutral ☀️600 ☽500
     static let fontDefault      = Color(light: "323234", dark: "FFFFFF")   // Neutral ☀️700 ☽0
 
@@ -25,7 +26,7 @@ enum AppColors {
 
     // Success — Primary palette
     static let successDefault    = Color(light: "009E6A", dark: "5CD9B5")   // Primary ☀️400 ☽200
-    static let activeBackground  = Color(light: "E9FCF4", dark: "0D3D38")  // Primary ☀️50  ☽600
+    static let activeBackground  = Color(light: "D3F7E3", dark: "0D3D38")  // Primary ☀️100 ☽600
     static let successBackground = Color(light: "E9FCF4", dark: "0D2E2A")  // Primary ☀️50  ☽700
 
     // Danger
@@ -115,4 +116,170 @@ enum AppFonts {
     static func caption1Strong() -> Font { .system(size: 12, weight: .semibold) }
     static func subheadStrong() -> Font { .system(size: 14, weight: .semibold) }
     static func tabBar() -> Font { .system(size: 10, weight: .regular) }
+}
+
+// MARK: - Emoji text
+
+/// Renders emoji as text via UIKit’s font cascade (more reliable than SwiftUI
+/// `Text` + a hard-coded “Apple Color Emoji” name, which often fails on Simulator).
+/// Do not apply `.foregroundColor` / font weight to emoji — that produces tofu.
+struct EmojiText: View {
+    let emoji: String
+    var size: CGFloat = 24
+
+    var body: some View {
+        EmojiLabel(emoji: emoji, fontSize: size)
+            .frame(width: size + 4, height: size + 4)
+            .accessibilityLabel(emoji)
+    }
+}
+
+private struct EmojiLabel: UIViewRepresentable {
+    let emoji: String
+    var fontSize: CGFloat
+
+    func makeUIView(context: Context) -> UILabel {
+        let label = UILabel()
+        label.textAlignment = .center
+        label.backgroundColor = .clear
+        label.numberOfLines = 1
+        label.setContentHuggingPriority(.required, for: .horizontal)
+        label.setContentHuggingPriority(.required, for: .vertical)
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        label.setContentCompressionResistancePriority(.required, for: .vertical)
+        apply(to: label)
+        return label
+    }
+
+    func updateUIView(_ label: UILabel, context: Context) {
+        apply(to: label)
+    }
+
+    private func apply(to label: UILabel) {
+        label.text = emoji
+        // Prefer the color-emoji face when present; otherwise system font + cascade.
+        if let emojiFont = UIFont(name: "Apple Color Emoji", size: fontSize)
+            ?? UIFont(name: "AppleColorEmoji", size: fontSize) {
+            label.font = emojiFont
+        } else {
+            label.font = .systemFont(ofSize: fontSize)
+        }
+        // Never tint — color emoji bitmaps ignore / break under textColor overrides.
+        label.textColor = .label
+    }
+}
+
+/// Invisible text field that opens the system emoji keyboard when `isFocused` is true.
+struct EmojiKeyboardField: UIViewRepresentable {
+    @Binding var emoji: String
+    @Binding var isFocused: Bool
+    var onEmojiPicked: ((String) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> EmojiPreferringTextField {
+        let field = EmojiPreferringTextField()
+        field.delegate = context.coordinator
+        field.textAlignment = .center
+        field.font = UIFont(name: "Apple Color Emoji", size: 28)
+            ?? UIFont(name: "AppleColorEmoji", size: 28)
+            ?? .systemFont(ofSize: 28)
+        field.backgroundColor = .clear
+        field.tintColor = .clear
+        field.autocorrectionType = .no
+        field.spellCheckingType = .no
+        field.returnKeyType = .done
+        // Keep hit-testable for first responder, but visually invisible in-layout.
+        field.textColor = .clear
+        return field
+    }
+
+    func updateUIView(_ field: EmojiPreferringTextField, context: Context) {
+        context.coordinator.parent = self
+        if field.text != emoji {
+            field.text = emoji
+        }
+        DispatchQueue.main.async {
+            if isFocused, !field.isFirstResponder {
+                field.becomeFirstResponder()
+            } else if !isFocused, field.isFirstResponder {
+                field.resignFirstResponder()
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: EmojiKeyboardField
+
+        init(_ parent: EmojiKeyboardField) {
+            self.parent = parent
+        }
+
+        func textFieldDidBeginEditing(_ textField: UITextField) {
+            if !parent.isFocused {
+                parent.isFocused = true
+            }
+        }
+
+        func textFieldDidEndEditing(_ textField: UITextField) {
+            if parent.isFocused {
+                parent.isFocused = false
+            }
+        }
+
+        func textField(
+            _ textField: UITextField,
+            shouldChangeCharactersIn range: NSRange,
+            replacementString string: String
+        ) -> Bool {
+            guard !string.isEmpty else { return true }
+            if let picked = string.firstEmojiScalarCluster {
+                parent.emoji = picked
+                parent.onEmojiPicked?(picked)
+                textField.text = picked
+                textField.resignFirstResponder()
+                return false
+            }
+            return false
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            textField.resignFirstResponder()
+            return true
+        }
+    }
+}
+
+/// UITextField that reports the emoji input mode when available.
+final class EmojiPreferringTextField: UITextField {
+    override var textInputMode: UITextInputMode? {
+        UITextInputMode.activeInputModes.first(where: { $0.primaryLanguage == "emoji" })
+            ?? super.textInputMode
+    }
+
+    override var textInputContextIdentifier: String? {
+        // Helps iOS restore the emoji keyboard for this field.
+        "com.workable.ios.emojiKeyboard"
+    }
+}
+
+private extension String {
+    /// First extended grapheme cluster that looks like an emoji.
+    var firstEmojiScalarCluster: String? {
+        for cluster in self {
+            let value = String(cluster)
+            if value.containsEmoji {
+                return value
+            }
+        }
+        return nil
+    }
+
+    var containsEmoji: Bool {
+        unicodeScalars.contains { scalar in
+            scalar.properties.isEmoji && (scalar.value > 0x2F || scalar.properties.isEmojiPresentation)
+        }
+    }
 }

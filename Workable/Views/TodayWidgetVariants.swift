@@ -85,7 +85,7 @@ struct TodayWidgetData {
         let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
         return eligible.filter {
             switch $0.anomalyType {
-            case .noClockIn, .noClockInNorOut, .exceededWorkSchedule, .late, .exceededHours, .unplanned:
+            case .noClockIn, .noClockInNorOut, .exceededWorkSchedule, .workedLess, .late, .exceededHours, .unplanned:
                 return true
             default:
                 return false
@@ -132,6 +132,11 @@ struct TodayWidgetData {
                 count: eligible.filter { $0.anomalyType == .exceededHours }.count,
                 style: .warning
             ),
+            TodayIssueChip(
+                category: .workedLess,
+                count: eligible.filter { $0.anomalyType == .workedLess }.count,
+                style: .danger
+            ),
         ]
         .filter { $0.count > 0 }
     }
@@ -146,6 +151,7 @@ struct TodayWidgetData {
             return [
                 TodayAnomalyPill(label: "Missed clock-ins",         count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      style: .danger,  filters: [.noClockInNorOut]),
                 TodayAnomalyPill(label: "Exceeded work hours",      count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
+                TodayAnomalyPill(label: "Worked less",              count: eligible.filter { $0.anomalyType == .workedLess }.count,            style: .danger,  filters: [.workedLess]),
                 TodayAnomalyPill(label: "On track",                  count: eligible.filter { $0.anomalyType == .onTrack }.count,              style: .success, filters: [.onTrack]),
                 TodayAnomalyPill(label: "Expected to work today",    count: eligible.count,                                                    style: .neutral, filters: []),
             ]
@@ -176,7 +182,7 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static let appStorageKey = "settings.attendanceUIVersion"
-    static let defaultVersion: AttendanceUIVersion = .v6
+    static let defaultVersion: AttendanceUIVersion = .v8
 
     static func resolved(from rawValue: String) -> AttendanceUIVersion {
         AttendanceUIVersion(rawValue: rawValue) ?? .v1
@@ -219,10 +225,260 @@ enum AttendanceUIVersion: String, CaseIterable, Identifiable {
 }
 
 private struct AttendanceUIVersionEnvironmentKey: EnvironmentKey {
-    static let defaultValue: AttendanceUIVersion = .v6
+    static let defaultValue: AttendanceUIVersion = .v8
 }
 
 private struct AttendanceMVPEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct RedesignEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+enum AttendanceNotifyStyle: String, CaseIterable, Identifiable {
+    case inlineBells = "Inline bells"
+    case fab = "FAB + swipe"
+    /// Final — FAB opens filter-based notify; no per-employee select/deselect.
+    case final = "Final"
+    /// Sheet — FAB opens “Notify employees with…” bottom sheet (category toggles).
+    case sheet = "Sheet"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.attendanceNotifyStyle"
+
+    /// Uses the floating bell FAB chrome (vs inline row bells).
+    var usesFabChrome: Bool {
+        switch self {
+        case .fab, .final, .sheet: return true
+        case .inlineBells: return false
+        }
+    }
+
+    /// Notify targets come only from active filters — no employee checkmarks.
+    var isFilterOnlyNotify: Bool {
+        self == .final
+    }
+
+    /// FAB opens a category-toggle bottom sheet instead of in-list notify mode.
+    var usesNotifySheet: Bool {
+        self == .sheet
+    }
+}
+
+/// Break support home-widget interaction alternatives (Epic PROD-82468).
+enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
+    case v1 = "V1"
+    case v2 = "V2"
+    case v3 = "V3"
+    case v4 = "V4"
+    case v5 = "V5"
+    case v6 = "V6"
+    case v7 = "V7"
+    case v8 = "V8"
+    case v9 = "V9"
+    case v10 = "V10"
+    case v11 = "V11"
+    case v12 = "V12 (Label simple)"
+    /// Former V12.2 — pause/resume on the left of the timer.
+    case v12_1 = "V12.1 (Label left buttons)"
+    /// Former V12.3 — On break uses tonal green “Back to work” button.
+    case v12_2 = "V12.2 (Label Back to work)"
+    case v13 = "V13 (Emoji)"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.breakSupportUIVersion"
+    static let enabledAppStorageKey = "settings.breakSupportEnabled"
+    /// Nested breaks between start/end on time-entry detail & edit (orthogonal to widget versions).
+    static let nestedInTimeEntryAppStorageKey = "settings.breaksNestedInTimeEntry"
+    static let defaultVersion: BreakSupportUIVersion = .v1
+
+    static func resolved(from rawValue: String) -> BreakSupportUIVersion {
+        if let match = BreakSupportUIVersion(rawValue: rawValue) { return match }
+        // Migrate pre-rename storage keys.
+        switch rawValue {
+        case "V12": return .v12
+        case "V12.2": return .v12_1 // old left-buttons layout
+        case "V12.3": return .v12_2 // old “Back to work” label
+        case "V13": return .v13
+        default: return .v1
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .v1:
+            return "Serial — Hold to clock in → Pause → Tap to clock out"
+        case .v2:
+            return "Parallel — Pause/Resume circle beside hold-to-Stop anytime"
+        case .v3:
+            return "Status — Set Working / On break / Done (presence-style)"
+        case .v4:
+            return "Bounded break — Hold to clock in; tap pause/presets & tap clock out"
+        case .v5:
+            return "Slack-style — Emoji + 5/10/15/30m presets under the card while clocked in"
+        case .v6:
+            return "Sentence — Take a [emoji] break for [5m] + Pause under the card"
+        case .v7:
+            return "Two pickers — Choose break type + duration, then confirm Start"
+        case .v8:
+            return "Quick presets — Pick a one-tap break card, then confirm Start"
+        case .v9:
+            return "Break for — Duration chips (5/10/15/30m), then Start break"
+        case .v10:
+            return "Take a [emoji] for — Emoji + 5/15/30m chips, then Start break"
+        case .v11:
+            return "Take a [emoji] for — Duration optional; session clock stays up, break timer below"
+        case .v12:
+            return "Label simple — On break pill + circular resume; hold play/stop with halo"
+        case .v12_1:
+            return "Label left buttons — Pause/resume sits left of the timer"
+        case .v12_2:
+            return "Label Back to work — On break uses a green tonal “Back to work” button"
+        case .v13:
+            return "Emoji — On break shows emoji beside the timer + resume only"
+        }
+    }
+
+    /// Bounded-break versions show a planned countdown instead of the session timer.
+    var usesBoundedBreakCountdown: Bool {
+        switch self {
+        case .v4, .v5, .v6, .v7, .v8, .v9, .v10, .v11: return true
+        default: return false
+        }
+    }
+
+    /// Home composers that pick an emoji — also show it on time-entry detail/edit.
+    var showsBreakEmoji: Bool {
+        switch self {
+        case .v5, .v6, .v7, .v8, .v10, .v11, .v13: return true
+        default: return false
+        }
+    }
+}
+
+/// Preset for V4 bounded breaks (type + planned duration).
+enum BoundedBreakPreset: String, CaseIterable, Identifiable {
+    case coffee15 = "Coffee"
+    case lunch30 = "Lunch"
+    case lunch60 = "Long lunch"
+    case other15 = "Break"
+
+    var id: String { rawValue }
+
+    var minutes: Int {
+        switch self {
+        case .coffee15, .other15: return 15
+        case .lunch30: return 30
+        case .lunch60: return 60
+        }
+    }
+
+    var subtitle: String { "\(minutes)m" }
+
+    /// SF Symbol — emoji glyphs don’t render reliably in this app target.
+    var systemImage: String {
+        switch self {
+        case .coffee15: return "cup.and.saucer.fill"
+        case .lunch30, .lunch60: return "fork.knife"
+        case .other15: return "pause.fill"
+        }
+    }
+
+    var menuTitle: String { "\(rawValue) · \(subtitle)" }
+
+    /// Icon for an active break label (including custom).
+    static func systemImage(forLabel label: String?) -> String {
+        switch label {
+        case "Coffee": return "cup.and.saucer.fill"
+        case "Lunch", "Long lunch": return "fork.knife"
+        case "Break": return "pause.fill"
+        default: return "timer"
+        }
+    }
+}
+
+/// V5 Slack-style break suggestion (emoji + label + default duration).
+struct StatusBreakPreset: Identifiable, Hashable {
+    let id: String
+    let emoji: String
+    let title: String
+    let minutes: Int
+
+    var durationLabel: String { "\(minutes)m" }
+
+    static let suggestions: [StatusBreakPreset] = [
+        StatusBreakPreset(id: "coffee", emoji: "☕", title: "Coffee", minutes: 10),
+        StatusBreakPreset(id: "lunch", emoji: "🍽️", title: "Lunch", minutes: 30),
+        StatusBreakPreset(id: "walk", emoji: "🚶", title: "Walk", minutes: 15),
+        StatusBreakPreset(id: "focus", emoji: "🎧", title: "Focus break", minutes: 5),
+        StatusBreakPreset(id: "away", emoji: "🏠", title: "Away from desk", minutes: 15)
+    ]
+
+    /// V8 — short set of one-tap quick breaks.
+    static let quickPresets: [StatusBreakPreset] = [
+        StatusBreakPreset(id: "coffee", emoji: "☕", title: "Coffee", minutes: 5),
+        StatusBreakPreset(id: "lunch", emoji: "🍔", title: "Lunch", minutes: 30),
+        StatusBreakPreset(id: "walk", emoji: "🚶", title: "Walk", minutes: 15)
+    ]
+
+    static let durationOptions: [Int] = [5, 10, 15, 30]
+
+    /// V9 — “Break for” duration row (Figma 15675-33015).
+    static let v9DurationOptions: [Int] = [5, 10, 15, 30]
+
+    /// V10 — “Take a [emoji] for” duration row (Figma 15683-14659).
+    static let v10DurationOptions: [Int] = [5, 15, 30]
+
+    static let emojiChoices: [String] = [
+        "☕", "🍵", "🍝", "🍽️", "🥪", "🚶", "🏃", "🎧", "🧘", "📞", "💬", "🏠", "🚗", "😴", "🤒", "🌴"
+    ]
+}
+
+/// V7 — break type is independent of duration (two-picker mental model).
+struct BreakTypeOption: Identifiable, Hashable {
+    let id: String
+    let emoji: String
+    let title: String
+
+    var menuTitle: String { "\(emoji) \(title)" }
+
+    static let all: [BreakTypeOption] = [
+        BreakTypeOption(id: "coffee", emoji: "☕", title: "Coffee"),
+        BreakTypeOption(id: "lunch", emoji: "🍽️", title: "Lunch"),
+        BreakTypeOption(id: "walk", emoji: "🚶", title: "Walk"),
+        BreakTypeOption(id: "focus", emoji: "🎧", title: "Focus"),
+        BreakTypeOption(id: "away", emoji: "🏠", title: "Away")
+    ]
+}
+
+private struct AttendanceNotifyStyleEnvironmentKey: EnvironmentKey {
+    static let defaultValue: AttendanceNotifyStyle = .inlineBells
+}
+
+private struct AttendanceNoIssuesEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct AttendanceWorkingCaseEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct AttendanceTwoIssuesCaseEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct BreakSupportEnabledEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct BreakSupportUIVersionEnvironmentKey: EnvironmentKey {
+    static let defaultValue: BreakSupportUIVersion = .v1
+}
+
+private struct BreaksNestedInTimeEntryEnvironmentKey: EnvironmentKey {
     static let defaultValue: Bool = false
 }
 
@@ -232,10 +488,107 @@ extension EnvironmentValues {
         set { self[AttendanceUIVersionEnvironmentKey.self] = newValue }
     }
 
+    /// Feature flag for break (pause/resume) support on time tracking (PROD-82468).
+    var breakSupportEnabled: Bool {
+        get { self[BreakSupportEnabledEnvironmentKey.self] }
+        set { self[BreakSupportEnabledEnvironmentKey.self] = newValue }
+    }
+
+    var breakSupportUIVersion: BreakSupportUIVersion {
+        get { self[BreakSupportUIVersionEnvironmentKey.self] }
+        set { self[BreakSupportUIVersionEnvironmentKey.self] = newValue }
+    }
+
+    /// When on, time-entry detail/edit show breaks nested between start and end
+    /// (applies on top of any break-support UI version).
+    var breaksNestedInTimeEntry: Bool {
+        get { self[BreaksNestedInTimeEntryEnvironmentKey.self] }
+        set { self[BreaksNestedInTimeEntryEnvironmentKey.self] = newValue }
+    }
+
     /// MVP mode — hides notification bells and multi-select from attendance lists.
     var attendanceMVP: Bool {
         get { self[AttendanceMVPEnvironmentKey.self] }
         set { self[AttendanceMVPEnvironmentKey.self] = newValue }
+    }
+
+    /// Redesign mode — enables redesigned UI from the redesign branch.
+    var redesign: Bool {
+        get { self[RedesignEnvironmentKey.self] }
+        set { self[RedesignEnvironmentKey.self] = newValue }
+    }
+
+    /// Notification style — inline bells on each row vs FAB + swipe-to-notify.
+    var attendanceNotifyStyle: AttendanceNotifyStyle {
+        get { self[AttendanceNotifyStyleEnvironmentKey.self] }
+        set { self[AttendanceNotifyStyleEnvironmentKey.self] = newValue }
+    }
+
+    /// Preview mode — Today attendance shows "On track" and lists exclude issue rows.
+    var attendanceNoIssues: Bool {
+        get { self[AttendanceNoIssuesEnvironmentKey.self] }
+        set { self[AttendanceNoIssuesEnvironmentKey.self] = newValue }
+    }
+
+    /// Preview mode — attendance list shows employees with issues (mutually exclusive with no-issues).
+    var attendanceWorkingCase: Bool {
+        get { self[AttendanceWorkingCaseEnvironmentKey.self] }
+        set { self[AttendanceWorkingCaseEnvironmentKey.self] = newValue }
+    }
+
+    /// Preview mode — attendance list shows Doe, Joanne with two stacked issue pills (Figma 390-15756).
+    var attendanceTwoIssuesCase: Bool {
+        get { self[AttendanceTwoIssuesCaseEnvironmentKey.self] }
+        set { self[AttendanceTwoIssuesCaseEnvironmentKey.self] = newValue }
+    }
+}
+
+// MARK: - Today neutral status pill (Figma 354-7370 — On track, +N on leave)
+
+/// Grey capsule — shared by attendance "On track" and on-leave overflow counts.
+struct TodayNeutralStatusPill: View {
+    let label: String
+    var compact: Bool = true
+
+    var body: some View {
+        Text(label)
+            .font(compact ? AppFonts.caption1Strong() : AppFonts.subheadStrong())
+            .foregroundColor(AppColors.fontDefault)
+            .padding(.horizontal, compact ? 6 : 12)
+            .padding(.vertical, compact ? 0 : 4)
+            .frame(height: compact ? 25 : nil)
+            .background(AppColors.lightBackground)
+            .clipShape(Capsule())
+    }
+}
+
+// MARK: - Today attendance status (Figma 354-7370 / 352-7912)
+
+/// Issues count pill or neutral "On track" when previewing the no-issues Today state.
+struct TodayAttendanceStatusPill: View {
+    let issueCount: Int
+    var compact: Bool = false
+
+    @Environment(\.attendanceNoIssues) private var attendanceNoIssues
+    @Environment(\.attendanceWorkingCase) private var attendanceWithIssues
+
+    private var showsOnTrack: Bool {
+        !attendanceWithIssues && (attendanceNoIssues || issueCount == 0)
+    }
+
+    var body: some View {
+        if showsOnTrack {
+            TodayNeutralStatusPill(label: "On track", compact: compact)
+        } else {
+            Text("\(issueCount) Issues")
+                .font(compact ? AppFonts.caption1Strong() : AppFonts.subheadStrong())
+                .foregroundColor(AppColors.dangerDefault)
+                .padding(.horizontal, compact ? 6 : 12)
+                .padding(.vertical, compact ? 0 : 4)
+                .frame(height: compact ? 25 : nil)
+                .background(AppColors.dangerBackground)
+                .clipShape(Capsule())
+        }
     }
 }
 
@@ -756,14 +1109,7 @@ private struct AvatarStack: View {
             }
         }
         if overflow > 0 {
-            Text("+\(overflow)")
-                .font(AppFonts.caption1Strong())
-                .foregroundColor(AppColors.fontSecondary)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .frame(height: size)
-                .background(AppColors.separator)
-                .clipShape(Capsule())
+            TodayNeutralStatusPill(label: "+\(overflow)")
         }
     }
 }
@@ -961,13 +1307,7 @@ private struct TodayModernAttendanceSectionRow: View {
                     .foregroundColor(AppColors.fontDefault)
                 Spacer()
                 HStack(spacing: 8) {
-                    Text("\(issueCount) Issues")
-                        .font(AppFonts.caption1Strong())
-                        .foregroundColor(AppColors.dangerDefault)
-                        .padding(.horizontal, 6)
-                        .frame(height: 25)
-                        .background(Color(light: "FFD2CF", dark: "5A1A0F"))
-                        .clipShape(Capsule())
+                    TodayAttendanceStatusPill(issueCount: issueCount, compact: true)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppColors.fontSecondary)
@@ -1096,13 +1436,7 @@ private struct TodayV4AttendanceCard: View {
                     .tracking(-0.24)
                     .foregroundColor(AppColors.fontDefault)
 
-                Text("\(issueCount) Issues")
-                    .font(AppFonts.caption1Strong())
-                    .foregroundColor(AppColors.dangerDefault)
-                    .padding(.horizontal, 6)
-                    .frame(height: 25)
-                    .background(AppColors.dangerBadge)
-                    .clipShape(Capsule())
+                TodayAttendanceStatusPill(issueCount: issueCount, compact: true)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -1160,6 +1494,12 @@ struct TodayWidgetV6: View {
                 EventRow(event: event)
             }
 
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(data.celebrations) { item in
+                    CelebrationRow(item: item)
+                }
+            }
+
             HStack(alignment: .top, spacing: 8) {
                 TodayV6AttendanceChip(label: "Attendance", issueCount: data.issueCount)
 
@@ -1168,12 +1508,6 @@ struct TodayWidgetV6: View {
                     avatars: data.onLeaveAvatars,
                     overflow: data.onLeaveOverflow
                 )
-            }
-
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(data.celebrations) { item in
-                    CelebrationRow(item: item)
-                }
             }
         }
         .padding(16)
@@ -1196,13 +1530,7 @@ private struct TodayV6AttendanceChip: View {
                     .tracking(-0.24)
                     .foregroundColor(AppColors.fontDefault)
 
-                Text("\(issueCount) Issues")
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(AppColors.dangerDefault)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(AppColors.dangerBackground)
-                    .clipShape(Capsule())
+                TodayAttendanceStatusPill(issueCount: issueCount)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
