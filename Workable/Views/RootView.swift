@@ -12,7 +12,7 @@ struct RootView: View {
     @AppStorage("settings.redesign") private var redesignEnabled = false
     @AppStorage(AttendanceNotifyStyle.appStorageKey) private var notifyStyleRaw =
         AttendanceNotifyStyle.inlineBells.rawValue
-    @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = false
+    @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = true
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersionRaw =
         BreakSupportUIVersion.defaultVersion.rawValue
     @AppStorage(BreakSupportUIVersion.nestedInTimeEntryAppStorageKey) private var breaksNestedInTimeEntry = false
@@ -77,7 +77,7 @@ private struct SettingsTabView: View {
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
     @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
-    @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = false
+    @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = true
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersion =
         BreakSupportUIVersion.defaultVersion.rawValue
     @AppStorage(BreakSupportUIVersion.nestedInTimeEntryAppStorageKey) private var breaksNestedInTimeEntry = false

@@ -85,8 +85,9 @@ struct HomeView: View {
     private var originalScrollContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             teamChips
-                .padding(.top, 6)
-                .padding(.bottom, 12)
+                // Extra inset so Light card shadow isn’t clipped by the scroll/nav edge.
+                .padding(.top, 14)
+                .padding(.bottom, 16)
 
             timeTrackingCard
                 .padding(.horizontal, 16)
@@ -259,14 +260,17 @@ struct HomeView: View {
                             .foregroundColor(AppColors.fontSecondary)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .frame(height: Self.teamChipHeight)
                     .background(AppColors.surface)
                     .clipShape(Capsule())
+                    .appLightCardShadow()
                 }
 
                 teamChip(title: "Your team", selected: false)
             }
+            // Vertical inset so horizontal ScrollView doesn’t clip card shadows.
             .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
     }
 
@@ -347,6 +351,7 @@ struct HomeView: View {
         .padding(16)
         .background(AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: HomeDashboardLayout.metricCardCornerRadius, style: .continuous))
+        .appLightCardShadow()
     }
 
     private func transactionIconCircle(systemName: String, iconColor: Color, fill: Color) -> some View {
@@ -411,6 +416,7 @@ struct HomeView: View {
         }
         .background(AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .appLightCardShadow()
     }
 
     private func redesignTodayEventRow(event: RedesignTodayEvent) -> some View {
@@ -549,6 +555,7 @@ struct HomeView: View {
         }
         .background(AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .appLightCardShadow()
     }
 
     private var redesignJobsSection: some View {
@@ -565,6 +572,7 @@ struct HomeView: View {
         }
         .background(AppColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .appLightCardShadow()
     }
 
     private func redesignJobRow(_ job: JobItem) -> some View {
@@ -674,6 +682,9 @@ struct HomeView: View {
         TimeAttendanceMockData.directReportsWithIssueCount
     }
 
+    /// Shared so “Direct reports” (with/without badge) and “Your team” match.
+    private static let teamChipHeight: CGFloat = 44
+
     private var teamChips: some View {
         HStack(spacing: 8) {
             NavigationLink(value: DashboardRoute.directReports) {
@@ -692,9 +703,10 @@ struct HomeView: View {
                         .foregroundColor(AppColors.fontSecondary)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .frame(height: Self.teamChipHeight)
                 .background(AppColors.surface)
                 .cornerRadius(26)
+                .appLightCardShadow()
             }
 
             teamChip(title: "Your team", selected: false)
@@ -702,6 +714,8 @@ struct HomeView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
+        // Keep Light card shadow inside layout bounds (blur 14).
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -744,9 +758,10 @@ struct HomeView: View {
         }
         .foregroundColor(AppColors.fontSecondary)
         .padding(.horizontal, 12)
-        .padding(.vertical, 14)
+        .frame(height: Self.teamChipHeight)
         .background(AppColors.surface)
         .cornerRadius(26)
+        .appLightCardShadow()
     }
 
     // MARK: - Time Tracking
@@ -781,6 +796,7 @@ struct HomeView: View {
                     .padding(.vertical, 16)
                     .background(AppColors.surface)
                     .cornerRadius(16)
+                    .appLightCardShadow()
                     .padding(.horizontal, 16)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -899,7 +915,7 @@ struct HomeView: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        .appLightCardShadow()
     }
 
     private func todayEventRow(title: String, subtitle: String) -> some View {
@@ -989,7 +1005,7 @@ struct HomeView: View {
             .padding(16)
             .background(AppColors.surface)
             .cornerRadius(16)
-            .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+            .appLightCardShadow()
         }
     }
 
@@ -1019,7 +1035,7 @@ struct HomeView: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        .appLightCardShadow()
     }
 
     private func jobRow(_ job: JobItem) -> some View {
@@ -1086,7 +1102,7 @@ struct HomeView: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        .appLightCardShadow()
     }
 
     private func candidateRow(icon: String, label: String, count: Int) -> some View {
@@ -1168,7 +1184,7 @@ private struct TodoSurveyCard: View {
         .frame(height: 100)
         .background(AppColors.surface)
         .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        .appLightCardShadow()
     }
 }
 
@@ -1203,7 +1219,7 @@ private struct TodoGenericCard: View {
         .frame(height: 100)
         .background(AppColors.surface)
         .cornerRadius(16)
-        .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+        .appLightCardShadow()
     }
 }
 

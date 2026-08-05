@@ -283,9 +283,9 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
     case v12 = "V12 (Label simple)"
     /// Former V12.2 — pause/resume on the left of the timer.
     case v12_1 = "V12.1 (Label left buttons)"
-    /// Former V12.3 — On break uses tonal green “Back to work” button.
-    case v12_2 = "V12.2 (Label Back to work)"
     case v13 = "V13 (Emoji)"
+    /// Former V12.2 / V12.3 — On break uses tonal green “Back to work” button.
+    case v14 = "V14 (Label Back to work)"
 
     var id: String { rawValue }
 
@@ -293,7 +293,7 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
     static let enabledAppStorageKey = "settings.breakSupportEnabled"
     /// Nested breaks between start/end on time-entry detail & edit (orthogonal to widget versions).
     static let nestedInTimeEntryAppStorageKey = "settings.breaksNestedInTimeEntry"
-    static let defaultVersion: BreakSupportUIVersion = .v1
+    static let defaultVersion: BreakSupportUIVersion = .v14
 
     static func resolved(from rawValue: String) -> BreakSupportUIVersion {
         if let match = BreakSupportUIVersion(rawValue: rawValue) { return match }
@@ -301,9 +301,10 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
         switch rawValue {
         case "V12": return .v12
         case "V12.2": return .v12_1 // old left-buttons layout
-        case "V12.3": return .v12_2 // old “Back to work” label
+        case "V12.2 (Label Back to work)", "V12.3": return .v14 // old “Back to work” label
         case "V13": return .v13
-        default: return .v1
+        case "V14": return .v14
+        default: return .v14
         }
     }
 
@@ -335,10 +336,10 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
             return "Label simple — On break pill + circular resume; hold play/stop with halo"
         case .v12_1:
             return "Label left buttons — Pause/resume sits left of the timer"
-        case .v12_2:
-            return "Label Back to work — On break uses a green tonal “Back to work” button"
         case .v13:
             return "Emoji — On break shows emoji beside the timer + resume only"
+        case .v14:
+            return "Label Back to work — On break uses a green tonal “Back to work” button"
         }
     }
 
@@ -471,11 +472,11 @@ private struct AttendanceTwoIssuesCaseEnvironmentKey: EnvironmentKey {
 }
 
 private struct BreakSupportEnabledEnvironmentKey: EnvironmentKey {
-    static let defaultValue: Bool = false
+    static let defaultValue: Bool = true
 }
 
 private struct BreakSupportUIVersionEnvironmentKey: EnvironmentKey {
-    static let defaultValue: BreakSupportUIVersion = .v1
+    static let defaultValue: BreakSupportUIVersion = .v14
 }
 
 private struct BreaksNestedInTimeEntryEnvironmentKey: EnvironmentKey {
@@ -1288,6 +1289,7 @@ struct TodayWidgetV1: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
+        .appLightCardShadow()
     }
 }
 
@@ -1367,6 +1369,7 @@ struct TodayWidgetV2: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
+        .appLightCardShadow()
     }
 }
 
@@ -1477,6 +1480,7 @@ struct TodayWidgetV4: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
+        .appLightCardShadow()
     }
 }
 
@@ -1513,6 +1517,7 @@ struct TodayWidgetV6: View {
         .padding(16)
         .background(AppColors.surface)
         .cornerRadius(16)
+        .appLightCardShadow()
     }
 }
 
@@ -1537,7 +1542,7 @@ private struct TodayV6AttendanceChip: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppColors.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+            .appLightCardShadow()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1568,7 +1573,7 @@ private struct TodayV6OnLeaveChip: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppColors.surface)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+            .appLightCardShadow()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

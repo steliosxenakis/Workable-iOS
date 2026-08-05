@@ -5,6 +5,7 @@ struct PersonalTimeTrackingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab = 2
     @State private var selectedSubTab = 0
+    @State private var showsAddTimeEntrySheet = false
 
     private var personName: String {
         TimeAttendanceMockData.loggedInUser.name
@@ -18,15 +19,23 @@ struct PersonalTimeTrackingView: View {
                 selectedTab: $selectedTab,
                 onBack: { dismiss() }
             ) {
-                Color.clear
-                    .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+                if selectedTab == 2 {
+                    timeTrackingAddEntryButton { showsAddTimeEntrySheet = true }
+                } else {
+                    Color.clear
+                        .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+                }
             }
 
             Group {
                 switch selectedTab {
                 case 0: TimeTrackingDrillInPlaceholder(title: "Information")
                 case 1: TimeTrackingDrillInPlaceholder(title: "Time off")
-                case 2: TimeTrackingWeekCalendarContent(selectedSubTab: $selectedSubTab)
+                case 2:
+                    TimeTrackingWeekCalendarContent(
+                        selectedSubTab: $selectedSubTab,
+                        showsAddTimeEntrySheet: $showsAddTimeEntrySheet
+                    )
                 default: Spacer()
                 }
             }
@@ -36,6 +45,22 @@ struct PersonalTimeTrackingView: View {
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
     }
+}
+
+/// Figma nav “Add entry” — surface capsule matching glass back button height.
+func timeTrackingAddEntryButton(action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text("Add entry")
+            .font(AppFonts.subheadStrong())
+            .foregroundColor(AppColors.fontDefault)
+            .padding(.horizontal, 12)
+            .frame(height: GlassSymbolButton.size)
+            .background(AppColors.surface)
+            .clipShape(Capsule(style: .continuous))
+            .shadow(color: Color(hex: "333E49").opacity(0.1), radius: 2.5, x: 0, y: 2)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Add entry")
 }
 
 // MARK: - Shared drill-in chrome (matches Attendance V6 nav actions)
@@ -282,10 +307,10 @@ struct TimeTrackingHomeCard: View {
         breakSupportEnabled && breakSupportUIVersion == .v12_1 && isClockedIn
     }
 
-    /// V12 / V12.1 / V12.2 share the “On break” pill + open-ended break timer styling.
+    /// V12 / V12.1 / V14 share the “On break” pill + open-ended break timer styling.
     private var usesV12BreakTitleStyle: Bool {
         switch breakSupportUIVersion {
-        case .v12, .v12_1, .v12_2: return true
+        case .v12, .v12_1, .v14: return true
         default: return false
         }
     }
@@ -461,7 +486,7 @@ struct TimeTrackingHomeCard: View {
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(showsTodaySummaryFooter ? AppColors.lightBackground : AppColors.surface)
-                .shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+                .appTimeTrackingCardShadow()
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isClockedIn)
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isOnBreak)
@@ -719,8 +744,8 @@ struct TimeTrackingHomeCard: View {
             case .v12_1:
                 // Clocked-in UI is `v12_1CardContent`; idle still uses playControl above.
                 EmptyView()
-            case .v12_2: breakControlsV12_2
             case .v13: breakControlsV13
+            case .v14: breakControlsV14
             }
         }
     }
@@ -955,11 +980,12 @@ struct TimeTrackingHomeCard: View {
         }
     }
 
-    // MARK: - Break UI V12.2 — V12 working; On break tonal “Back to work” (Figma 15759:244062)
+    // MARK: - Break UI V14 — V12 working; On break tonal “Back to work” (Figma 15761:244828)
 
     @ViewBuilder
-    private var breakControlsV12_2: some View {
+    private var breakControlsV14: some View {
         if isOnBreak {
+            // Figma 15761:244828 — tonal Normal: 48pt tall, 16×8 padding, 14 semibold.
             // Keep the 56pt control slot so the card doesn’t shrink vs pause/stop.
             ZStack {
                 Button {
@@ -969,7 +995,8 @@ struct TimeTrackingHomeCard: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppColors.primaryDark)
                         .padding(.horizontal, 16)
-                        .frame(height: 36)
+                        .padding(.vertical, 8)
+                        .frame(height: 48)
                         .background(AppColors.activeBackground)
                         .clipShape(Capsule(style: .continuous))
                 }
@@ -2271,6 +2298,9 @@ struct TimeEntryDetailView: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $showsEditSheet) {
             EditTimeEntryView(entry: entry)
+                .environment(\.breakSupportEnabled, breakSupportEnabled)
+                .environment(\.breakSupportUIVersion, breakSupportUIVersion)
+                .environment(\.breaksNestedInTimeEntry, breaksNestedInTimeEntry)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
@@ -2507,10 +2537,18 @@ struct EditTimeEntryView: View {
         mode == .add ? "Add time entry" : "Save time entry"
     }
 
-    private var totalDurationText: String {
+    private var workedMinutes: Int {
         let spanMinutes = max(0, Int(endTime.timeIntervalSince(startTime) / 60))
         let breakMinutes = breaks.reduce(0) { $0 + $1.durationMinutes }
-        return Self.formatDuration(minutes: max(0, spanMinutes - breakMinutes))
+        return max(0, spanMinutes - breakMinutes)
+    }
+
+    private var breakMinutesTotal: Int {
+        breaks.reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    private var totalDurationText: String {
+        Self.formatDuration(minutes: workedMinutes)
     }
 
     var body: some View {
@@ -2524,6 +2562,7 @@ struct EditTimeEntryView: View {
                         nestedStartEndBreaksEditor
                     } else {
                         startEndFields
+                        // Figma 15776:248126 base overlay + break options when support is on.
                         if breakSupportEnabled {
                             breaksEditor
                         }
@@ -2621,8 +2660,8 @@ struct EditTimeEntryView: View {
 
     private var startEndFields: some View {
         HStack(alignment: .top, spacing: 36) {
-            timeField(label: "Start on", selection: $startTime)
-            timeField(label: "End on", selection: $endTime)
+            timeField(label: "Start at", selection: $startTime)
+            timeField(label: "End at", selection: $endTime)
             Spacer(minLength: 0)
         }
     }
@@ -2648,13 +2687,15 @@ struct EditTimeEntryView: View {
             .frame(width: 8)
 
             VStack(alignment: .leading, spacing: 20) {
-                timeField(label: "Start on", selection: $startTime)
+                timeField(label: "Start at", selection: $startTime)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Breaks")
-                        .font(AppFonts.footnote())
-                        .tracking(-0.08)
-                        .foregroundColor(AppColors.fontSecondary)
+                    if !breaks.isEmpty {
+                        Text("Breaks")
+                            .font(AppFonts.footnote())
+                            .tracking(-0.08)
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
 
                     ForEach($breaks) { $item in
                         breakRow(item: $item)
@@ -2674,7 +2715,7 @@ struct EditTimeEntryView: View {
                     .buttonStyle(.plain)
                 }
 
-                timeField(label: "End on", selection: $endTime)
+                timeField(label: "End at", selection: $endTime)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -2696,10 +2737,12 @@ struct EditTimeEntryView: View {
 
     private var breaksEditor: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Breaks")
-                .font(AppFonts.footnote())
-                .tracking(-0.08)
-                .foregroundColor(AppColors.fontDefault)
+            if !breaks.isEmpty {
+                Text("Breaks")
+                    .font(AppFonts.footnote())
+                    .tracking(-0.08)
+                    .foregroundColor(AppColors.fontDefault)
+            }
 
             ForEach($breaks) { $item in
                 breakRow(item: $item)
@@ -2717,6 +2760,7 @@ struct EditTimeEntryView: View {
                 .foregroundColor(AppColors.primaryDark)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(breaks.isEmpty ? "Add break" : "Add another break")
         }
     }
 
@@ -2740,6 +2784,7 @@ struct EditTimeEntryView: View {
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .tint(AppColors.fontDefault)
+                .accessibilityLabel("Break start")
 
             Text("-")
                 .font(AppFonts.body())
@@ -2749,6 +2794,7 @@ struct EditTimeEntryView: View {
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .tint(AppColors.fontDefault)
+                .accessibilityLabel("Break end")
 
             Button {
                 removeBreak(id: item.wrappedValue.id)
@@ -2813,7 +2859,15 @@ struct EditTimeEntryView: View {
                     .font(.system(size: 15))
                     .tracking(-0.24)
                     .foregroundColor(AppColors.fontSecondary)
-                Spacer(minLength: 0)
+
+                Spacer(minLength: 8)
+
+                if breakSupportEnabled, breakMinutesTotal > 0 {
+                    Text("\(Self.formatDuration(minutes: breakMinutesTotal)) break")
+                        .font(.system(size: 15))
+                        .tracking(-0.24)
+                        .foregroundColor(AppColors.fontSecondary)
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)

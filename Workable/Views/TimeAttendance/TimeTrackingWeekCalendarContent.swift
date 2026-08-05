@@ -2,18 +2,40 @@ import SwiftUI
 
 /// Calendar / List toggle and weekly chart shared by personal and employee time-tracking flows.
 /// Figma: 15616-17727 (Calendar), 15616-173383 (List).
+/// Session FAB: 15775-245174 (idle) · 15775-245205 (working) · 15775-245237 (on break).
 struct TimeTrackingWeekCalendarContent: View {
     @Binding var selectedSubTab: Int
+    @Binding var showsAddTimeEntrySheet: Bool
     var weekHours: [DayHours] = TimeAttendanceMockData.defaultWeekHours
-    /// Floating clock-in control (Figma play FAB on calendar drill-in).
+    /// Floating clock-in control (Figma play FAB / session pill on calendar drill-in).
     var showsClockInFAB: Bool = true
 
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
-    @State private var showsAddTimeEntrySheet = false
+    @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
+    @Environment(\.breaksNestedInTimeEntry) private var breaksNestedInTimeEntry
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var session = ClockInSessionStore.shared
 
-    /// Sit the play FAB above the floating tab bar (same inset pattern as attendance FABs).
-    private static let fabBottomInset: CGFloat = TabBarView.barHeight + 16
+    @Namespace private var sessionFABNamespace
+    @State private var isHolding = false
+    @State private var holdProgress: CGFloat = 0
+    @State private var holdCompleted = false
+    @State private var holdGeneration = 0
+    @State private var activeHoldAction: HoldAction?
+
+    private enum HoldAction {
+        case clockIn, clockOut
+    }
+
+    /// Sit the session widget above the glass tab menu (Figma 15775:245205).
+    private static let fabGapAboveMenu: CGFloat = 8
+    private static let fabBottomInset: CGFloat = TabBarView.menuTopFromBottom + fabGapAboveMenu
     private static let fabSize: CGFloat = 56
+    private static let holdDuration: TimeInterval = 1.0
+    private static let ringLineWidth: CGFloat = 3.5
+    private static let holdingButtonSize: CGFloat = 90
+    /// Softer morph for working ↔ on-break (and clock in/out).
+    private static let sessionTransition = Animation.spring(response: 0.52, dampingFraction: 0.88)
 
     private let days = ["M", "T", "W", "T", "F", "S", "S"]
     private let chartStartHour: Double = 8
@@ -32,8 +54,18 @@ struct TimeTrackingWeekCalendarContent: View {
         Array(stride(from: Int(chartStartHour), through: Int(chartEndHour), by: 1))
     }
 
+    private var buttonSize: CGFloat {
+        isHolding ? Self.holdingButtonSize : Self.fabSize
+    }
+
+    private var scrollBottomInset: CGFloat {
+        guard showsClockInFAB else { return 24 }
+        let controlHeight: CGFloat = session.isOnBreak ? 62 : Self.fabSize
+        return Self.fabBottomInset + controlHeight + 24
+    }
+
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     subTabToggle
@@ -46,20 +78,37 @@ struct TimeTrackingWeekCalendarContent: View {
                         listContent
                     }
                 }
-                .padding(.bottom, showsClockInFAB ? Self.fabBottomInset + Self.fabSize + 16 : 24)
+                .padding(.bottom, scrollBottomInset)
             }
 
             if showsClockInFAB {
-                clockInFAB
-                    .padding(.trailing, 24)
+                sessionFloatingControl
                     .padding(.bottom, Self.fabBottomInset)
+                    // Always trailing + 24pt — avoids a center jump when clocking in.
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 24)
+                    // Halo/shadow room above only — keep the 24pt gap to the menu.
+                    .padding(.top, 18)
             }
         }
         .sheet(isPresented: $showsAddTimeEntrySheet) {
             EditTimeEntryView.addToday()
+                .environment(\.breakSupportEnabled, breakSupportEnabled)
+                .environment(\.breakSupportUIVersion, breakSupportUIVersion)
+                .environment(\.breaksNestedInTimeEntry, breaksNestedInTimeEntry)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
+        .onAppear {
+            session.syncFromExternalSources(breaksEnabled: breakSupportEnabled)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                session.syncFromExternalSources(breaksEnabled: breakSupportEnabled)
+            }
+        }
+        .animation(Self.sessionTransition, value: session.isClockedIn)
+        .animation(Self.sessionTransition, value: session.isOnBreak)
     }
 
     // MARK: - Calendar / List chips (Figma selectors)
@@ -339,22 +388,332 @@ struct TimeTrackingWeekCalendarContent: View {
         return String(format: "%02d:00 %@", h, period)
     }
 
-    // MARK: - Clock-in FAB
+    // MARK: - Session floating control (Figma 15775:245174 / 245205 / 245237)
 
-    private var clockInFAB: some View {
-        Button {
-            showsAddTimeEntrySheet = true
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(AppColors.primaryDark)
-                .frame(width: 56, height: 56)
-                .background(AppColors.activeBackground)
-                .clipShape(Circle())
-                .shadow(color: AppColors.primary.opacity(0.5), radius: 8.5, x: 0, y: 0)
+    @ViewBuilder
+    private var sessionFloatingControl: some View {
+        Group {
+            if !session.isClockedIn {
+                playFAB
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.88).combined(with: .opacity),
+                            removal: .scale(scale: 0.92).combined(with: .opacity)
+                        )
+                    )
+            } else if session.isOnBreak, breakSupportEnabled {
+                onBreakPill
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else {
+                workingPill
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+        }
+    }
+
+    /// Idle — hold-to-clock-in play FAB (bottom trailing).
+    private var playFAB: some View {
+        ZStack {
+            Color.clear
+                .frame(width: Self.fabSize, height: Self.fabSize)
+
+            ZStack {
+                Circle()
+                    .stroke(AppColors.activeBackground.opacity(0.55), lineWidth: Self.ringLineWidth)
+                    .frame(width: buttonSize, height: buttonSize)
+                    .opacity((isHolding || holdProgress > 0) && activeHoldAction == .clockIn ? 1 : 0)
+
+                Circle()
+                    .trim(from: 0, to: activeHoldAction == .clockIn ? holdProgress : 0)
+                    .stroke(
+                        AppColors.primaryDark,
+                        style: StrokeStyle(lineWidth: Self.ringLineWidth, lineCap: .round)
+                    )
+                    .frame(width: buttonSize, height: buttonSize)
+                    .rotationEffect(.degrees(-90))
+
+                Circle()
+                    .fill(AppColors.activeBackground)
+                    .frame(
+                        width: buttonSize - (isHolding && activeHoldAction == .clockIn ? 7 : 0),
+                        height: buttonSize - (isHolding && activeHoldAction == .clockIn ? 7 : 0)
+                    )
+
+                Image(systemName: "play.fill")
+                    .font(.system(size: isHolding ? 22.5 : 14, weight: .medium))
+                    .foregroundColor(AppColors.primaryDark)
+                    .offset(x: (isHolding ? 22.5 : 14) * 0.08)
+            }
+            .frame(width: buttonSize, height: buttonSize)
+            .shadow(
+                color: AppColors.primary.opacity(0.5),
+                radius: isHolding && activeHoldAction == .clockIn ? 13.7 : 8.5,
+                x: 0,
+                y: 0
+            )
+            .contentShape(Circle())
+            .gesture(holdGesture(for: .clockIn))
+            .accessibilityLabel("Clock in")
+            .accessibilityHint("Press and hold to clock in")
+            .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isHolding)
+        }
+        .frame(width: Self.fabSize, height: Self.fabSize)
+    }
+
+    /// Working — centered white pill: timer + pause + hold stop.
+    private var workingPill: some View {
+        HStack(spacing: 16) {
+            sessionTimerLabels(primarySize: 22, secondarySize: 16)
+
+            if breakSupportEnabled {
+                outlinedCircleControl(
+                    systemName: "pause.fill",
+                    iconSize: 12,
+                    accessibilityLabel: "Pause"
+                ) {
+                    startBreak()
+                }
+            }
+
+            holdOverflowSlot {
+                stopControl
+            }
+        }
+        .padding(.leading, 24)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        // Capsule fill only — no clipShape, so stop/halo aren’t cut by the pill edge.
+        .background {
+            Capsule(style: .continuous)
+                .fill(AppColors.surface)
+                .matchedGeometryEffect(id: "sessionPillChrome", in: sessionFABNamespace)
+                .sessionPillShadow()
+        }
+    }
+
+    /// On break — status pill + break timer + Back to work (Figma 15775:247920).
+    private var onBreakPill: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("On break")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(AppColors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                sessionTimerLabels(primarySize: 17, secondarySize: 13)
+            }
+
+            Button {
+                endBreak()
+            } label: {
+                Text("Back to work")
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.primaryDark)
+                    .padding(.horizontal, 16)
+                    .frame(height: 54)
+                    .background(AppColors.activeBackground)
+                    .clipShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to work")
+            .padding(.trailing, 4)
+            .padding(.vertical, 4)
+        }
+        .padding(.leading, 24)
+        .background {
+            Capsule(style: .continuous)
+                .fill(AppColors.surface)
+                .matchedGeometryEffect(id: "sessionPillChrome", in: sessionFABNamespace)
+                .sessionPillShadow()
+        }
+    }
+
+    private func sessionTimerLabels(primarySize: CGFloat, secondarySize: CGFloat) -> some View {
+        let anchor: Date = {
+            if session.isOnBreak, let breakStart = session.breakStartDate {
+                return breakStart
+            }
+            return session.clockInDate ?? Date()
+        }()
+
+        return TimelineView(.periodic(from: anchor, by: 1)) { context in
+            let elapsed = max(0, Int(context.date.timeIntervalSince(anchor)))
+            let hours = elapsed / 3600
+            let minutes = (elapsed % 3600) / 60
+            let seconds = elapsed % 60
+
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text("\(hours)h \(String(format: "%02d", minutes))m")
+                    .font(.system(size: primarySize, weight: .semibold))
+                    .tracking(primarySize >= 20 ? 0.35 : -0.41)
+                    .foregroundColor(AppColors.fontDefault)
+                Text(String(format: "%02ds", seconds))
+                    .font(.system(size: secondarySize, weight: .regular))
+                    .tracking(secondarySize >= 16 ? -0.32 : -0.08)
+                    .foregroundColor(AppColors.fontSecondary)
+            }
+        }
+    }
+
+    private var stopControl: some View {
+        let isThisHold = isHolding && activeHoldAction == .clockOut
+        return ZStack {
+            Circle()
+                .stroke(AppColors.iconInactive.opacity(0.7), lineWidth: Self.ringLineWidth)
+                .frame(width: buttonSize, height: buttonSize)
+                .opacity(isThisHold ? 1 : 0)
+
+            Circle()
+                .trim(from: 0, to: isThisHold ? holdProgress : 0)
+                .stroke(
+                    AppColors.iconDefault,
+                    style: StrokeStyle(lineWidth: Self.ringLineWidth, lineCap: .round)
+                )
+                .frame(width: buttonSize, height: buttonSize)
+                .rotationEffect(.degrees(-90))
+
+            Circle()
+                .fill(AppColors.fontDefault)
+                .frame(
+                    width: buttonSize - (isThisHold ? 7 : 0),
+                    height: buttonSize - (isThisHold ? 7 : 0)
+                )
+
+            Image(systemName: "stop.fill")
+                .font(.system(size: isHolding ? 19.3 : 12, weight: .medium))
+                .foregroundColor(AppColors.surface)
+        }
+        .frame(width: buttonSize, height: buttonSize)
+        .shadow(
+            color: Color(hex: "333E49").opacity(0.48),
+            radius: isThisHold ? 13.7 : 8.5,
+            x: 0,
+            y: 0
+        )
+        .contentShape(Circle())
+        .gesture(holdGesture(for: .clockOut))
+        .accessibilityLabel("Clock out")
+        .accessibilityHint("Press and hold to clock out")
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isHolding)
+    }
+
+    private func holdOverflowSlot<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ZStack {
+            Color.clear
+                .frame(width: Self.fabSize, height: Self.fabSize)
+            content()
+        }
+        .frame(width: Self.fabSize, height: Self.fabSize)
+    }
+
+    private func outlinedCircleControl(
+        systemName: String,
+        iconSize: CGFloat,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                // strokeBorder keeps the ring inside the 56pt frame so the pill
+                // clipShape doesn’t cut the top/bottom (unlike centered .stroke).
+                Circle()
+                    .strokeBorder(AppColors.fontDefault, lineWidth: 1.5)
+                Image(systemName: systemName)
+                    .font(.system(size: iconSize, weight: .medium))
+                    .foregroundColor(AppColors.fontDefault)
+            }
+            .frame(width: Self.fabSize, height: Self.fabSize)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add time entry")
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func holdGesture(for action: HoldAction) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { _ in
+                guard !isHolding else { return }
+                beginHold(action)
+            }
+            .onEnded { _ in
+                endHold()
+            }
+    }
+
+    private func beginHold(_ action: HoldAction) {
+        activeHoldAction = action
+        isHolding = true
+        holdProgress = 0
+        holdCompleted = false
+        holdGeneration += 1
+        let generation = holdGeneration
+
+        withAnimation(.linear(duration: Self.holdDuration)) {
+            holdProgress = 1
+        }
+
+        Task { @MainActor in
+            let nanos = UInt64(Self.holdDuration * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanos)
+            guard generation == holdGeneration, isHolding, holdProgress >= 0.99 else { return }
+            finishHold()
+        }
+    }
+
+    private func endHold() {
+        guard !holdCompleted else { return }
+
+        holdGeneration += 1
+        if holdProgress >= 0.99 {
+            finishHold()
+        } else {
+            withAnimation(.easeOut(duration: 0.22)) {
+                isHolding = false
+                holdProgress = 0
+            }
+        }
+    }
+
+    private func finishHold() {
+        guard !holdCompleted else { return }
+        holdCompleted = true
+        holdGeneration += 1
+
+        switch activeHoldAction {
+        case .clockIn:
+            withAnimation(Self.sessionTransition) {
+                isHolding = false
+                holdProgress = 0
+                session.clockIn(breaksEnabled: breakSupportEnabled)
+            }
+        case .clockOut:
+            withAnimation(Self.sessionTransition) {
+                isHolding = false
+                holdProgress = 0
+                session.clockOut()
+            }
+        case .none:
+            break
+        }
+    }
+
+    private func startBreak() {
+        withAnimation(Self.sessionTransition) {
+            isHolding = false
+            holdProgress = 0
+            session.startBreak(breaksEnabled: breakSupportEnabled)
+        }
+    }
+
+    private func endBreak() {
+        withAnimation(Self.sessionTransition) {
+            isHolding = false
+            holdProgress = 0
+            session.endBreak(breaksEnabled: breakSupportEnabled)
+        }
     }
 
     // MARK: - List Content (Figma 15616-173383 + break support variants)
@@ -439,5 +798,15 @@ struct TimeTrackingWeekCalendarContent: View {
             }
         }
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Session pill shadow (Figma 15775:247833 / 247920)
+
+private extension View {
+    /// Dual drop shadow: `#6F7073` @ 18%, (0, 6) blur ~17 + (0, 3) blur ~10.
+    func sessionPillShadow() -> some View {
+        shadow(color: Color(hex: "6F7073").opacity(0.18), radius: 8.5, x: 0, y: 6)
+            .shadow(color: Color(hex: "6F7073").opacity(0.18), radius: 5, x: 0, y: 3)
     }
 }

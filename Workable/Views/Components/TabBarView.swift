@@ -25,6 +25,12 @@ struct TabBarView: View {
 
     /// Outer chrome height including top/bottom padding (FABs / content insets).
     static let barHeight: CGFloat = 95
+    /// Glass capsule height (tab items).
+    static let menuHeight: CGFloat = 54
+    /// Home-indicator padding below the glass capsule.
+    static let menuBottomPadding: CGFloat = 25
+    /// Distance from the screen bottom to the top of the glass menu.
+    static var menuTopFromBottom: CGFloat { menuBottomPadding + menuHeight }
 
     private let selectionSpring = Animation.spring(response: 0.38, dampingFraction: 0.82)
 
@@ -53,7 +59,7 @@ struct TabBarView: View {
         }
         .padding(.horizontal, 25)
         .padding(.top, 16)
-        .padding(.bottom, 25)
+        .padding(.bottom, Self.menuBottomPadding)
         .frame(maxWidth: .infinity)
     }
 }

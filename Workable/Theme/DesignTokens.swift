@@ -59,6 +59,21 @@ enum AppColors {
     static let betaLightBackground = Color(light: "E3FBFB", dark: "E3FBFB") // BETA ☀️50  ☽50
 }
 
+// MARK: - Shadows (Figma)
+
+extension View {
+    /// Figma “Light shadow” — home dashboard cards (Today, To-dos, Time off, Jobs, Candidates).
+    /// `#00000012`, offset (0, 4), blur 14.
+    func appLightCardShadow() -> some View {
+        shadow(color: Color.black.opacity(0.07), radius: 14, x: 0, y: 4)
+    }
+
+    /// Time tracking home card — `#333E49` @ 4%, offset (0, 6), blur 5.
+    func appTimeTrackingCardShadow() -> some View {
+        shadow(color: Color(hex: "333E49").opacity(0.04), radius: 5, x: 0, y: 6)
+    }
+}
+
 // MARK: - Adaptive Color (light + dark hex)
 
 extension Color {
