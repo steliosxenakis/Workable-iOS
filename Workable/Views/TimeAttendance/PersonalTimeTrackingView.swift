@@ -177,6 +177,8 @@ struct TimeTrackingHomeCard: View {
     private static let holdingButtonSize: CGFloat = 90
     private static let holdDuration: TimeInterval = 1.0
     private static let ringLineWidth: CGFloat = 3.5
+    /// Working ↔ break layout (timer shift, On break pill) — linear, no spring bounce.
+    private static let breakTransition = Animation.linear(duration: 0.28)
 
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
     @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
@@ -185,6 +187,7 @@ struct TimeTrackingHomeCard: View {
     @ObservedObject private var session = ClockInSessionStore.shared
     @ObservedObject private var todayEntries = TodayTimeEntriesStore.shared
 
+    @Namespace private var sessionTitleNamespace
     @State private var holdProgress: CGFloat = 0
     @State private var isHolding = false
     @State private var holdGeneration = 0
@@ -290,11 +293,11 @@ struct TimeTrackingHomeCard: View {
     }
 
     private var playIconSize: CGFloat {
-        isHolding ? 22.5 : 14
+        isHolding ? 26 : 17
     }
 
     private var stopIconSize: CGFloat {
-        isHolding ? 19.3 : 12
+        isHolding ? 22 : 15
     }
 
     /// V3 needs a stacked layout so the Working/Break control stays horizontal and readable.
@@ -307,10 +310,10 @@ struct TimeTrackingHomeCard: View {
         breakSupportEnabled && breakSupportUIVersion == .v12_1 && isClockedIn
     }
 
-    /// V12 / V12.1 / V14 share the “On break” pill + open-ended break timer styling.
+    /// V12 / V12.1 / V14 / V15 share the “On break” pill + open-ended break timer styling.
     private var usesV12BreakTitleStyle: Bool {
         switch breakSupportUIVersion {
-        case .v12, .v12_1, .v14: return true
+        case .v12, .v12_1, .v14, .v15: return true
         default: return false
         }
     }
@@ -489,7 +492,7 @@ struct TimeTrackingHomeCard: View {
                 .appTimeTrackingCardShadow()
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isClockedIn)
-        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isOnBreak)
+        .animation(Self.breakTransition, value: isOnBreak)
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: breakSupportUIVersion)
         .animation(.spring(response: 0.36, dampingFraction: 0.82), value: todayEntries.hasEntries)
         .onChange(of: breakSupportUIVersion) { _, _ in
@@ -522,7 +525,13 @@ struct TimeTrackingHomeCard: View {
             // Hidden field — tapping emoji controls only brings up the system keyboard.
             EmojiKeyboardField(
                 emoji: $v5SelectedEmoji,
-                isFocused: $isEmojiKeyboardFocused
+                isFocused: $isEmojiKeyboardFocused,
+                onEmojiPicked: { picked in
+                    // Dashboard / home card — keep session emoji in sync while on break.
+                    if isOnBreak, breakSupportUIVersion.showsBreakEmoji {
+                        session.updateBreakEmoji(picked, breaksEnabled: breakSupportEnabled)
+                    }
+                }
             )
             .frame(width: 1, height: 1)
             .opacity(0.01)
@@ -625,14 +634,17 @@ struct TimeTrackingHomeCard: View {
         }
     }
 
+    /// Editable On-break emoji must sit outside `NavigationLink` or taps drill in instead.
+    private var showsDashboardEditableBreakEmoji: Bool {
+        isClockedIn && isOnBreak && (
+            breakSupportUIVersion.usesEditableBreakEmojiLabel
+                || breakSupportUIVersion == .v13
+        )
+    }
+
     private var defaultCardContent: some View {
         HStack(alignment: .center, spacing: 24) {
-            NavigationLink {
-                PersonalTimeTrackingView()
-            } label: {
-                titleContent
-            }
-            .buttonStyle(.plain)
+            dashboardTitleColumn
 
             Spacer(minLength: 0)
 
@@ -643,12 +655,43 @@ struct TimeTrackingHomeCard: View {
         }
     }
 
+    /// Title + editable break emoji outside `NavigationLink` so taps don’t drill in.
+    @ViewBuilder
+    private var dashboardTitleColumn: some View {
+        if isOnBreak, breakSupportUIVersion == .v13 {
+            HStack(alignment: .bottom, spacing: 8) {
+                editableBreakEmojiButton(size: 24)
+                NavigationLink {
+                    PersonalTimeTrackingView()
+                } label: {
+                    titleContent
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                if showsDashboardEditableBreakEmoji, breakSupportUIVersion.usesEditableBreakEmojiLabel {
+                    onBreakTitlePill
+                        .zIndex(2)
+                        .transition(.opacity)
+                }
+
+                NavigationLink {
+                    PersonalTimeTrackingView()
+                } label: {
+                    titleContent
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     /// Figma 15754:231376 — `[pause|resume] · timer · [hold stop?] · chevron`.
     private var v12_1CardContent: some View {
         HStack(alignment: .center, spacing: 16) {
             outlinedCircleControl(
                 systemName: isOnBreak ? "play.fill" : "pause.fill",
-                iconSize: isOnBreak ? 14 : 12,
+                iconSize: isOnBreak ? 17 : 15,
                 accessibilityLabel: isOnBreak ? "Resume" : "Pause"
             ) {
                 if isOnBreak {
@@ -659,13 +702,8 @@ struct TimeTrackingHomeCard: View {
             }
             .zIndex(10)
 
-            NavigationLink {
-                PersonalTimeTrackingView()
-            } label: {
-                titleContent
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
+            dashboardTitleColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if !isOnBreak {
                 holdOverflowSlot {
@@ -745,7 +783,7 @@ struct TimeTrackingHomeCard: View {
                 // Clocked-in UI is `v12_1CardContent`; idle still uses playControl above.
                 EmptyView()
             case .v13: breakControlsV13
-            case .v14: breakControlsV14
+            case .v14, .v15: breakControlsV14
             }
         }
     }
@@ -792,25 +830,20 @@ struct TimeTrackingHomeCard: View {
                     }
                 }
             } else if isOnBreak, breakSupportUIVersion == .v13 {
-                // Figma 15751:224374 — emoji replaces the “On break” pill; timer stays beside it.
+                // Emoji is rendered beside this column outside NavigationLink on the dashboard.
                 TimelineView(.periodic(from: timerAnchor, by: 1)) { context in
                     let elapsed = max(0, Int(context.date.timeIntervalSince(timerAnchor)))
-                    HStack(alignment: .bottom, spacing: 8) {
-                        EmojiText(emoji: session.breakEmoji ?? "☕", size: 24)
-                        timerLabels(elapsed: elapsed, omitHoursWhenZero: true)
-                    }
+                    timerLabels(elapsed: elapsed, omitHoursWhenZero: true)
+                        .matchedGeometryEffect(id: "homeSessionTimer", in: sessionTitleNamespace)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    if isOnBreak, usesV12BreakTitleStyle {
-                        Text("On break")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(AppColors.fontDefault)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(AppColors.background)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    } else if isOnBreak, breakSupportUIVersion != .v3, !tracksBreakInBottomSection {
+                    // Editable emoji pill is rendered outside NavigationLink (dashboard tap target).
+                    if isOnBreak, usesV12BreakTitleStyle, !breakSupportUIVersion.usesEditableBreakEmojiLabel {
+                        onBreakTitlePill
+                            .transition(.opacity)
+                    } else if isOnBreak, breakSupportUIVersion != .v3, !tracksBreakInBottomSection,
+                              !breakSupportUIVersion.usesEditableBreakEmojiLabel {
                         HStack(spacing: 6) {
                             if let emoji = session.breakEmoji, !emoji.isEmpty {
                                 EmojiText(emoji: emoji, size: 14)
@@ -819,6 +852,7 @@ struct TimeTrackingHomeCard: View {
                                 .font(AppFonts.caption1Strong())
                                 .foregroundColor(AppColors.warningText)
                         }
+                        .transition(.opacity)
                     }
 
                     TimelineView(.periodic(from: timerAnchor, by: 1)) { context in
@@ -827,6 +861,8 @@ struct TimeTrackingHomeCard: View {
                             elapsed: elapsed,
                             omitHoursWhenZero: usesV12BreakTitleStyle && isOnBreak
                         )
+                        .matchedGeometryEffect(id: "homeSessionTimer", in: sessionTitleNamespace)
+                        .contentTransition(.numericText())
                     }
                 }
             }
@@ -856,6 +892,56 @@ struct TimeTrackingHomeCard: View {
                 .foregroundColor(AppColors.fontSecondary)
                 .frame(height: 20, alignment: .bottom)
         }
+    }
+
+    @ViewBuilder
+    private var onBreakTitlePill: some View {
+        if breakSupportUIVersion.usesEditableBreakEmojiLabel {
+            Button {
+                beginEditingBreakEmoji()
+            } label: {
+                HStack(spacing: 4) {
+                    EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: 14)
+                    Text("On break")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppColors.fontDefault)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(AppColors.background)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("On break, edit emoji")
+        } else {
+            Text("On break")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.fontDefault)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(AppColors.background)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private func editableBreakEmojiButton(size: CGFloat) -> some View {
+        Button {
+            beginEditingBreakEmoji()
+        } label: {
+            EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: size)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit break emoji")
+    }
+
+    private func beginEditingBreakEmoji() {
+        if let emoji = session.breakEmoji, !emoji.isEmpty {
+            v5SelectedEmoji = emoji
+        } else if v5SelectedEmoji.isEmpty {
+            v5SelectedEmoji = "☕"
+        }
+        isEmojiKeyboardFocused = true
     }
 
     // MARK: - Break UI V1 — serial (hold clock in → pause → tap clock out)
@@ -895,7 +981,7 @@ struct TimeTrackingHomeCard: View {
                 Circle()
                     .fill(AppColors.fontDefault)
                 Image(systemName: "stop.fill")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundColor(AppColors.surface)
             }
             .frame(width: Self.idleButtonSize, height: Self.idleButtonSize)
@@ -921,7 +1007,7 @@ struct TimeTrackingHomeCard: View {
                 Circle()
                     .fill(fill)
                 Image(systemName: systemName)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundColor(ink)
                     .offset(x: systemName == "play.fill" ? 1.5 : 0)
             }
@@ -958,7 +1044,7 @@ struct TimeTrackingHomeCard: View {
         if isOnBreak {
             outlinedCircleControl(
                 systemName: "play.fill",
-                iconSize: 14,
+                iconSize: 17,
                 accessibilityLabel: "Resume"
             ) {
                 endBreak()
@@ -967,7 +1053,7 @@ struct TimeTrackingHomeCard: View {
             HStack(spacing: 8) {
                 outlinedCircleControl(
                     systemName: "pause.fill",
-                    iconSize: 12,
+                    iconSize: 15,
                     accessibilityLabel: "Pause"
                 ) {
                     startBreak()
@@ -982,16 +1068,16 @@ struct TimeTrackingHomeCard: View {
 
     // MARK: - Break UI V14 — V12 working; On break tonal “Back to work” (Figma 15761:244828)
 
+    /// Instant swap (no animation) — timer/title still animate via `breakTransition`.
     @ViewBuilder
     private var breakControlsV14: some View {
         if isOnBreak {
             // Figma 15761:244828 — tonal Normal: 48pt tall, 16×8 padding, 14 semibold.
-            // Keep the 56pt control slot so the card doesn’t shrink vs pause/stop.
             ZStack {
                 Button {
                     endBreak()
                 } label: {
-                    Text("Back to work")
+                    Text("End break")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(AppColors.primaryDark)
                         .padding(.horizontal, 16)
@@ -1001,14 +1087,15 @@ struct TimeTrackingHomeCard: View {
                         .clipShape(Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Back to work")
+                .accessibilityLabel("End break")
             }
             .frame(height: Self.idleButtonSize)
+            .transaction { $0.animation = nil }
         } else {
             HStack(spacing: 8) {
                 outlinedCircleControl(
                     systemName: "pause.fill",
-                    iconSize: 12,
+                    iconSize: 15,
                     accessibilityLabel: "Pause"
                 ) {
                     startBreak()
@@ -1018,6 +1105,7 @@ struct TimeTrackingHomeCard: View {
                     stopControl(holdAction: .clockOut)
                 }
             }
+            .transaction { $0.animation = nil }
         }
     }
 
@@ -1028,7 +1116,7 @@ struct TimeTrackingHomeCard: View {
         if isOnBreak {
             outlinedCircleControl(
                 systemName: "play.fill",
-                iconSize: 14,
+                iconSize: 17,
                 accessibilityLabel: "Resume"
             ) {
                 endBreak()
@@ -1037,7 +1125,7 @@ struct TimeTrackingHomeCard: View {
             HStack(spacing: 8) {
                 outlinedCircleControl(
                     systemName: "pause.fill",
-                    iconSize: 12,
+                    iconSize: 15,
                     accessibilityLabel: "Pause"
                 ) {
                     startOpenEndedBreak(label: "Break", emoji: "☕")
@@ -2006,7 +2094,7 @@ struct TimeTrackingHomeCard: View {
         label: String = "Break",
         emoji: String? = nil
     ) {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+        withAnimation(Self.breakTransition) {
             isHolding = false
             holdProgress = 0
             session.startBreak(
@@ -2020,7 +2108,7 @@ struct TimeTrackingHomeCard: View {
 
     /// Open-ended break — no planned duration; timer counts elapsed time up.
     private func startOpenEndedBreak(label: String = "Break", emoji: String? = nil) {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+        withAnimation(Self.breakTransition) {
             isHolding = false
             holdProgress = 0
             session.startBreak(
@@ -2196,15 +2284,20 @@ struct TimeTrackingHomeCard: View {
     }
 
     private func startBreak() {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+        withAnimation(Self.breakTransition) {
             isHolding = false
             holdProgress = 0
-            session.startBreak(breaksEnabled: breakSupportEnabled)
+            if breakSupportUIVersion.usesEditableBreakEmojiLabel {
+                let emoji = v5SelectedEmoji.isEmpty ? "☕" : v5SelectedEmoji
+                session.startBreak(breaksEnabled: breakSupportEnabled, emoji: emoji)
+            } else {
+                session.startBreak(breaksEnabled: breakSupportEnabled)
+            }
         }
     }
 
     private func endBreak() {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+        withAnimation(Self.breakTransition) {
             isHolding = false
             holdProgress = 0
             session.endBreak(breaksEnabled: breakSupportEnabled)
@@ -2322,22 +2415,29 @@ struct TimeEntryDetailView: View {
     }
 
     /// Start → breaks → end as a timeline (+ total outside the rail).
+    /// Bullets sit on Start, Breaks (title), and End — evenly spaced along the rail.
     private var nestedPeriodSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                timelineSpine
-
-                VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                detailTimelineRow(isFirst: true, isLast: false) {
                     field(label: "Start", value: entry.start)
+                        .padding(.bottom, 16)
+                }
 
+                detailTimelineRow(isFirst: false, isLast: false) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Breaks")
                             .font(AppFonts.subheadline())
                             .tracking(-0.24)
                             .foregroundColor(AppColors.fontSecondary)
 
-                        ForEach(entry.breaks) { item in
+                        ForEach(Array(entry.breaks.enumerated()), id: \.element.id) { index, item in
                             HStack(alignment: .center, spacing: 8) {
+                                Text("\(index + 1)")
+                                    .font(AppFonts.body())
+                                    .tracking(-0.41)
+                                    .foregroundColor(AppColors.fontSecondary)
+                                    .frame(minWidth: 16, alignment: .leading)
                                 if showsBreakEmoji, let emoji = item.emoji, !emoji.isEmpty {
                                     EmojiText(emoji: emoji, size: 18)
                                 }
@@ -2349,10 +2449,12 @@ struct TimeEntryDetailView: View {
                             }
                         }
                     }
+                    .padding(.bottom, 16)
+                }
 
+                detailTimelineRow(isFirst: false, isLast: true) {
                     field(label: "End", value: entry.end)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             field(label: "Total", value: nestedTotalText)
@@ -2366,25 +2468,38 @@ struct TimeEntryDetailView: View {
         return "\(entry.duration) (\(entry.breakHoursText) break)"
     }
 
-    /// Grey rail from Start through End, with markers on the endpoint titles.
-    private var timelineSpine: some View {
-        VStack(spacing: 0) {
-            // Center the top dot on the Start title (~subheadline line height).
-            Color.clear.frame(height: 5)
-            Circle()
-                .fill(AppColors.iconInactive)
-                .frame(width: 8, height: 8)
-            Rectangle()
-                .fill(AppColors.separator)
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-            Circle()
-                .fill(AppColors.iconInactive)
-                .frame(width: 8, height: 8)
-            // Leave room for the End value under its title.
-            Color.clear.frame(height: 26)
+    /// Bullet on a continuous vertical rail (spacing lives inside `content`, not between rows).
+    /// Last row: line stops at the bullet center (does not run through End’s value).
+    private func detailTimelineRow<Content: View>(
+        isFirst: Bool,
+        isLast: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack(alignment: .top) {
+                if isLast {
+                    // Top → bullet center only (bullet top inset 5 + half of 8).
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(width: 2, height: 9)
+                } else {
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .padding(.top, isFirst ? 9 : 0)
+                }
+
+                Circle()
+                    .fill(AppColors.iconInactive)
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 5)
+            }
+            .frame(width: 8, alignment: .top)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 8)
     }
 
     private var breaksSection: some View {
@@ -2394,43 +2509,32 @@ struct TimeEntryDetailView: View {
                 .tracking(-0.24)
                 .foregroundColor(AppColors.fontSecondary)
 
-            if showsBreakEmoji {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(entry.breaks) { item in
-                        HStack(alignment: .center, spacing: 8) {
-                            if let emoji = item.emoji, !emoji.isEmpty {
-                                EmojiText(emoji: emoji, size: 18)
-                            }
-                            Text("\(item.start) – \(item.end) (\(item.duration))")
-                                .font(AppFonts.body())
-                                .tracking(-0.41)
-                                .foregroundColor(AppColors.fontDefault)
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    if entry.breaks.count > 1 {
-                        Text("\(entry.breakHoursText) in total")
-                            .font(AppFonts.caption1())
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(entry.breaks.enumerated()), id: \.element.id) { index, item in
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("\(index + 1)")
+                            .font(AppFonts.body())
+                            .tracking(-0.41)
                             .foregroundColor(AppColors.fontSecondary)
+                            .frame(minWidth: 16, alignment: .leading)
+                        if showsBreakEmoji, let emoji = item.emoji, !emoji.isEmpty {
+                            EmojiText(emoji: emoji, size: 18)
+                        }
+                        Text("\(item.start) – \(item.end) (\(item.duration))")
+                            .font(AppFonts.body())
+                            .tracking(-0.41)
+                            .foregroundColor(AppColors.fontDefault)
+                        Spacer(minLength: 0)
                     }
                 }
-            } else {
-                Text(breaksValueText)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.fontDefault)
+                if entry.breaks.count > 1 {
+                    Text("\(entry.breakHoursText) in total")
+                        .font(AppFonts.caption1())
+                        .foregroundColor(AppColors.fontSecondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Single: `12:00-13:00 (1h)` · Multiple: `12:00-13:00 , 13:30-14:00 (1h 30m in total)`
-    private var breaksValueText: String {
-        let ranges = entry.breaks.map { "\($0.start)-\($0.end)" }.joined(separator: " , ")
-        if entry.breaks.count == 1, let only = entry.breaks.first {
-            return "\(ranges) (\(only.duration))"
-        }
-        return "\(ranges) (\(entry.breakHoursText) in total)"
     }
 
     private func field(label: String, value: String) -> some View {
@@ -2537,10 +2641,9 @@ struct EditTimeEntryView: View {
         mode == .add ? "Add time entry" : "Save time entry"
     }
 
-    private var workedMinutes: Int {
-        let spanMinutes = max(0, Int(endTime.timeIntervalSince(startTime) / 60))
-        let breakMinutes = breaks.reduce(0) { $0 + $1.durationMinutes }
-        return max(0, spanMinutes - breakMinutes)
+    /// Start → end span. Breaks are included in this total (shown separately on the right).
+    private var totalMinutes: Int {
+        max(0, Int(endTime.timeIntervalSince(startTime) / 60))
     }
 
     private var breakMinutesTotal: Int {
@@ -2548,7 +2651,7 @@ struct EditTimeEntryView: View {
     }
 
     private var totalDurationText: String {
-        Self.formatDuration(minutes: workedMinutes)
+        Self.formatDuration(minutes: totalMinutes)
     }
 
     var body: some View {
@@ -2571,12 +2674,17 @@ struct EditTimeEntryView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 24)
-                .padding(.bottom, 120)
+                .padding(.bottom, isBreakEmojiKeyboardFocused ? 24 : 120)
             }
 
-            footer
+            // Don't pin totals / save over the emoji keyboard.
+            if !isBreakEmojiKeyboardFocused {
+                footer
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .background(AppColors.surface)
+        .animation(.easeInOut(duration: 0.2), value: isBreakEmojiKeyboardFocused)
         .background {
             if showsBreakEmoji {
                 EmojiKeyboardField(
@@ -2667,28 +2775,15 @@ struct EditTimeEntryView: View {
     }
 
     /// Start → break rows → End (toggle: Breaks inside start / end).
+    /// Bullets on Start, Breaks (title), and End — break rows sit under the Breaks bullet.
     private var nestedStartEndBreaksEditor: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 4)
-                Circle()
-                    .fill(AppColors.iconInactive)
-                    .frame(width: 8, height: 8)
-                Rectangle()
-                    .fill(AppColors.separator)
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
-                Circle()
-                    .fill(AppColors.iconInactive)
-                    .frame(width: 8, height: 8)
-                // Leave room for the End time picker under its title.
-                Color.clear.frame(height: 36)
-            }
-            .frame(width: 8)
-
-            VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 0) {
+            editTimelineRow(isFirst: true, isLast: false) {
                 timeField(label: "Start at", selection: $startTime)
+                    .padding(.bottom, 20)
+            }
 
+            editTimelineRow(isFirst: false, isLast: false) {
                 VStack(alignment: .leading, spacing: 12) {
                     if !breaks.isEmpty {
                         Text("Breaks")
@@ -2697,8 +2792,8 @@ struct EditTimeEntryView: View {
                             .foregroundColor(AppColors.fontSecondary)
                     }
 
-                    ForEach($breaks) { $item in
-                        breakRow(item: $item)
+                    ForEach(Array(breaks.enumerated()), id: \.element.id) { index, _ in
+                        breakRow(item: $breaks[index], number: index + 1)
                     }
 
                     Button {
@@ -2714,10 +2809,46 @@ struct EditTimeEntryView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.bottom, 20)
+            }
 
+            editTimelineRow(isFirst: false, isLast: true) {
                 timeField(label: "End at", selection: $endTime)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Bullet on a continuous vertical rail (spacing lives inside `content`, not between rows).
+    /// Last row: line stops at the bullet center (does not run through End at’s picker).
+    private func editTimelineRow<Content: View>(
+        isFirst: Bool,
+        isLast: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack(alignment: .top) {
+                if isLast {
+                    // Top → bullet center only (bullet top inset 4 + half of 8).
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(width: 2, height: 8)
+                } else {
+                    Rectangle()
+                        .fill(AppColors.separator)
+                        .frame(width: 2)
+                        .frame(maxHeight: .infinity)
+                        .padding(.top, isFirst ? 8 : 0)
+                }
+
+                Circle()
+                    .fill(AppColors.iconInactive)
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 4)
+            }
+            .frame(width: 8, alignment: .top)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -2744,28 +2875,57 @@ struct EditTimeEntryView: View {
                     .foregroundColor(AppColors.fontDefault)
             }
 
-            ForEach($breaks) { $item in
-                breakRow(item: $item)
-            }
-
-            Button {
-                addBreak()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(breaks.isEmpty ? "Add break" : "Add another break")
-                        .font(AppFonts.subheadStrong())
+            if breaks.isEmpty {
+                Button {
+                    addBreak()
+                } label: {
+                    addBreakLabel(title: "Add break")
                 }
-                .foregroundColor(AppColors.primaryDark)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add break")
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(breaks.enumerated()), id: \.element.id) { index, _ in
+                        editTimelineRow(
+                            isFirst: index == 0,
+                            isLast: index == breaks.count - 1
+                        ) {
+                            breakRow(item: $breaks[index], number: index + 1)
+                                .padding(.bottom, index == breaks.count - 1 ? 0 : 12)
+                        }
+                    }
+                }
+
+                Button {
+                    addBreak()
+                } label: {
+                    addBreakLabel(title: "Add another break")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add another break")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(breaks.isEmpty ? "Add break" : "Add another break")
         }
     }
 
-    private func breakRow(item: Binding<EditableTimeEntryBreak>) -> some View {
+    private func addBreakLabel(title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
+            Text(title)
+                .font(AppFonts.subheadStrong())
+        }
+        .foregroundColor(AppColors.primaryDark)
+    }
+
+    private func breakRow(item: Binding<EditableTimeEntryBreak>, number: Int) -> some View {
         HStack(alignment: .center, spacing: 8) {
+            Text("\(number)")
+                .font(AppFonts.body())
+                .tracking(-0.41)
+                .foregroundColor(AppColors.fontSecondary)
+                .frame(minWidth: 16, alignment: .leading)
+                .accessibilityLabel("Break \(number)")
+
             if showsBreakEmoji {
                 Button {
                     emojiEditBreakId = item.wrappedValue.id
@@ -2884,7 +3044,7 @@ struct EditTimeEntryView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 17)
                     .background(AppColors.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
         }

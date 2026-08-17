@@ -44,6 +44,8 @@ enum AppColors {
 
     // Informative
     static let informativeDefault    = Color(light: "226BD1", dark: "6BA8EC") // Informative ☀️500 ☽200
+    /// Calendar break segments (Figma Informative/200 — 15786:77791).
+    static let informative200        = Color(light: "75ACFF", dark: "3A6FBF") // Informative ☀️200
     static let informativeBackground = Color(light: "EEF8FF", dark: "152D4F") // Informative ☀️50  ☽700
 
     // AI
