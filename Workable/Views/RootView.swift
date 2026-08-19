@@ -11,7 +11,7 @@ struct RootView: View {
     @AppStorage("settings.attendanceTwoIssuesCase") private var attendanceTwoIssuesCase = false
     @AppStorage("settings.redesign") private var redesignEnabled = false
     @AppStorage(AttendanceNotifyStyle.appStorageKey) private var notifyStyleRaw =
-        AttendanceNotifyStyle.inlineBells.rawValue
+        AttendanceNotifyStyle.sheet.rawValue
     @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = true
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersionRaw =
         BreakSupportUIVersion.defaultVersion.rawValue
@@ -22,7 +22,7 @@ struct RootView: View {
     }
 
     private var notifyStyle: AttendanceNotifyStyle {
-        AttendanceNotifyStyle(rawValue: notifyStyleRaw) ?? .inlineBells
+        AttendanceNotifyStyle(rawValue: notifyStyleRaw) ?? .sheet
     }
 
     private var breakSupportUIVersion: BreakSupportUIVersion {
@@ -186,7 +186,7 @@ private struct AttendanceSettingsView: View {
     @AppStorage("settings.attendanceTwoIssuesCase") private var attendanceTwoIssuesCase = false
     @AppStorage("settings.showDirectReports") private var showDirectReports = true
     @AppStorage(AttendanceNotifyStyle.appStorageKey) private var notifyStyle =
-        AttendanceNotifyStyle.inlineBells.rawValue
+        AttendanceNotifyStyle.sheet.rawValue
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey

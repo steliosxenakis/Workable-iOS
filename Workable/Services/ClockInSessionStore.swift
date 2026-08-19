@@ -99,6 +99,21 @@ final class ClockInSessionStore: ObservableObject {
         )
     }
 
+    /// Update the on-break emoji without restarting the break timer (V15 label editing).
+    func updateBreakEmoji(_ emoji: String, breaksEnabled: Bool) {
+        guard isClockedIn, isOnBreak else { return }
+        let trimmed = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        breakEmoji = trimmed
+        persist(breaksEnabled: breaksEnabled)
+        ClockInLiveActivityManager.shared.update(
+            clockInDate: clockInDate ?? Date(),
+            isOnBreak: true,
+            breakStartDate: breakStartDate,
+            breaksEnabled: breaksEnabled
+        )
+    }
+
     func toggleBreak(breaksEnabled: Bool) {
         if isOnBreak {
             endBreak(breaksEnabled: breaksEnabled)

@@ -59,9 +59,23 @@
 		A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A5 /* SurveyWelcomeSheet.swift */; };
 		A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A7 /* SurveyQuestionView.swift */; };
 		A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A8 /* TextMessageDetailView.swift */; };
+		A100000000000000000000B1 /* AgentCommentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B0 /* AgentCommentDetailView.swift */; };
+		A100000000000000000000B3 /* AgentChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B2 /* AgentChatView.swift */; };
 		A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AB /* TimeOffTypeSheet.swift */; };
 		A100000000000000000000AC /* InboxModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AD /* InboxModels.swift */; };
 		A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AF /* TimeOffRequestDetailView.swift */; };
+
+		B10000000000000000000001 /* WorkableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* WorkableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10000000000000000000003 /* WorkableWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* WorkableWidgetsBundle.swift */; };
+		B10000000000000000000005 /* ClockInLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000006 /* ClockInLiveActivityWidget.swift */; };
+		B10000000000000000000007 /* ClockInActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* ClockInActivityAttributes.swift */; };
+		B10000000000000000000009 /* ClockInLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* ClockInLiveActivityIntents.swift */; };
+		B1000000000000000000000B /* ClockInActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* ClockInActivityAttributes.swift */; };
+		B1000000000000000000000C /* ClockInLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* ClockInLiveActivityIntents.swift */; };
+		B1000000000000000000000D /* ClockInSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000E /* ClockInSessionStore.swift */; };
+		B1000000000000000000000F /* ClockInLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* ClockInLiveActivityManager.swift */; };
+		B10000000000000000000021 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* DesignTokens.swift */; };
+		B10000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -118,13 +132,35 @@
 		A100000000000000000000A5 /* SurveyWelcomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyWelcomeSheet.swift; sourceTree = "<group>"; };
 		A100000000000000000000A7 /* SurveyQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyQuestionView.swift; sourceTree = "<group>"; };
 		A100000000000000000000A8 /* TextMessageDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextMessageDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000B0 /* AgentCommentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCommentDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000B2 /* AgentChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChatView.swift; sourceTree = "<group>"; };
 		A100000000000000000000AB /* TimeOffTypeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffTypeSheet.swift; sourceTree = "<group>"; };
 		A100000000000000000000AD /* InboxModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000AF /* TimeOffRequestDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffRequestDetailView.swift; sourceTree = "<group>"; };
+
+		B10000000000000000000002 /* WorkableWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000004 /* WorkableWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkableWidgetsBundle.swift; sourceTree = "<group>"; };
+		B10000000000000000000006 /* ClockInLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInLiveActivityWidget.swift; sourceTree = "<group>"; };
+		B10000000000000000000008 /* ClockInActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInActivityAttributes.swift; sourceTree = "<group>"; };
+		B1000000000000000000000A /* ClockInLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInLiveActivityIntents.swift; sourceTree = "<group>"; };
+		B1000000000000000000000E /* ClockInSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInSessionStore.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* ClockInLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInLiveActivityManager.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* Workable.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Workable.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000012 /* WorkableWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkableWidgets.entitlements; sourceTree = "<group>"; };
+		B10000000000000000000023 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B10000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000016 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		B10000000000000000000014 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -138,6 +174,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000018 /* Workable */,
+				B10000000000000000000015 /* WorkableWidgets */,
 				A10000000000000000000019 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -146,7 +183,10 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000002 /* WorkableApp.swift */,
+				B10000000000000000000011 /* Workable.entitlements */,
 				A1000000000000000000001B /* Models */,
+				B10000000000000000000016 /* Services */,
+				B10000000000000000000017 /* Shared */,
 				A1000000000000000000001C /* Theme */,
 				A1000000000000000000001D /* Views */,
 				A10000000000000000000014 /* Assets.xcassets */,
@@ -158,6 +198,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000015 /* Workable.app */,
+				B10000000000000000000002 /* WorkableWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -264,8 +305,41 @@
 				A10000000000000000000098 /* AgentStatusTimelineView.swift */,
 				A1000000000000000000009A /* AgentStatusCollapsibleCard.swift */,
 				A100000000000000000000A8 /* TextMessageDetailView.swift */,
+				A100000000000000000000B0 /* AgentCommentDetailView.swift */,
+				A100000000000000000000B2 /* AgentChatView.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+
+		B10000000000000000000015 /* WorkableWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000004 /* WorkableWidgetsBundle.swift */,
+				B10000000000000000000006 /* ClockInLiveActivityWidget.swift */,
+				B10000000000000000000023 /* Assets.xcassets */,
+				B10000000000000000000012 /* WorkableWidgets.entitlements */,
+				B10000000000000000000013 /* Info.plist */,
+			);
+			path = WorkableWidgets;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000016 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B1000000000000000000000E /* ClockInSessionStore.swift */,
+				B10000000000000000000010 /* ClockInLiveActivityManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000017 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000008 /* ClockInActivityAttributes.swift */,
+				B1000000000000000000000A /* ClockInLiveActivityIntents.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -278,15 +352,35 @@
 				A10000000000000000000021 /* Sources */,
 				A10000000000000000000016 /* Frameworks */,
 				A10000000000000000000022 /* Resources */,
+				B1000000000000000000001C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B1000000000000000000001D /* PBXTargetDependency */,
 			);
 			name = Workable;
 			productName = Workable;
 			productReference = A10000000000000000000015 /* Workable.app */;
 			productType = "com.apple.product-type.application";
+		};
+
+		B10000000000000000000018 /* WorkableWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B10000000000000000000019 /* Build configuration list for PBXNativeTarget "WorkableWidgets" */;
+			buildPhases = (
+				B1000000000000000000001A /* Sources */,
+				B10000000000000000000014 /* Frameworks */,
+				B1000000000000000000001B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WorkableWidgets;
+			productName = WorkableWidgets;
+			productReference = B10000000000000000000002 /* WorkableWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -299,6 +393,9 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					A1000000000000000000001F = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					B10000000000000000000018 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -317,9 +414,43 @@
 			projectRoot = "";
 			targets = (
 				A1000000000000000000001F /* Workable */,
+				B10000000000000000000018 /* WorkableWidgets */,
 			);
 		};
 /* End PBXProject section */
+
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B1000000000000000000001C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B10000000000000000000001 /* WorkableWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		B1000000000000000000001E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000023 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B10000000000000000000018;
+			remoteInfo = WorkableWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B1000000000000000000001D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B10000000000000000000018 /* WorkableWidgets */;
+			targetProxy = B1000000000000000000001E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A10000000000000000000022 /* Resources */ = {
@@ -327,6 +458,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000013 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1000000000000000000001B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000022 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -388,9 +527,27 @@
 				A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */,
 				A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */,
 				A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */,
+				A100000000000000000000B1 /* AgentCommentDetailView.swift in Sources */,
+				A100000000000000000000B3 /* AgentChatView.swift in Sources */,
 				A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */,
 				A100000000000000000000AC /* InboxModels.swift in Sources */,
 				A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */,
+				B1000000000000000000000B /* ClockInActivityAttributes.swift in Sources */,
+				B1000000000000000000000C /* ClockInLiveActivityIntents.swift in Sources */,
+				B1000000000000000000000D /* ClockInSessionStore.swift in Sources */,
+				B1000000000000000000000F /* ClockInLiveActivityManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1000000000000000000001A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000003 /* WorkableWidgetsBundle.swift in Sources */,
+				B10000000000000000000005 /* ClockInLiveActivityWidget.swift in Sources */,
+				B10000000000000000000007 /* ClockInActivityAttributes.swift in Sources */,
+				B10000000000000000000009 /* ClockInLiveActivityIntents.swift in Sources */,
+				B10000000000000000000021 /* DesignTokens.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -516,6 +673,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Workable/Workable.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -524,6 +682,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Workable;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -533,12 +693,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.workable.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
@@ -551,6 +714,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Workable/Workable.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -559,6 +723,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Workable;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -568,11 +734,83 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.workable.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+
+		B1000000000000000000001F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = WorkableWidgets/WorkableWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52CWM4V3RY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WorkableWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Workable;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.workable.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B10000000000000000000020 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = WorkableWidgets/WorkableWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 52CWM4V3RY;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WorkableWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Workable;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.workable.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -598,6 +836,16 @@
 			buildConfigurations = (
 				A10000000000000000000025 /* Debug */,
 				A10000000000000000000026 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		B10000000000000000000019 /* Build configuration list for PBXNativeTarget "WorkableWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B1000000000000000000001F /* Debug */,
+				B10000000000000000000020 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

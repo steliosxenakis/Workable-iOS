@@ -2,6 +2,8 @@ import SwiftUI
 
 struct CandidateCardView: View {
     let candidate: Candidate
+    /// List view shows “Sourced stage · Uploaded…”. Per-stage view shows only “Uploaded…”.
+    var showsStageInFooter: Bool = true
     var onAvatarTap: (() -> Void)? = nil
     var onCardTap: (() -> Void)? = nil
     
@@ -59,7 +61,7 @@ struct CandidateCardView: View {
                 .fill(AppColors.separator)
                 .frame(height: 1)
             
-            Text(candidate.stageInfo)
+            Text(footerText)
                 .font(AppFonts.footnote())
                 .foregroundColor(AppColors.fontSecondary)
                 .onTapGesture { onCardTap?() }
@@ -68,6 +70,10 @@ struct CandidateCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppColors.surface)
         .cornerRadius(16)
+    }
+
+    private var footerText: String {
+        showsStageInFooter ? candidate.stageInfo : candidate.uploadedLabel
     }
     
     private var cardAccessibilityLabel: String {
@@ -86,6 +92,11 @@ struct CandidateCardView: View {
             Text(candidate.source)
                 .font(AppFonts.subheadline())
                 .foregroundColor(AppColors.fontSecondary)
+            if candidate.agentIsReviewing || candidate.fitEvaluationInProgress {
+                Text(" · Reviewing...")
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+            }
         }
     }
 }

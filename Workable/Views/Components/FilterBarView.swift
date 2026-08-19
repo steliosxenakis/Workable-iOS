@@ -3,7 +3,7 @@ import SwiftUI
 enum CandidateSortOption: String, CaseIterable, Identifiable {
     case newestFirst = "Newest first"
     case oldestFirst = "Oldest first"
-    case aiStatusAndScore = "AI status & score"
+    case aiStatusAndScore = "Ready for review"
 
     var id: String { rawValue }
 }

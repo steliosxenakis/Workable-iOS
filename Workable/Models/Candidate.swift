@@ -50,4 +50,20 @@ struct Candidate: Identifiable, Equatable, Hashable {
         self.agentIsReviewing = agentIsReviewing
         self.fitEvaluationInProgress = fitEvaluationInProgress
     }
+
+    /// Stage name from `stageInfo`, e.g. `"Sourced stage · Uploaded 3 days ago"` → `"Sourced"`.
+    var pipelineStageName: String {
+        if let range = stageInfo.range(of: " stage", options: .caseInsensitive) {
+            return String(stageInfo[..<range.lowerBound])
+        }
+        return stageInfo
+    }
+
+    /// Upload fragment for per-stage footers, e.g. `"Uploaded 3 days ago"`.
+    var uploadedLabel: String {
+        if let range = stageInfo.range(of: "Uploaded ", options: .caseInsensitive) {
+            return String(stageInfo[range.lowerBound...])
+        }
+        return stageInfo
+    }
 }

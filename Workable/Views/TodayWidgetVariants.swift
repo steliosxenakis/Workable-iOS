@@ -286,6 +286,8 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
     case v13 = "V13 (Emoji)"
     /// Former V12.2 / V12.3 — On break uses tonal green “Back to work” button.
     case v14 = "V14 (Label Back to work)"
+    /// V14 controls + “On break” pill with an editable emoji inside the label.
+    case v15 = "V15 (Label with emoji)"
 
     var id: String { rawValue }
 
@@ -293,7 +295,7 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
     static let enabledAppStorageKey = "settings.breakSupportEnabled"
     /// Nested breaks between start/end on time-entry detail & edit (orthogonal to widget versions).
     static let nestedInTimeEntryAppStorageKey = "settings.breaksNestedInTimeEntry"
-    static let defaultVersion: BreakSupportUIVersion = .v14
+    static let defaultVersion: BreakSupportUIVersion = .v15
 
     static func resolved(from rawValue: String) -> BreakSupportUIVersion {
         if let match = BreakSupportUIVersion(rawValue: rawValue) { return match }
@@ -304,7 +306,8 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
         case "V12.2 (Label Back to work)", "V12.3": return .v14 // old “Back to work” label
         case "V13": return .v13
         case "V14": return .v14
-        default: return .v14
+        case "V15": return .v15
+        default: return .v15
         }
     }
 
@@ -340,6 +343,8 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
             return "Emoji — On break shows emoji beside the timer + resume only"
         case .v14:
             return "Label Back to work — On break uses a green tonal “Back to work” button"
+        case .v15:
+            return "Label with emoji — On break pill includes an editable emoji + Back to work"
         }
     }
 
@@ -354,9 +359,14 @@ enum BreakSupportUIVersion: String, CaseIterable, Identifiable {
     /// Home composers that pick an emoji — also show it on time-entry detail/edit.
     var showsBreakEmoji: Bool {
         switch self {
-        case .v5, .v6, .v7, .v8, .v10, .v11, .v13: return true
+        case .v5, .v6, .v7, .v8, .v10, .v11, .v13, .v15: return true
         default: return false
         }
+    }
+
+    /// On-break status pill includes a tappable emoji (home dashboard + calendar FAB).
+    var usesEditableBreakEmojiLabel: Bool {
+        self == .v15
     }
 }
 
@@ -456,7 +466,7 @@ struct BreakTypeOption: Identifiable, Hashable {
 }
 
 private struct AttendanceNotifyStyleEnvironmentKey: EnvironmentKey {
-    static let defaultValue: AttendanceNotifyStyle = .inlineBells
+    static let defaultValue: AttendanceNotifyStyle = .sheet
 }
 
 private struct AttendanceNoIssuesEnvironmentKey: EnvironmentKey {
@@ -476,7 +486,7 @@ private struct BreakSupportEnabledEnvironmentKey: EnvironmentKey {
 }
 
 private struct BreakSupportUIVersionEnvironmentKey: EnvironmentKey {
-    static let defaultValue: BreakSupportUIVersion = .v14
+    static let defaultValue: BreakSupportUIVersion = .v15
 }
 
 private struct BreaksNestedInTimeEntryEnvironmentKey: EnvironmentKey {
@@ -1269,7 +1279,7 @@ struct TodayWidgetV1: View {
                     Text(data.onLeaveTitle)
                         .font(AppFonts.subheadline())
                         .tracking(-0.24)
-                        .foregroundColor(AppColors.fontDefault)
+                        .foregroundColor(AppColors.fontSecondary)
                     Spacer()
                     AvatarStack(names: data.onLeaveAvatars, overflow: data.onLeaveOverflow)
                 }
@@ -1352,7 +1362,7 @@ struct TodayWidgetV2: View {
                     Text(data.onLeaveTitle)
                         .font(AppFonts.subheadline())
                         .tracking(-0.24)
-                        .foregroundColor(AppColors.fontDefault)
+                        .foregroundColor(AppColors.fontSecondary)
                     Spacer()
                     AvatarStack(names: data.onLeaveAvatars, overflow: data.onLeaveOverflow)
                 }
@@ -1409,7 +1419,7 @@ private struct TodayV4OnLeaveCard: View {
                 Text(title)
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(AppColors.fontSecondary)
 
                 HStack(spacing: 2) {
                     AvatarStack(names: avatars, overflow: overflow)
@@ -1437,7 +1447,7 @@ private struct TodayV4AttendanceCard: View {
                 Text("Attendance")
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(AppColors.fontSecondary)
 
                 TodayAttendanceStatusPill(issueCount: issueCount, compact: true)
             }
@@ -1533,7 +1543,7 @@ private struct TodayV6AttendanceChip: View {
                 Text(label)
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(AppColors.fontSecondary)
 
                 TodayAttendanceStatusPill(issueCount: issueCount)
             }
@@ -1562,7 +1572,7 @@ private struct TodayV6OnLeaveChip: View {
                 Text(label)
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(AppColors.fontSecondary)
 
                 HStack(spacing: 2) {
                     AvatarStack(names: avatars, overflow: overflow)
@@ -1611,7 +1621,7 @@ struct TodayWidgetClassic: View {
             HStack {
                 Text(data.onLeaveTitle)
                     .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(AppColors.fontSecondary)
                     .tracking(-0.24)
                 Spacer()
                 AvatarStack(names: data.onLeaveAvatars, overflow: data.onLeaveOverflow)
