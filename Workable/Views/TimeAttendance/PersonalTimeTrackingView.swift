@@ -897,22 +897,19 @@ struct TimeTrackingHomeCard: View {
     @ViewBuilder
     private var onBreakTitlePill: some View {
         if breakSupportUIVersion.usesEditableBreakEmojiLabel {
-            Button {
-                beginEditingBreakEmoji()
-            } label: {
-                HStack(spacing: 4) {
-                    EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: 14)
-                    Text("On break")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppColors.fontDefault)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(AppColors.background)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            HStack(spacing: 4) {
+                EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: 14)
+                Text("On break")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(AppColors.background)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .onTapGesture { beginEditingBreakEmoji() }
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel("On break, edit emoji")
         } else {
             Text("On break")
@@ -926,13 +923,11 @@ struct TimeTrackingHomeCard: View {
     }
 
     private func editableBreakEmojiButton(size: CGFloat) -> some View {
-        Button {
-            beginEditingBreakEmoji()
-        } label: {
-            EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: size)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Edit break emoji")
+        EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: size)
+            .contentShape(Rectangle())
+            .onTapGesture { beginEditingBreakEmoji() }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Edit break emoji")
     }
 
     private func beginEditingBreakEmoji() {
@@ -1327,16 +1322,16 @@ struct TimeTrackingHomeCard: View {
                     EmojiText(emoji: v7SelectedType.emoji, size: 18)
                     Text("Start \(v5SelectedMinutes)m \(v7SelectedType.title.lowercased()) break")
                         .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.surface)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
-                .foregroundColor(AppColors.surface)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(AppColors.fontDefault)
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(UntintedPlainButtonStyle())
             .accessibilityLabel("Start break")
         }
         .padding(.horizontal, 16)
@@ -1387,7 +1382,7 @@ struct TimeTrackingHomeCard: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(UntintedPlainButtonStyle())
                     .accessibilityLabel("\(preset.title), \(preset.durationLabel)")
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
@@ -1405,16 +1400,16 @@ struct TimeTrackingHomeCard: View {
                     EmojiText(emoji: v8SelectedPreset.emoji, size: 18)
                     Text("Start \(v8SelectedPreset.title.lowercased()) break")
                         .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.surface)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
-                .foregroundColor(AppColors.surface)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(AppColors.fontDefault)
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(UntintedPlainButtonStyle())
             .accessibilityLabel("Start break")
         }
         .padding(.horizontal, 16)
@@ -1538,16 +1533,14 @@ struct TimeTrackingHomeCard: View {
                 .foregroundColor(AppColors.fontSecondary)
                 .fixedSize()
 
-            Button {
-                isEmojiKeyboardFocused = true
-            } label: {
-                EmojiText(emoji: v5SelectedEmoji, size: compact ? 18 : 20)
-                    .frame(width: compact ? 32 : 36, height: compact ? 32 : 36)
-                    .background(AppColors.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Choose emoji")
+            EmojiText(emoji: v5SelectedEmoji, size: compact ? 18 : 20)
+                .frame(width: compact ? 32 : 36, height: compact ? 32 : 36)
+                .background(AppColors.background)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .onTapGesture { isEmojiKeyboardFocused = true }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Choose emoji")
 
             Text("for")
                 .font(AppFonts.subheadline())
@@ -1776,21 +1769,19 @@ struct TimeTrackingHomeCard: View {
                 .foregroundColor(AppColors.fontSecondary)
                 .fixedSize()
 
-            Button {
-                isEmojiKeyboardFocused = true
-            } label: {
-                HStack(spacing: 4) {
-                    EmojiText(emoji: v5SelectedEmoji, size: compact ? 18 : 20)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(AppColors.fontSecondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(AppColors.background)
-                .clipShape(Capsule())
+            HStack(spacing: 4) {
+                EmojiText(emoji: v5SelectedEmoji, size: compact ? 18 : 20)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(AppColors.fontSecondary)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(AppColors.background)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .onTapGesture { isEmojiKeyboardFocused = true }
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel("Choose emoji")
 
             Text("break for")
@@ -1866,7 +1857,7 @@ struct TimeTrackingHomeCard: View {
                         fill: AppColors.warningDefault
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(UntintedPlainButtonStyle())
                 .accessibilityLabel("Resume")
             }
 
@@ -1879,16 +1870,14 @@ struct TimeTrackingHomeCard: View {
         VStack(alignment: .leading, spacing: 14) {
             // Emoji + duration chips (Slack “status” + “Clear after…” vibe).
             HStack(spacing: 12) {
-                Button {
-                    isEmojiKeyboardFocused = true
-                } label: {
-                    EmojiText(emoji: v5SelectedEmoji, size: 28)
-                        .frame(width: 44, height: 44)
-                        .background(AppColors.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Choose emoji")
+                EmojiText(emoji: v5SelectedEmoji, size: 28)
+                    .frame(width: 44, height: 44)
+                    .background(AppColors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .onTapGesture { isEmojiKeyboardFocused = true }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Choose emoji")
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Break for…")
@@ -1964,7 +1953,7 @@ struct TimeTrackingHomeCard: View {
                         .padding(.vertical, 12)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(UntintedPlainButtonStyle())
 
                     if preset.id != StatusBreakPreset.suggestions.last?.id {
                         Divider()
@@ -2927,17 +2916,17 @@ struct EditTimeEntryView: View {
                 .accessibilityLabel("Break \(number)")
 
             if showsBreakEmoji {
-                Button {
-                    emojiEditBreakId = item.wrappedValue.id
-                    isBreakEmojiKeyboardFocused = true
-                } label: {
-                    EmojiText(emoji: item.wrappedValue.emoji ?? "☕", size: 20)
-                        .frame(width: 36, height: 36)
-                        .background(AppColors.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Choose break emoji")
+                EmojiText(emoji: item.wrappedValue.emoji ?? "☕", size: 20)
+                    .frame(width: 36, height: 36)
+                    .background(AppColors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .onTapGesture {
+                        emojiEditBreakId = item.wrappedValue.id
+                        isBreakEmojiKeyboardFocused = true
+                    }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Choose break emoji")
             }
 
             DatePicker("", selection: item.start, displayedComponents: .hourAndMinute)

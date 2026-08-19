@@ -568,25 +568,24 @@ struct TimeTrackingWeekCalendarContent: View {
     @ViewBuilder
     private var onBreakStatusLabel: some View {
         if breakSupportUIVersion.usesEditableBreakEmojiLabel {
-            Button {
+            HStack(spacing: 4) {
+                EmojiText(emoji: session.breakEmoji ?? breakEmojiDraft, size: 14)
+                Text("On break")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.fontDefault)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(AppColors.background)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .onTapGesture {
                 if let emoji = session.breakEmoji, !emoji.isEmpty {
                     breakEmojiDraft = emoji
                 }
                 isEmojiKeyboardFocused = true
-            } label: {
-                HStack(spacing: 4) {
-                    EmojiText(emoji: session.breakEmoji ?? breakEmojiDraft, size: 14)
-                    Text("On break")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppColors.fontDefault)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
-                .background(AppColors.background)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .accessibilityAddTraits(.isButton)
             .accessibilityLabel("On break, edit emoji")
         } else {
             Text("On break")

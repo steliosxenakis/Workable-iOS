@@ -3,7 +3,8 @@ import UIKit
 
 final class CandidatesBrowserViewModel: ObservableObject {
     @Published var searchText = ""
-    @Published var isListView = true
+    /// `false` = per-stage (Figma timeline), `true` = flat list.
+    @Published var isListView = false
 
     /// Shown in the results header and filters (e.g. from the job row on Home).
     let resultsCount: Int
@@ -13,7 +14,7 @@ final class CandidatesBrowserViewModel: ObservableObject {
     init(
         jobTitle: String = "Software Engineer",
         jobSubtitle: String = "Engineering · Hybrid · Amsterdam / London / Prag...",
-        resultsCount: Int = 14
+        resultsCount: Int = 136
     ) {
         self.jobTitle = jobTitle
         self.jobSubtitle = jobSubtitle
@@ -33,29 +34,39 @@ final class CandidatesBrowserViewModel: ObservableObject {
 
     private static let softwareEngineerCandidates: [Candidate] = [
         Candidate(
+            name: "Tyler Anderson",
+            role: "Software Engineer at Workable",
+            location: "Athens, Attiki, Greece",
+            source: "Workable Agent",
+            matchScore: 60,
+            tags: nil,
+            stageInfo: "Applied stage · Uploaded 2 days ago",
+            avatarName: "avatar-tyler"
+        ),
+        Candidate(
             name: "Emma Clark",
-            role: "Senior Software Engineer, Front-end",
+            role: "Senior Software Engineer",
             location: nil,
             source: "Workable Agent",
             matchScore: 70,
             tags: nil,
             stageInfo: "Sourced stage · Uploaded 3 days ago",
-            avatarName: "avatar-emma"
+            avatarName: "avatar-emma",
+            agentIsReviewing: true
         ),
         Candidate(
             name: "Lucy Anderson",
-            role: "Software Engineer",
+            role: "Front-end Developer",
             location: "Athens, Attiki, Greece",
             source: "Workable Agent",
             matchScore: 50,
             tags: "#senior #promising",
             stageInfo: "Sourced stage · Uploaded 4 days ago",
-            avatarName: "avatar-lucy",
-            agentIsReviewing: true
+            avatarName: "avatar-lucy"
         ),
         Candidate(
             name: "Abdi Hassan",
-            role: "Senior Software Engineer, Full-stack",
+            role: "Product Engineer at Tribal",
             location: "New York, New York, United States",
             source: "Workable Agent",
             matchScore: 10,
@@ -64,23 +75,13 @@ final class CandidatesBrowserViewModel: ObservableObject {
             avatarName: "avatar-abdi"
         ),
         Candidate(
-            name: "Tyler Anderson",
-            role: "Staff Software Engineer",
-            location: "Athens, Attiki, Greece",
-            source: "Workable Agent",
-            matchScore: 60,
-            tags: nil,
-            stageInfo: "Sourced stage · Uploaded 2 days ago",
-            avatarName: "avatar-tyler"
-        ),
-        Candidate(
             name: "Michael Thompson",
             role: "Software Engineer, Platform & Reliability",
             location: "London, United Kingdom",
             source: "Workable Agent",
             matchScore: 85,
             tags: nil,
-            stageInfo: "Sourced stage · Uploaded 1 day ago",
+            stageInfo: "Interview stage · Uploaded 1 day ago",
             avatarName: "avatar-michael"
         ),
         Candidate(
@@ -88,8 +89,9 @@ final class CandidatesBrowserViewModel: ObservableObject {
             role: "Software Engineer",
             location: "Athens, Attiki, Greece",
             source: "Workable Agent",
+            matchScore: 78,
             tags: "#new profile",
-            stageInfo: "Sourced stage · Uploaded 6 days ago",
+            stageInfo: "Interview stage · Uploaded 6 days ago",
             avatarName: "avatar-lucy"
         ),
         Candidate(
@@ -99,9 +101,19 @@ final class CandidatesBrowserViewModel: ObservableObject {
             source: "Workable Agent",
             matchScore: 62,
             tags: "#evaluation",
-            stageInfo: "Sourced stage · Uploaded 7 days ago",
+            stageInfo: "Hired stage · Uploaded 7 days ago",
             avatarName: "avatar-tyler",
             fitEvaluationInProgress: true
+        ),
+        Candidate(
+            name: "Priya Shah",
+            role: "iOS Engineer",
+            location: "Remote",
+            source: "Workable Agent",
+            matchScore: 91,
+            tags: "#offer accepted",
+            stageInfo: "Hired stage · Uploaded 2 weeks ago",
+            avatarName: "avatar-priya"
         )
     ]
 
@@ -143,7 +155,7 @@ final class CandidatesBrowserViewModel: ObservableObject {
             source: "Workable Agent",
             matchScore: 88,
             tags: nil,
-            stageInfo: "Phone screen · Uploaded 3 days ago",
+            stageInfo: "Phone Screen stage · Uploaded 3 days ago",
             avatarName: "avatar-michael"
         )
     ]
@@ -267,22 +279,11 @@ struct CandidatesBrowserView: View {
                         )
                         .padding(.horizontal, 16)
 
-                        VStack(spacing: 8) {
-                            ForEach(sortedCandidates) { candidate in
-                                CandidateCardView(
-                                    candidate: candidate,
-                                    onAvatarTap: candidate.matchScore != nil
-                                        ? { presentedSheet = .candidateFit(candidate) }
-                                        : nil,
-                                    onCardTap: {
-                                        profileInitialTab = 0
-                                        profileCandidate = candidate
-                                    }
-                                )
-                            }
+                        if viewModel.isListView {
+                            candidateListSection(candidates: sortedCandidates, showsStageInFooter: true)
+                        } else {
+                            perStageSections
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 100)
                     }
                     .padding(.top, 8)
                 }
@@ -336,6 +337,76 @@ struct CandidatesBrowserView: View {
                     agentStatusSheetHeight = 380
                 }
             }
+    }
+
+    private var perStageSections: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(candidatesGroupedByStage, id: \.stage) { group in
+                VStack(alignment: .leading, spacing: 8) {
+                    stageSectionHeader(title: group.stage, count: group.candidates.count)
+                    candidateListSection(
+                        candidates: group.candidates,
+                        showsStageInFooter: false
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 100)
+    }
+
+    private func stageSectionHeader(title: String, count: Int) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(AppFonts.subheadline())
+                .tracking(-0.24)
+                .foregroundColor(AppColors.volcanicAsh)
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 4) {
+                Image(systemName: "person.fill")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(Color(hex: "88929E"))
+                Text("\(count)")
+                    .font(.system(size: 13, weight: .regular))
+                    .tracking(-0.08)
+                    .foregroundColor(Color(hex: "88929E"))
+            }
+        }
+    }
+
+    private func candidateListSection(candidates: [Candidate], showsStageInFooter: Bool) -> some View {
+        VStack(spacing: 8) {
+            ForEach(candidates) { candidate in
+                CandidateCardView(
+                    candidate: candidate,
+                    showsStageInFooter: showsStageInFooter,
+                    onAvatarTap: candidate.matchScore != nil
+                        ? { presentedSheet = .candidateFit(candidate) }
+                        : nil,
+                    onCardTap: {
+                        profileInitialTab = 0
+                        profileCandidate = candidate
+                    }
+                )
+            }
+        }
+        .padding(.horizontal, showsStageInFooter ? 16 : 0)
+        .padding(.bottom, showsStageInFooter ? 100 : 0)
+    }
+
+    private var candidatesGroupedByStage: [(stage: String, candidates: [Candidate])] {
+        let grouped = Dictionary(grouping: sortedCandidates, by: \.pipelineStageName)
+        let preferredOrder = ["Applied", "Sourced", "Phone Screen", "Interview", "Offer", "Hired"]
+        return grouped.keys
+            .sorted { lhs, rhs in
+                let li = preferredOrder.firstIndex(of: lhs) ?? preferredOrder.count
+                let ri = preferredOrder.firstIndex(of: rhs) ?? preferredOrder.count
+                if li != ri { return li < ri }
+                return lhs < rhs
+            }
+            .map { stage in (stage: stage, candidates: grouped[stage] ?? []) }
     }
 
     private var sortedCandidates: [Candidate] {

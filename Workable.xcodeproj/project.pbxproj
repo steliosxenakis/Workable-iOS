@@ -59,6 +59,8 @@
 		A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A5 /* SurveyWelcomeSheet.swift */; };
 		A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A7 /* SurveyQuestionView.swift */; };
 		A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A8 /* TextMessageDetailView.swift */; };
+		A100000000000000000000B1 /* AgentCommentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B0 /* AgentCommentDetailView.swift */; };
+		A100000000000000000000B3 /* AgentChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B2 /* AgentChatView.swift */; };
 		A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AB /* TimeOffTypeSheet.swift */; };
 		A100000000000000000000AC /* InboxModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AD /* InboxModels.swift */; };
 		A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AF /* TimeOffRequestDetailView.swift */; };
@@ -130,6 +132,8 @@
 		A100000000000000000000A5 /* SurveyWelcomeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyWelcomeSheet.swift; sourceTree = "<group>"; };
 		A100000000000000000000A7 /* SurveyQuestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyQuestionView.swift; sourceTree = "<group>"; };
 		A100000000000000000000A8 /* TextMessageDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextMessageDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000B0 /* AgentCommentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCommentDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000B2 /* AgentChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentChatView.swift; sourceTree = "<group>"; };
 		A100000000000000000000AB /* TimeOffTypeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffTypeSheet.swift; sourceTree = "<group>"; };
 		A100000000000000000000AD /* InboxModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000AF /* TimeOffRequestDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffRequestDetailView.swift; sourceTree = "<group>"; };
@@ -301,6 +305,8 @@
 				A10000000000000000000098 /* AgentStatusTimelineView.swift */,
 				A1000000000000000000009A /* AgentStatusCollapsibleCard.swift */,
 				A100000000000000000000A8 /* TextMessageDetailView.swift */,
+				A100000000000000000000B0 /* AgentCommentDetailView.swift */,
+				A100000000000000000000B2 /* AgentChatView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -521,6 +527,8 @@
 				A100000000000000000000A4 /* SurveyWelcomeSheet.swift in Sources */,
 				A100000000000000000000A6 /* SurveyQuestionView.swift in Sources */,
 				A100000000000000000000A9 /* TextMessageDetailView.swift in Sources */,
+				A100000000000000000000B1 /* AgentCommentDetailView.swift in Sources */,
+				A100000000000000000000B3 /* AgentChatView.swift in Sources */,
 				A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */,
 				A100000000000000000000AC /* InboxModels.swift in Sources */,
 				A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */,

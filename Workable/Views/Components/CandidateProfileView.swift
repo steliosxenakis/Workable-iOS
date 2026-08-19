@@ -117,6 +117,7 @@ struct CandidateProfileView: View {
         let time: String
         let actorInitials: String
         var actorAvatar: String? = nil
+        var usesAIAgentAvatar: Bool = false
         var deliveryStatus: String? = nil
         var deliveryFailed: Bool = false
         var previewText: String? = nil
@@ -126,11 +127,21 @@ struct CandidateProfileView: View {
 
     @State private var showTextMessageTimeline = false
     @State private var showTextMessageDetail = false
+    @State private var showAgentCommentDetail = false
     @State private var sentMessageText = ""
     @State private var showWhatsAppNotAvailable = false
 
     private var profileTimelineItems: [ProfileTimelineItem] {
         var items: [ProfileTimelineItem] = []
+
+        items.append(ProfileTimelineItem(
+            id: "agent-comment",
+            title: "Workable Agent added a comment",
+            time: "just now",
+            actorInitials: "AI",
+            usesAIAgentAvatar: true,
+            previewText: "The chat was terminated as “Completed”. The candidate provided a salary expectation of 130k, and indicated they had no further..."
+        ))
 
         if candidate.name == "Tyler Anderson" {
             items.append(ProfileTimelineItem(
@@ -318,6 +329,13 @@ struct CandidateProfileView: View {
                 deliveryFailed: candidate.name == "Tyler Anderson" || candidate.name == "Abdi Hassan",
                 failedReason: candidate.name == "Abdi Hassan" ? "You have reached the limit of conversations with this candidate." : nil,
                 sentViaWhatsApp: candidate.name == "Abdi Hassan" || candidate.name == "Tyler Anderson" || (whatsAppEnabled && candidate.name == "Emma Clark")
+            )
+        }
+        .navigationDestination(isPresented: $showAgentCommentDetail) {
+            AgentCommentDetailView(
+                candidateName: candidate.name,
+                candidateRole: candidate.role,
+                candidateAvatar: candidate.avatarName ?? "avatar-emma"
             )
         }
         .alert("WhatsApp not available", isPresented: $showWhatsAppNotAvailable) {
@@ -671,6 +689,11 @@ struct CandidateProfileView: View {
                         profileTimelineRow(item: item)
                     }
                     .buttonStyle(.plain)
+                } else if item.id == "agent-comment" {
+                    Button { showAgentCommentDetail = true } label: {
+                        profileTimelineRow(item: item)
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     profileTimelineRow(item: item)
                 }
@@ -731,7 +754,13 @@ struct CandidateProfileView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if let avatar = item.actorAvatar {
+                    if item.usesAIAgentAvatar {
+                        Image("icon-ai-agent")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                    } else if let avatar = item.actorAvatar {
                         Image(avatar)
                             .resizable()
                             .scaledToFill()

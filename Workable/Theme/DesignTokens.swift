@@ -137,52 +137,76 @@ enum AppFonts {
 
 // MARK: - Emoji text
 
-/// Renders emoji as text via UIKit’s font cascade (more reliable than SwiftUI
-/// `Text` + a hard-coded “Apple Color Emoji” name, which often fails on Simulator).
-/// Do not apply `.foregroundColor` / font weight to emoji — that produces tofu.
+/// Renders color emoji as a bitmap so SwiftUI `Button` / `foregroundStyle` / `Menu`
+/// tint cannot collapse glyphs to “?” tofu.
 struct EmojiText: View {
     let emoji: String
     var size: CGFloat = 24
 
     var body: some View {
-        EmojiLabel(emoji: emoji, fontSize: size)
-            .frame(width: size + 4, height: size + 4)
-            .accessibilityLabel(emoji)
+        let resolved = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+        let glyph = resolved.isEmpty ? "☕" : resolved
+        let side = size + 4
+        Image(uiImage: EmojiImageCache.image(for: glyph, pointSize: size))
+            .renderingMode(.original)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: side, height: side)
+            .fixedSize()
+            .accessibilityLabel(glyph)
     }
 }
 
-private struct EmojiLabel: UIViewRepresentable {
-    let emoji: String
-    var fontSize: CGFloat
+/// Rasterizes Apple Color Emoji once per (glyph, size) so tint never reaches text layout.
+enum EmojiImageCache {
+    private static let cache = NSCache<NSString, UIImage>()
 
-    func makeUIView(context: Context) -> UILabel {
+    static func image(for emoji: String, pointSize: CGFloat) -> UIImage {
+        let key = "\(emoji)|\(Int(pointSize * 100))" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+
+        // Snapshot a UILabel — more reliable than NSString.draw with AppleColorEmoji,
+        // which can produce blank/“?” glyphs under SwiftUI tint environments.
         let label = UILabel()
+        label.text = emoji
+        label.font = colorEmojiFont(ofSize: pointSize)
         label.textAlignment = .center
         label.backgroundColor = .clear
         label.numberOfLines = 1
-        label.setContentHuggingPriority(.required, for: .horizontal)
-        label.setContentHuggingPriority(.required, for: .vertical)
-        label.setContentCompressionResistancePriority(.required, for: .horizontal)
-        label.setContentCompressionResistancePriority(.required, for: .vertical)
-        apply(to: label)
-        return label
-    }
+        label.sizeToFit()
 
-    func updateUIView(_ label: UILabel, context: Context) {
-        apply(to: label)
-    }
+        let canvas = CGSize(
+            width: max(ceil(label.bounds.width), ceil(pointSize) + 2),
+            height: max(ceil(label.bounds.height), ceil(pointSize) + 2)
+        )
+        label.bounds = CGRect(origin: .zero, size: canvas)
 
-    private func apply(to label: UILabel) {
-        label.text = emoji
-        // Prefer the color-emoji face when present; otherwise system font + cascade.
-        if let emojiFont = UIFont(name: "Apple Color Emoji", size: fontSize)
-            ?? UIFont(name: "AppleColorEmoji", size: fontSize) {
-            label.font = emojiFont
-        } else {
-            label.font = .systemFont(ofSize: fontSize)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = UITraitCollection.current.displayScale
+        let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
+        let image = renderer.image { context in
+            label.layer.render(in: context.cgContext)
         }
-        // Never tint — color emoji bitmaps ignore / break under textColor overrides.
-        label.textColor = .label
+
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
+    static func colorEmojiFont(ofSize pointSize: CGFloat) -> UIFont {
+        // Prefer the system font: Core Text substitutes Apple Color Emoji at a
+        // supported strike size. Instantiating "AppleColorEmoji" directly at
+        // arbitrary point sizes often yields blank/“?” tofu glyphs.
+        .systemFont(ofSize: pointSize)
+    }
+}
+
+/// Button style that does not apply a foreground/tint to its label (keeps color emoji).
+struct UntintedPlainButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.72 : 1)
     }
 }
 
@@ -200,9 +224,7 @@ struct EmojiKeyboardField: UIViewRepresentable {
         let field = EmojiPreferringTextField()
         field.delegate = context.coordinator
         field.textAlignment = .center
-        field.font = UIFont(name: "Apple Color Emoji", size: 28)
-            ?? UIFont(name: "AppleColorEmoji", size: 28)
-            ?? .systemFont(ofSize: 28)
+        field.font = EmojiImageCache.colorEmojiFont(ofSize: 28)
         field.backgroundColor = .clear
         field.tintColor = .clear
         field.autocorrectionType = .no
@@ -252,7 +274,8 @@ struct EmojiKeyboardField: UIViewRepresentable {
             replacementString string: String
         ) -> Bool {
             guard !string.isEmpty else { return true }
-            if let picked = string.firstEmojiScalarCluster {
+            // Prefer first grapheme cluster from the emoji keyboard (may include ZWJ sequences).
+            if let picked = string.firstEmojiScalarCluster ?? string.first.map({ String($0) }) {
                 parent.emoji = picked
                 parent.onEmojiPicked?(picked)
                 textField.text = picked
@@ -296,7 +319,10 @@ private extension String {
 
     var containsEmoji: Bool {
         unicodeScalars.contains { scalar in
-            scalar.properties.isEmoji && (scalar.value > 0x2F || scalar.properties.isEmojiPresentation)
+            scalar.properties.isEmoji
+                || scalar.properties.isEmojiPresentation
+                || scalar.properties.isEmojiModifier
+                || scalar.properties.isEmojiModifierBase
         }
     }
 }

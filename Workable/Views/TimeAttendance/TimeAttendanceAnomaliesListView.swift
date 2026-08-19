@@ -53,7 +53,7 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var selectedForNotification: Set<UUID> = []
     @State private var filtersBeforeFab: Set<AnomalyFilterCategory>?
     @State private var showsReminderToast = false
-    @State private var lastReminderSentCount = 0
+    @State private var reminderToastMessage = "Notification sent."
     @State private var showsResendReminderAlert = false
     @State private var pendingReminderTargets: Set<UUID> = []
     @State private var showsNotifySheet = false
@@ -63,7 +63,7 @@ struct TimeAttendanceAnomaliesListView: View {
     ]
 
     /// Grabber + header + 3 toggle rows + bottom padding — hugs content (not a full/medium page).
-    private static let notifySheetDetentHeight: CGFloat = 268
+    private static let notifySheetDetentHeight: CGFloat = 360
 
     private var tabs: [String] {
         switch attendanceUIVersion {
@@ -171,7 +171,10 @@ struct TimeAttendanceAnomaliesListView: View {
         }
     }
 
-    private func sendFilterReminders(to targets: Set<UUID>) {
+    private func sendFilterReminders(
+        to targets: Set<UUID>,
+        toastMessage: String = "Notification sent."
+    ) {
         guard !targets.isEmpty else { return }
         let now = Date()
         for id in targets {
@@ -187,7 +190,7 @@ struct TimeAttendanceAnomaliesListView: View {
             selectedFilters.removeAll()
             filtersBeforeFab = nil
         }
-        lastReminderSentCount = targets.count
+        reminderToastMessage = toastMessage
         withAnimation(.easeInOut(duration: 0.2)) {
             showsReminderToast = true
         }
@@ -417,7 +420,6 @@ struct TimeAttendanceAnomaliesListView: View {
             NotifyEmployeesSheet(
                 filterCounts: filterCounts,
                 targets: { notifyTargets(for: $0) },
-                onCancel: { showsNotifySheet = false },
                 onConfirm: { targets in
                     showsNotifySheet = false
                     attemptSendReminders(to: targets)
@@ -883,7 +885,8 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 
     private var reminderSentToast: some View {
-        Text(reminderSentToastCopy)
+        // Figma 1801:225159 / 1801:225355 / 1801:225356
+        Text(reminderToastMessage)
             .font(AppFonts.subheadline())
             .tracking(-0.24)
             .foregroundColor(AppColors.surface)
@@ -892,12 +895,6 @@ struct TimeAttendanceAnomaliesListView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .allowsHitTesting(false)
-    }
-
-    private var reminderSentToastCopy: String {
-        let count = lastReminderSentCount
-        let noun = count == 1 ? "employee" : "employees"
-        return "Notifications sent to \(count) \(noun)"
     }
 
     /// Figma 1392-36602 — shown when Notify all includes already-notified employees.
@@ -934,7 +931,11 @@ struct TimeAttendanceAnomaliesListView: View {
 
                 VStack(spacing: 10) {
                     Button {
-                        sendFilterReminders(to: pendingReminderTargets)
+                        // Figma 1801:225355
+                        sendFilterReminders(
+                            to: pendingReminderTargets,
+                            toastMessage: "Notification sent again to all employees."
+                        )
                     } label: {
                         Text("Send again to all")
                             .font(.system(size: 17, weight: .medium))
@@ -948,8 +949,12 @@ struct TimeAttendanceAnomaliesListView: View {
                     .buttonStyle(.plain)
 
                     Button {
+                        // Figma 1801:225356
                         let onlyNew = pendingReminderTargets.subtracting(notifiedEmployees)
-                        sendFilterReminders(to: onlyNew)
+                        sendFilterReminders(
+                            to: onlyNew,
+                            toastMessage: "Notification sent only to new employees."
+                        )
                     } label: {
                         Text("Send only to new")
                             .font(.system(size: 17, weight: .medium))
@@ -1286,9 +1291,9 @@ struct TimeAttendanceAnomaliesListView: View {
     }
 }
 
-// MARK: - Notify employees sheet (Figma 1705:148411)
+// MARK: - Notify employees sheet (Figma 1801:228308 / CTA 2543:25993)
 
-/// Owns toggle state so the confirm checkmark is enabled on first presentation.
+/// Owns toggle state so the confirm button is enabled on first presentation.
 private struct NotifyEmployeesSheet: View {
     private static let categoryOrder: [AnomalyFilterCategory] = [
         .noClockInNorOut, .exceededWorkSchedule, .noClockIn
@@ -1296,55 +1301,33 @@ private struct NotifyEmployeesSheet: View {
 
     let filterCounts: [AnomalyFilterCategory: Int]
     let targets: (Set<AnomalyFilterCategory>) -> Set<UUID>
-    let onCancel: () -> Void
     let onConfirm: (Set<UUID>) -> Void
 
     /// Seeded on init — avoids empty parent `@State` being captured when the sheet first opens.
     @State private var enabledCategories: Set<AnomalyFilterCategory> = Set(categoryOrder)
 
-    private var canConfirm: Bool { !enabledCategories.isEmpty }
+    private var selectedTargets: Set<UUID> { targets(enabledCategories) }
+    private var selectedCount: Int { selectedTargets.count }
+    private var canConfirm: Bool { !enabledCategories.isEmpty && selectedCount > 0 }
+
+    private var notifyButtonTitle: String {
+        let noun = selectedCount == 1 ? "employee" : "employees"
+        return "Notify \(selectedCount) \(noun)"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                GlassSymbolButton(
-                    systemName: "xmark",
-                    foregroundColor: Color(hex: "727272"),
-                    accessibilityLabel: "Cancel",
-                    action: onCancel
-                )
-
-                Spacer(minLength: 8)
-
-                Text("Notify employees with...")
-                    .font(.system(size: 17, weight: .semibold))
-                    .tracking(-0.43)
-                    .foregroundColor(AppColors.fontDefault)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                Spacer(minLength: 8)
-
-                Button {
-                    guard canConfirm else { return }
-                    let selected = targets(enabledCategories)
-                    guard !selected.isEmpty else { return }
-                    onConfirm(selected)
-                } label: {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
-                        .background(canConfirm ? AppColors.primaryDark : AppColors.primaryDark.opacity(0.35))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!canConfirm)
-                .accessibilityLabel("Send notifications")
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
+            Text("Notify employees with...")
+                .font(.system(size: 17, weight: .semibold))
+                .tracking(-0.43)
+                .foregroundColor(AppColors.fontDefault)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 16)
+                .padding(.top, 24)
+                .padding(.bottom, 12)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 8) {
                 ForEach(Self.categoryOrder, id: \.self) { category in
@@ -1377,10 +1360,30 @@ private struct NotifyEmployeesSheet: View {
                 }
             }
             .padding(.horizontal, 11)
-            .padding(.bottom, 24)
+
+            Spacer(minLength: 16)
+
+            // Figma 2543:25993 — primary large Capsule CTA
+            Button {
+                guard canConfirm else { return }
+                onConfirm(selectedTargets)
+            } label: {
+                Text(notifyButtonTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.surface)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(canConfirm ? AppColors.primaryDark : AppColors.primaryDark.opacity(0.35))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canConfirm)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .accessibilityLabel(notifyButtonTitle)
         }
-        .frame(maxWidth: .infinity)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             // Sheet content can be built before `@State` settles; re-seed so confirm is enabled on first open.
             enabledCategories = Set(Self.categoryOrder)

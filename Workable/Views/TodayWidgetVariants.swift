@@ -466,7 +466,7 @@ struct BreakTypeOption: Identifiable, Hashable {
 }
 
 private struct AttendanceNotifyStyleEnvironmentKey: EnvironmentKey {
-    static let defaultValue: AttendanceNotifyStyle = .inlineBells
+    static let defaultValue: AttendanceNotifyStyle = .sheet
 }
 
 private struct AttendanceNoIssuesEnvironmentKey: EnvironmentKey {
