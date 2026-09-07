@@ -195,7 +195,8 @@ struct CandidateProfileView: View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 profileNavBar
-                
+                    .zIndex(1)
+
                 ScrollView {
                     VStack(spacing: 0) {
                         profileHeader
@@ -377,62 +378,48 @@ struct CandidateProfileView: View {
     // MARK: - Nav Bar
     
     private var profileNavBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .regular))
-                    Text("Back")
-                        .font(.system(size: 17, weight: .regular))
-                        .tracking(-0.41)
-                }
-                .foregroundColor(AppColors.primaryDark)
-            }
-            .buttonStyle(.plain)
-            
-            Spacer()
-            
-            HStack(spacing: 24) {
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showOverflowActionMenu = false
-                        showProfileContactMenu.toggle()
-                    }
-                } label: {
-                    Image("icon-person-lines")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                        .foregroundColor(AppColors.primaryDark)
-                        .padding(14)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+        HStack(spacing: 0) {
+            GlassSymbolButton(
+                systemName: "chevron.left",
+                accessibilityLabel: "Back",
+                action: { dismiss() }
+            )
 
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showProfileContactMenu = false
-                        showOverflowActionMenu.toggle()
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                GlassSymbolButton(
+                    assetName: "icon-person-lines",
+                    accessibilityLabel: "Contact",
+                    action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showOverflowActionMenu = false
+                            showProfileContactMenu.toggle()
+                        }
                     }
-                } label: {
-                    Image("icon-menu-dots-horizontal")
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                        .foregroundColor(AppColors.primaryDark)
-                        .padding(14)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                )
+
+                GlassSymbolButton(
+                    assetName: "icon-menu-dots-horizontal",
+                    accessibilityLabel: "More",
+                    action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            showProfileContactMenu = false
+                            showOverflowActionMenu.toggle()
+                        }
+                    }
+                )
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: 30)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
-        .background(AppColors.surface)
+        // Extra vertical inset so the glass drop shadow isn’t clipped by the bar.
+        .padding(.vertical, 14)
+        .background(alignment: .top) {
+            AppColors.surface
+                .padding(.horizontal, -16)
+                .padding(.vertical, -14)
+                .allowsHitTesting(false)
+        }
     }
 
     private var profileContactMenuPanel: some View {

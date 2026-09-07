@@ -63,6 +63,19 @@ struct RootView: View {
         }
         .ignoresSafeArea(edges: .bottom)
         .background(AppColors.background)
+        .onOpenURL { url in
+            guard let destination = WidgetDeepLink.destination(for: url) else { return }
+            switch destination {
+            case .home:
+                selectedTab = .home
+            case .timeOff:
+                // Personal time-off requests surface in Inbox until there's a
+                // dedicated time-off tab.
+                selectedTab = .inbox
+            case .recruiting:
+                selectedTab = .jobs
+            }
+        }
     }
 }
 
@@ -81,6 +94,9 @@ private struct SettingsTabView: View {
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersion =
         BreakSupportUIVersion.defaultVersion.rawValue
     @AppStorage(BreakSupportUIVersion.nestedInTimeEntryAppStorageKey) private var breaksNestedInTimeEntry = false
+    @AppStorage(WorkablePlan.appStorageKey) private var planRaw = WorkablePlan.defaultPlan.rawValue
+    @AppStorage(WidgetGlanceUIVersion.appStorageKey) private var widgetGlanceUIVersion =
+        WidgetGlanceUIVersion.defaultVersion.rawValue
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey
@@ -157,6 +173,53 @@ private struct SettingsTabView: View {
                 }
 
                 Section {
+                    Picker("Plan", selection: $planRaw) {
+                        ForEach(WorkablePlan.allCases) { plan in
+                            Text(plan.rawValue).tag(plan.rawValue)
+                        }
+                    }
+                    .onChange(of: planRaw) { _, newValue in
+                        if let plan = WorkablePlan(rawValue: newValue) {
+                            WidgetPlanStore.save(plan)
+                        }
+                    }
+                } header: {
+                    Text("Plan")
+                } footer: {
+                    Text("Gates which sections the “Today” home-screen widget shows — ATS-only accounts don't see time tracking or time off; HRIS-only accounts don't see new candidates.")
+                }
+
+                Section {
+                    ForEach(WidgetGlanceUIVersion.allCases) { version in
+                        let selected = widgetGlanceUIVersion == version.rawValue
+                        Button {
+                            widgetGlanceUIVersion = version.rawValue
+                            WidgetGlanceUIVersionStore.save(version)
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(selected ? AppColors.primaryDark : AppColors.iconInactive)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(version.rawValue)
+                                        .font(AppFonts.subheadStrong())
+                                        .foregroundColor(AppColors.fontDefault)
+                                    Text(version.caption)
+                                        .font(AppFonts.caption1())
+                                        .foregroundColor(AppColors.fontSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("Today widget")
+                } footer: {
+                    Text("V1 is the forest-green time-tracking widget. V2 uses a black card with mint and purple glow.")
+                }
+
+                Section {
                     Toggle("Redesign", isOn: $redesignEnabled)
                     Toggle("WhatsApp", isOn: $whatsAppEnabled)
                     Toggle("Surveys", isOn: $surveysEnabled)
@@ -170,6 +233,12 @@ private struct SettingsTabView: View {
                 if breakSupportUIVersion != resolved.rawValue {
                     breakSupportUIVersion = resolved.rawValue
                 }
+                if let plan = WorkablePlan(rawValue: planRaw) {
+                    WidgetPlanStore.save(plan)
+                }
+                WidgetGlanceUIVersionStore.save(
+                    WidgetGlanceUIVersion(rawValue: widgetGlanceUIVersion) ?? .defaultVersion
+                )
             }
         }
     }

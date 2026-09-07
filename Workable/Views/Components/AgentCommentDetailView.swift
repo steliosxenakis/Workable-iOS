@@ -12,8 +12,6 @@ struct AgentCommentDetailView: View {
 
     private let commentBody = """
     The chat was terminated as “Completed”.
-
-    Nice to meet you
     The candidate provided a salary expectation of 130k, and indicated they had no further questions or comments. They were concise and responsive throughout.
     """
 

@@ -12,6 +12,9 @@ struct HomeView: View {
 
     @Environment(\.redesign) private var redesign
     @State private var showsTimeOffTypeSheet = false
+    @AppStorage(WorkablePlan.appStorageKey) private var planRaw = WorkablePlan.defaultPlan.rawValue
+    @AppStorage(WidgetGlanceUIVersion.appStorageKey) private var widgetGlanceUIVersion =
+        WidgetGlanceUIVersion.defaultVersion.rawValue
 
     private enum DashboardRoute: Hashable {
         case directReports
@@ -77,6 +80,28 @@ struct HomeView: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
+        }
+        .onAppear {
+            // Wiring point for the "Today" home-screen widget (`TodayGlanceWidget`):
+            // push this screen's section counts into the app group so the widget
+            // can mirror them.
+            WidgetGlanceStore.save(
+                WidgetGlanceData(
+                    todosPendingCount: todoSurveyItems.count,
+                    oneOnOnesCount: todayData.events.filter { $0.title.contains("Call") }.count,
+                    interviewEventsCount: todayData.events.filter { $0.title.contains("Interview") }.count,
+                    attendanceIssueCount: todayData.issueCount,
+                    onLeaveCount: todayData.onLeaveAvatars.count + todayData.onLeaveOverflow,
+                    celebrationsCount: todayData.celebrations.count,
+                    newCandidatesCount: 12
+                )
+            )
+            if let plan = WorkablePlan(rawValue: planRaw) {
+                WidgetPlanStore.save(plan)
+            }
+            WidgetGlanceUIVersionStore.save(
+                WidgetGlanceUIVersion(rawValue: widgetGlanceUIVersion) ?? .defaultVersion
+            )
         }
     }
 
@@ -1093,11 +1118,11 @@ struct HomeView: View {
             }
             .padding(.bottom, 8)
 
-            candidateRow(icon: "icon-candidates-new",    label: "New",             count: 12)
+            candidateRow(systemName: "person.badge.plus", label: "New", count: 12)
             Rectangle().fill(AppColors.separator).frame(height: 1)
-            candidateRow(icon: "icon-candidates-unread",  label: "Unread",          count: 2)
+            candidateRow(systemName: "list.bullet.below.rectangle", label: "Unread", count: 2)
             Rectangle().fill(AppColors.separator).frame(height: 1)
-            candidateRow(icon: "icon-candidates-viewed",  label: "Recently viewed", count: 20)
+            candidateRow(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90", label: "Recently viewed", count: 20)
         }
         .padding(16)
         .background(AppColors.surface)
@@ -1105,15 +1130,13 @@ struct HomeView: View {
         .appLightCardShadow()
     }
 
-    private func candidateRow(icon: String, label: String, count: Int) -> some View {
+    private func candidateRow(systemName: String, label: String, count: Int) -> some View {
         HStack {
             HStack(spacing: 8) {
-                Image(icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
+                Image(systemName: systemName)
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundColor(AppColors.iconDefault)
+                    .frame(width: 24, height: 24)
 
                 Text(label)
                     .font(AppFonts.body())

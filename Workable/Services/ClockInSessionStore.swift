@@ -41,10 +41,8 @@ final class ClockInSessionStore: ObservableObject {
         breakEmoji = nil
         plannedBreakMinutes = nil
         persist(breaksEnabled: breaksEnabled)
-        ClockInLiveActivityManager.shared.start(
-            clockInDate: now,
-            breaksEnabled: breaksEnabled
-        )
+        ClockInSessionSync.setBreakEmoji(nil)
+        // Live Activity is on-break only — nothing to show while working.
     }
 
     func clockOut() {
@@ -75,11 +73,14 @@ final class ClockInSessionStore: ObservableObject {
         breakEmoji = emoji
         plannedBreakMinutes = plannedMinutes
         persist(breaksEnabled: breaksEnabled)
-        ClockInLiveActivityManager.shared.update(
+        ClockInSessionSync.setBreakEmoji(breakEmoji)
+        ClockInLiveActivityManager.shared.start(
             clockInDate: clockInDate ?? Date(),
+            breaksEnabled: breaksEnabled,
             isOnBreak: true,
             breakStartDate: breakStartDate,
-            breaksEnabled: breaksEnabled
+            breakEmoji: breakEmoji,
+            plannedBreakMinutes: plannedBreakMinutes
         )
     }
 
@@ -91,12 +92,8 @@ final class ClockInSessionStore: ObservableObject {
         breakEmoji = nil
         plannedBreakMinutes = nil
         persist(breaksEnabled: breaksEnabled)
-        ClockInLiveActivityManager.shared.update(
-            clockInDate: clockInDate ?? Date(),
-            isOnBreak: false,
-            breakStartDate: nil,
-            breaksEnabled: breaksEnabled
-        )
+        ClockInSessionSync.setBreakEmoji(nil)
+        ClockInLiveActivityManager.shared.endAfterReturningToWork()
     }
 
     /// Update the on-break emoji without restarting the break timer (V15 label editing).
@@ -106,11 +103,14 @@ final class ClockInSessionStore: ObservableObject {
         guard !trimmed.isEmpty else { return }
         breakEmoji = trimmed
         persist(breaksEnabled: breaksEnabled)
+        ClockInSessionSync.setBreakEmoji(trimmed)
         ClockInLiveActivityManager.shared.update(
             clockInDate: clockInDate ?? Date(),
             isOnBreak: true,
             breakStartDate: breakStartDate,
-            breaksEnabled: breaksEnabled
+            breaksEnabled: breaksEnabled,
+            breakEmoji: trimmed,
+            plannedBreakMinutes: plannedBreakMinutes
         )
     }
 
@@ -138,7 +138,8 @@ final class ClockInSessionStore: ObservableObject {
             isOnBreak: isOnBreak,
             clockInDate: clockInDate,
             breakStartDate: breakStartDate,
-            breaksEnabled: breaksEnabled
+            breaksEnabled: breaksEnabled,
+            plannedBreakMinutes: isOnBreak ? plannedBreakMinutes : nil
         )
     }
 
@@ -157,6 +158,19 @@ final class ClockInSessionStore: ObservableObject {
         } else {
             breakStartDate = nil
         }
+        if isOnBreak {
+            let emoji = defaults.string(forKey: ClockInSessionSync.breakEmojiKey)
+            breakEmoji = (emoji?.isEmpty == false) ? emoji : nil
+            if defaults.object(forKey: ClockInSessionSync.plannedBreakMinutesKey) != nil {
+                let planned = defaults.integer(forKey: ClockInSessionSync.plannedBreakMinutesKey)
+                plannedBreakMinutes = planned > 0 ? planned : nil
+            } else {
+                plannedBreakMinutes = nil
+            }
+        } else {
+            breakEmoji = nil
+            plannedBreakMinutes = nil
+        }
     }
 
     /// Used by Live Activity manager when applying Activity state into the store.
@@ -164,12 +178,16 @@ final class ClockInSessionStore: ObservableObject {
         isClockedIn: Bool,
         isOnBreak: Bool,
         clockInDate: Date?,
-        breakStartDate: Date?
+        breakStartDate: Date?,
+        breakEmoji: String? = nil,
+        plannedBreakMinutes: Int? = nil
     ) {
         self.isClockedIn = isClockedIn
         self.isOnBreak = isOnBreak
         self.clockInDate = clockInDate
         self.breakStartDate = breakStartDate
+        self.breakEmoji = isOnBreak ? breakEmoji : nil
+        self.plannedBreakMinutes = isOnBreak ? plannedBreakMinutes : nil
     }
 }
 
