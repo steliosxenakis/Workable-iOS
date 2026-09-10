@@ -5,7 +5,7 @@ import SwiftUI
 enum AnomalyType: String, CaseIterable, Identifiable {
     // Actionable (danger)
     case noClockIn = "Absent"
-    case noClockInNorOut = "Not clocked in"
+    case noClockInNorOut = "Missed clock-in"
     case missedClockOut = "Incomplete entry"
     case exceededWorkSchedule = "Clock-out overdue"
     case workedLess = "Worked less"
@@ -67,7 +67,7 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 // MARK: - Filter Categories (drill-in list)
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
-    case noClockInNorOut = "Not clocked in"
+    case noClockInNorOut = "Missed clock-in"
     case missedClockOut = "Incomplete entry"
     case exceededWorkSchedule = "Clock-out overdue"
     case noClockIn = "Absent"
@@ -320,6 +320,65 @@ struct TimesheetListDay: Identifiable {
     var detailDateLabel: String { dateLabel ?? title }
 }
 
+// MARK: - Work Schedule (Figma 3609-84050 “Work schedule” + Scopes 486-16581 “Request a schedule change”)
+
+/// One row on the "Work schedule" sheet — tapping it (Approvals v2) opens the
+/// request-change form preselected/prefilled for that day.
+struct WorkScheduleDay: Identifiable {
+    let id = UUID()
+    let weekday: String
+    /// `Calendar` weekday number (Sunday = 1 ... Saturday = 7) — used to resolve an actual
+    /// `Date` for this row (this week's occurrence) when opening the request form.
+    let weekdayNumber: Int
+    /// Ordered clock-in/out pairs, e.g. `[("09:00", "14:00"), ("15:00", "18:00")]`.
+    let shifts: [(start: String, end: String)]
+    /// e.g. "8 hours"
+    let totalHoursText: String
+
+    var rangesText: String {
+        shifts.map { "\($0.start) - \($0.end)" }.joined(separator: ", ")
+    }
+
+    var totalText: String { "Total: \(totalHoursText)" }
+
+    /// This week's calendar date for `weekdayNumber`, relative to `referenceDate` (defaults to today).
+    func date(referenceDate: Date = Date(), calendar: Calendar = .current) -> Date {
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start ?? referenceDate
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekStart)
+        components.weekday = weekdayNumber
+        return calendar.nextDate(
+            after: weekStart.addingTimeInterval(-1),
+            matching: components,
+            matchingPolicy: .nextTimePreservingSmallerComponents
+        ) ?? referenceDate
+    }
+}
+
+/// Where a scheduled shift is worked from — mirrors the web "Workplace" segmented field.
+enum WorkplaceType: String, CaseIterable, Identifiable {
+    case onSite = "On-site"
+    case remote = "Remote"
+
+    var id: String { rawValue }
+}
+
+/// Whether the requested day is worked at all — mirrors the web "Day type" segmented field
+/// (Figma Playground 506-68166). "Day off" hides Working hours / Workplace on the form.
+enum DayType: String, CaseIterable, Identifiable {
+    case workday = "Workday"
+    case dayOff = "Day off"
+
+    var id: String { rawValue }
+}
+
+/// A single editable "Working hours" row on the request-change form. Editable/removable,
+/// mirrors the web's "+ Add" for a split shift (e.g. morning + afternoon).
+struct EditableWorkScheduleShift: Identifiable {
+    let id = UUID()
+    var start: Date
+    var end: Date
+}
+
 // MARK: - Mock Data
 
 enum TimeAttendanceMockData {
@@ -425,6 +484,20 @@ enum TimeAttendanceMockData {
         ]),
     ]
 
+    /// Banner shown above the Time tracking → List view (Figma 15849-268785).
+    static let todaysScheduleBannerText = "Today's work schedule: 08:00 - 16:00 | Remote"
+
+    /// Weekly breakdown on the "Work schedule" sheet (Figma 3609-84050).
+    static let workScheduleName = "<Work schedule name>"
+    static let workScheduleSummary = "5 days, 40 hours"
+    static let workScheduleDays: [WorkScheduleDay] = [
+        .init(weekday: "Monday", weekdayNumber: 2, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+        .init(weekday: "Tuesday", weekdayNumber: 3, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+        .init(weekday: "Wednesday", weekdayNumber: 4, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+        .init(weekday: "Thursday", weekdayNumber: 5, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+        .init(weekday: "Friday", weekdayNumber: 6, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+    ]
+
     static let loggedInUser = EmployeeAnomaly(
         name: "Sung, Natalie",
         role: "People Partner",
@@ -449,7 +522,7 @@ enum TimeAttendanceMockData {
         // Exceeding by 2h — Working: 09:00 - Ongoing... (Figma: Issue=Exceeding work hours)
         .init(name: "Wilhelham, Minnie Laris Julie",   role: "Sales Consultant",        avatarName: nil,              anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Engineering", workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 10, scheduleTimeRange: "07:00 - Ongoing..."),
         // No attendance — Scheduled: 09:00 - 17:00 (Figma: Issue=No attendance)
-        .init(name: "Carty, Jonathan-Augustus",         role: "Operations Engineer",     avatarName: "avatar-abdi",    anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:00 - 17:00"),
+        .init(name: "Carty, Jonathan-Augustus",         role: "Operations Engineer",     avatarName: "avatar-abdi",    anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:00 - 17:00"),
         // Late by 1h — Working: 10:30 - Ongoing... (Figma: Issue=Late arrival)
         .init(name: "Patelaranga, Priya",               role: "Recruiter",               avatarName: "avatar-priya",   anomalyType: .late,                 hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 3, scheduleTimeRange: "10:30 - Ongoing..."),
         // Exceeded by 1h 30m — Worked: 09:00 - 19:00 (Figma: Issue=Exceeded work hours)
@@ -468,8 +541,8 @@ enum TimeAttendanceMockData {
         // Missed clock-in (selectable) — Scheduled: 09:30 - 17:00 (Figma: Issue=Selectable)
         .init(name: "Novak, Elena",                     role: "HR Coordinator",          avatarName: "avatar-priya",   anomalyType: .noClockInNorOut,       hasScheduleIcon: false,  department: "Operations",  workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:30 - 17:00"),
         // Additional employees for variety
-        .init(name: "Kovarek, Tomas",                  role: "Territory Manager",       avatarName: "avatar-tyler",   anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Sales",       workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:00 - 17:00"),
-        .init(name: "Nguyen, Mai",                     role: "Software Engineer",       avatarName: "avatar-sophia",  anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0, scheduleTimeRange: "08:30 - 16:30"),
+        .init(name: "Kovarek, Tomas",                  role: "Territory Manager",       avatarName: "avatar-tyler",   anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Sales",       workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:00 - 17:00"),
+        .init(name: "Nguyen, Mai",                     role: "Software Engineer",       avatarName: "avatar-sophia",  anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Engineering", workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0, scheduleTimeRange: "08:30 - 16:30"),
         .init(name: "Petrov, Andrei",                  role: "QA Lead",                 avatarName: "avatar-tyler",   anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false,  department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 11, scheduleTimeRange: "06:30 - Ongoing..."),
         .init(name: "Santos, Maria",                   role: "Customer Success Manager",avatarName: "avatar-lucy",    anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 7.5, scheduleTimeRange: "09:00 - 16:30"),
         .init(name: "Müller, Hans",                    role: "Finance Analyst",         avatarName: "avatar-jamal",   anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 6, scheduleTimeRange: "08:30 - 14:30"),
@@ -477,7 +550,7 @@ enum TimeAttendanceMockData {
         .init(name: "Johansson, Erik",                 role: "Sales Director",          avatarName: "avatar-michael", anomalyType: .onTrack,               hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 8, scheduleTimeRange: "08:00 - 16:00"),
         .init(name: "Patel, Priya",                    role: "HR Business Partner",     avatarName: "avatar-priya",   anomalyType: .onTrack,               hasScheduleIcon: false, department: "Operations",  workplace: "New York",  entity: "Workable Inc.", scheduledHours: 8, workedHours: 7, scheduleTimeRange: "09:30 - 16:30"),
         .init(name: "Kim, Soo-Jin",                    role: "Content Strategist",      avatarName: "avatar-lucy",    anomalyType: .exceededWorkSchedule,  hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable EU",   scheduledHours: 8, workedHours: 10.5, scheduleTimeRange: "07:30 - Ongoing..."),
-        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: nil,              anomalyType: .noClockIn,             hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "10:00 - 18:00"),
+        .init(name: "Rossi, Luca",                     role: "Backend Developer",       avatarName: nil,              anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "10:00 - 18:00"),
         .init(name: "Barnes, Alex",                    role: "Product Manager",         avatarName: "avatar-michael", anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Engineering", workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 0, scheduleTimeRange: "09:00 - 17:00"),
         .init(name: "Lindqvist, Nora",                 role: "UX Researcher",           avatarName: "avatar-emma",    anomalyType: .scheduleNotStarted,   hasScheduleIcon: false, department: "Marketing",   workplace: "Remote",    entity: "Workable Inc.", scheduledHours: 8, workedHours: 0, scheduleTimeRange: "08:00 - 16:00"),
         .init(name: "Larsson, Ingrid",                  role: "People Partner",          avatarName: "avatar-emma",    anomalyType: .onTrack,              hasScheduleIcon: true,   department: "Operations",  workplace: "London",    entity: "Workable UK",   scheduledHours: 0, workedHours: 0),
@@ -1944,7 +2017,7 @@ struct EmployeeAnomalyV7IssuePill: View {
         )
         switch anomalyType {
         case .noClockIn: return "Absent"
-        case .noClockInNorOut: return "Not clocked in"
+        case .noClockInNorOut: return "Missed clock-in"
         case .missedClockOut: return "Incomplete entry"
         case .exceededWorkSchedule:
             return indicator("Overdue", duration: model.gapDisplayText)

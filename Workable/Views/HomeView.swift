@@ -20,6 +20,7 @@ struct HomeView: View {
         case directReports
         case job(JobItem)
         case surveyDetail(SurveyItem)
+        case scheduleChangeRequest(ScheduleChangeRequestItem)
     }
 
     private let todayData = TodayWidgetData.mock
@@ -73,6 +74,8 @@ struct HomeView: View {
                     CandidatesBrowserView(jobTitle: job.title, jobSubtitle: job.details)
                 case .surveyDetail(let survey):
                     SurveyDetailView(survey: survey)
+                case .scheduleChangeRequest(let request):
+                    ScheduleChangeRequestDetailView(item: request)
                 }
             }
             .sheet(isPresented: $showsTimeOffTypeSheet) {
@@ -87,7 +90,7 @@ struct HomeView: View {
             // can mirror them.
             WidgetGlanceStore.save(
                 WidgetGlanceData(
-                    todosPendingCount: todoSurveyItems.count,
+                    todosPendingCount: todoSurveyItems.count + todoScheduleChangeRequests.count,
                     oneOnOnesCount: todayData.events.filter { $0.title.contains("Call") }.count,
                     interviewEventsCount: todayData.events.filter { $0.title.contains("Interview") }.count,
                     attendanceIssueCount: todayData.issueCount,
@@ -798,9 +801,14 @@ struct HomeView: View {
     // MARK: - To-dos
 
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
 
     private var todoSurveyItems: [SurveyItem] {
         surveysEnabled ? SurveyMockData.items : []
+    }
+
+    private var todoScheduleChangeRequests: [ScheduleChangeRequestItem] {
+        approvalsEnabled ? [ScheduleChangeRequestMockData.pending] : []
     }
 
     private var todosSection: some View {
@@ -811,7 +819,7 @@ struct HomeView: View {
                 .foregroundColor(AppColors.fontDefault)
                 .padding(.horizontal, 16)
 
-            if todoSurveyItems.isEmpty {
+            if todoSurveyItems.isEmpty && todoScheduleChangeRequests.isEmpty {
                 Text("All done for now.")
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
@@ -826,6 +834,16 @@ struct HomeView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 12) {
+                        ForEach(todoScheduleChangeRequests) { request in
+                            NavigationLink(value: DashboardRoute.scheduleChangeRequest(request)) {
+                                TodoGenericCard(
+                                    title: "Review \(request.requesterName)'s schedule change request",
+                                    subtitle: request.dateRange
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
                         ForEach(todoSurveyItems) { item in
                             NavigationLink(value: DashboardRoute.surveyDetail(item)) {
                                 TodoSurveyCard(item: item)

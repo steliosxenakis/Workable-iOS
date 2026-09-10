@@ -32,6 +32,7 @@
 		A10000000000000000000056 /* TodayDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000057 /* TodayDetailView.swift */; };
 		A10000000000000000000060 /* EmployeeTimeTrackingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000059 /* EmployeeTimeTrackingDetailView.swift */; };
 		A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */; };
+		A100000000000000000000B4 /* WorkScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B5 /* WorkScheduleView.swift */; };
 		A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000064 /* PersonalTimeTrackingView.swift */; };
 		A10000000000000000000065 /* DirectReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000066 /* DirectReportsView.swift */; };
 		A10000000000000000000069 /* TodayWidgetVariants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000006A /* TodayWidgetVariants.swift */; };
@@ -64,6 +65,7 @@
 		A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AB /* TimeOffTypeSheet.swift */; };
 		A100000000000000000000AC /* InboxModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AD /* InboxModels.swift */; };
 		A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000AF /* TimeOffRequestDetailView.swift */; };
+		A100000000000000000000B6 /* ScheduleChangeRequestDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B7 /* ScheduleChangeRequestDetailView.swift */; };
 
 		B10000000000000000000001 /* WorkableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* WorkableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B10000000000000000000003 /* WorkableWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* WorkableWidgetsBundle.swift */; };
@@ -110,6 +112,7 @@
 		A10000000000000000000057 /* TodayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayDetailView.swift; sourceTree = "<group>"; };
 		A10000000000000000000059 /* EmployeeTimeTrackingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmployeeTimeTrackingDetailView.swift; sourceTree = "<group>"; };
 		A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeTrackingWeekCalendarContent.swift; sourceTree = "<group>"; };
+		A100000000000000000000B5 /* WorkScheduleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkScheduleView.swift; sourceTree = "<group>"; };
 		A10000000000000000000064 /* PersonalTimeTrackingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalTimeTrackingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000066 /* DirectReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectReportsView.swift; sourceTree = "<group>"; };
 		A1000000000000000000006A /* TodayWidgetVariants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayWidgetVariants.swift; sourceTree = "<group>"; };
@@ -142,6 +145,7 @@
 		A100000000000000000000AB /* TimeOffTypeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffTypeSheet.swift; sourceTree = "<group>"; };
 		A100000000000000000000AD /* InboxModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000AF /* TimeOffRequestDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeOffRequestDetailView.swift; sourceTree = "<group>"; };
+		A100000000000000000000B7 /* ScheduleChangeRequestDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeRequestDetailView.swift; sourceTree = "<group>"; };
 
 		B10000000000000000000002 /* WorkableWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000004 /* WorkableWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkableWidgetsBundle.swift; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 				A100000000000000000000AD /* InboxModels.swift */,
 				A100000000000000000000A1 /* InboxView.swift */,
 				A100000000000000000000AF /* TimeOffRequestDetailView.swift */,
+				A100000000000000000000B7 /* ScheduleChangeRequestDetailView.swift */,
 			);
 			path = Inbox;
 			sourceTree = "<group>";
@@ -276,6 +281,7 @@
 				A10000000000000000000057 /* TodayDetailView.swift */,
 				A10000000000000000000059 /* EmployeeTimeTrackingDetailView.swift */,
 				A10000000000000000000062 /* TimeTrackingWeekCalendarContent.swift */,
+				A100000000000000000000B5 /* WorkScheduleView.swift */,
 				A10000000000000000000064 /* PersonalTimeTrackingView.swift */,
 				A10000000000000000000066 /* DirectReportsView.swift */,
 			);
@@ -514,6 +520,7 @@
 				A10000000000000000000056 /* TodayDetailView.swift in Sources */,
 				A10000000000000000000060 /* EmployeeTimeTrackingDetailView.swift in Sources */,
 				A10000000000000000000061 /* TimeTrackingWeekCalendarContent.swift in Sources */,
+				A100000000000000000000B4 /* WorkScheduleView.swift in Sources */,
 				A10000000000000000000063 /* PersonalTimeTrackingView.swift in Sources */,
 				A10000000000000000000065 /* DirectReportsView.swift in Sources */,
 				A10000000000000000000079 /* DisqualifyConfirmationSheet.swift in Sources */,
@@ -545,6 +552,7 @@
 				A100000000000000000000AA /* TimeOffTypeSheet.swift in Sources */,
 				A100000000000000000000AC /* InboxModels.swift in Sources */,
 				A100000000000000000000AE /* TimeOffRequestDetailView.swift in Sources */,
+				A100000000000000000000B6 /* ScheduleChangeRequestDetailView.swift in Sources */,
 				B1000000000000000000000B /* ClockInActivityAttributes.swift in Sources */,
 				B1000000000000000000000C /* ClockInLiveActivityIntents.swift in Sources */,
 				B1000000000000000000000D /* ClockInSessionStore.swift in Sources */,

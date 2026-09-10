@@ -76,14 +76,68 @@ enum TimeOffInboxMockData {
     )
 }
 
+// MARK: - Schedule change approval request (Figma Playground 511-224462)
+
+/// One changed field on a schedule-change request, e.g. "Working hours: 09:00 AM - 06:00 PM → 11:00 AM - 08:00 PM".
+struct ScheduleChangeField: Hashable {
+    let label: String
+    let oldValue: String
+    let newValue: String
+}
+
+/// A pending "request schedule change" awaiting a manager's approval — the counterpart to
+/// the employee-side request built in `RequestScheduleChangeView`.
+struct ScheduleChangeRequestItem: Identifiable, Hashable {
+    let id = UUID()
+    let requesterName: String
+    let requesterAvatar: String
+    let timeAgo: String
+    let dateRange: String
+    let changes: [ScheduleChangeField]
+    let note: String?
+    let requestedOnText: String
+    let isUnread: Bool
+
+    var title: String { "Review a schedule change request for \(requesterName)" }
+    var category: String { "Work schedule" }
+
+    var previewText: String {
+        guard let first = changes.first else { return dateRange }
+        return "\(first.label): \(first.oldValue) → \(first.newValue)"
+    }
+
+    var noteText: String {
+        guard let note, !note.isEmpty else { return "-" }
+        return note
+    }
+}
+
+enum ScheduleChangeRequestMockData {
+    static let pending = ScheduleChangeRequestItem(
+        requesterName: "Milwaukee, Jordan",
+        requesterAvatar: "avatar-jamal",
+        timeAgo: "5 hours ago",
+        dateRange: "28 March 2026 - 30 March 2026",
+        changes: [
+            .init(label: "Working hours", oldValue: "09:00 AM - 06:00 PM", newValue: "11:00 AM - 08:00 PM"),
+            .init(label: "Workplace", oldValue: "On-site", newValue: "Remote"),
+        ],
+        note: nil,
+        requestedOnText: "Requested on 05 March 2026",
+        isUnread: true
+    )
+}
+
 enum InboxEntry: Identifiable, Hashable {
     case survey(SurveyItem)
     case timeOff(TimeOffInboxItem)
+    case scheduleChangeRequest(ScheduleChangeRequestItem)
 
     var id: UUID {
         switch self {
         case .survey(let item): return item.id
         case .timeOff(let item): return item.id
+        case .scheduleChangeRequest(let item): return item.id
         }
     }
 
@@ -95,6 +149,8 @@ enum InboxEntry: Identifiable, Hashable {
                 : "Start \(item.surveyName)"
         case .timeOff(let item):
             return item.title
+        case .scheduleChangeRequest(let item):
+            return item.title
         }
     }
 
@@ -104,6 +160,8 @@ enum InboxEntry: Identifiable, Hashable {
             return "\(item.timeAgo) · \(item.category)"
         case .timeOff(let item):
             return "\(item.timeAgo) · \(item.category)"
+        case .scheduleChangeRequest(let item):
+            return "\(item.timeAgo) · \(item.category)"
         }
     }
 
@@ -111,6 +169,7 @@ enum InboxEntry: Identifiable, Hashable {
         switch self {
         case .survey(let item): return item.previewText
         case .timeOff(let item): return item.previewText
+        case .scheduleChangeRequest(let item): return item.previewText
         }
     }
 
@@ -118,12 +177,13 @@ enum InboxEntry: Identifiable, Hashable {
         switch self {
         case .survey(let item): return item.senderAvatar
         case .timeOff(let item): return item.requesterAvatar
+        case .scheduleChangeRequest(let item): return item.requesterAvatar
         }
     }
 
     var showsAvatar: Bool {
         switch self {
-        case .survey, .timeOff: return true
+        case .survey, .timeOff, .scheduleChangeRequest: return true
         }
     }
 
@@ -131,6 +191,7 @@ enum InboxEntry: Identifiable, Hashable {
         switch self {
         case .survey(let item): return item.isUnread
         case .timeOff(let item): return item.isUnread
+        case .scheduleChangeRequest(let item): return item.isUnread
         }
     }
 }

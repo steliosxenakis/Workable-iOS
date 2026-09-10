@@ -2280,9 +2280,13 @@ struct TimeTrackingHomeCard: View {
             holdProgress = 0
             if breakSupportUIVersion.usesEditableBreakEmojiLabel {
                 let emoji = v5SelectedEmoji.isEmpty ? "☕" : v5SelectedEmoji
-                session.startBreak(breaksEnabled: breakSupportEnabled, emoji: emoji)
+                session.startBreak(
+                    breaksEnabled: breakSupportEnabled,
+                    plannedMinutes: 30,
+                    emoji: emoji
+                )
             } else {
-                session.startBreak(breaksEnabled: breakSupportEnabled)
+                session.startBreak(breaksEnabled: breakSupportEnabled, plannedMinutes: 30)
             }
         }
     }
@@ -2322,7 +2326,10 @@ struct TimeEntryDetailView: View {
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
     @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
     @Environment(\.breaksNestedInTimeEntry) private var breaksNestedInTimeEntry
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
     @State private var showsEditSheet = false
+    @State private var showsWorkScheduleSheet = false
+    @State private var showsRequestChangeSheet = false
 
     private var showBreaks: Bool {
         breakSupportEnabled && entry.hasBreaks
@@ -2348,31 +2355,16 @@ struct TimeEntryDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             TimeTrackingDrillInHeader(title: "View time entry", onBack: { dismiss() }) {
-                Button("Edit") {
-                    showsEditSheet = true
-                }
-                .font(.system(size: 17, weight: .medium))
-                .buttonStyle(.glass)
+                overflowMenu
             }
 
             ScrollView {
-                VStack(spacing: 36) {
-                    VStack(alignment: .leading, spacing: 36) {
-                        dateSection
-                        periodTimelineSection
-                        field(label: "Note", value: entry.noteText)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        // Delete is prototype-only for now.
-                    } label: {
-                        Text("Delete entry")
-                            .font(AppFonts.subheadStrong())
-                            .foregroundColor(AppColors.dangerDefault)
-                    }
-                    .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 36) {
+                    dateSection
+                    periodTimelineSection
+                    field(label: "Note", value: entry.noteText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 24)
             }
@@ -2390,16 +2382,101 @@ struct TimeEntryDetailView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
+        .sheet(isPresented: $showsWorkScheduleSheet) {
+            WorkScheduleView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showsRequestChangeSheet) {
+            let day = requestChangeDate
+            RequestScheduleChangeView(
+                date: day,
+                shifts: [EditableWorkScheduleShift(start: prefillTime(entry.start, on: day), end: prefillTime(entry.end, on: day))],
+                workplace: WorkplaceType(rawValue: entry.workplace) ?? .onSite,
+                onSend: { showsRequestChangeSheet = false }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        }
+    }
+
+    /// This entry's date, parsed from `entry.dateLabel` — used to prefill the request form
+    /// for this exact day (Approvals v2: request change goes straight to the day being viewed).
+    private var requestChangeDate: Date {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEEE, MMMM d, yyyy"
+        return formatter.date(from: entry.dateLabel) ?? Date()
+    }
+
+    /// Combines an "HH:mm" string (`entry.start` / `entry.end`) with `day` into a `Date`.
+    private func prefillTime(_ text: String, on day: Date) -> Date {
+        let parts = text.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 else { return day }
+        return Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day) ?? day
+    }
+
+    /// Top-right kebab (Edit / Request schedule change / Delete) — replaces the standalone
+    /// "Edit" button and "Delete entry" link.
+    private var overflowMenu: some View {
+        Menu {
+            Button {
+                showsEditSheet = true
+            } label: {
+                Label("Edit entry", systemImage: "pencil")
+            }
+
+            if approvalsEnabled {
+                Button {
+                    showsRequestChangeSheet = true
+                } label: {
+                    Label("Request schedule change", systemImage: "calendar.badge.clock")
+                }
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                // Delete is prototype-only for now.
+            } label: {
+                Label("Delete entry", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: GlassSymbolButton.symbolPointSize, weight: .medium))
+                .foregroundStyle(Color(hex: "1A1A1A"))
+                .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("More actions")
     }
 
     private var dateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             field(label: "Date", value: entry.dateLabel)
 
-            Text(entry.scheduleBannerText)
-                .font(AppFonts.footnote())
-                .tracking(-0.08)
-                .foregroundColor(AppColors.fontSecondary)
+            if approvalsEnabled {
+                Button {
+                    showsWorkScheduleSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(entry.scheduleBannerText)
+                            .font(AppFonts.footnote())
+                            .tracking(-0.08)
+                            .foregroundColor(AppColors.fontSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(AppColors.iconInactive)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(entry.scheduleBannerText)
+                    .font(AppFonts.footnote())
+                    .tracking(-0.08)
+                    .foregroundColor(AppColors.fontSecondary)
+            }
         }
     }
 
@@ -2436,7 +2513,7 @@ struct TimeEntryDetailView: View {
                 .font(AppFonts.subheadStrong())
                 .foregroundColor(AppColors.fontDefault)
             if showBreaks {
-                Text("(Breaks: \(entry.breakHoursText))")
+                Text("(Break: \(entry.breakHoursText))")
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
                     .foregroundColor(AppColors.fontSecondary)
@@ -2867,7 +2944,7 @@ struct EditTimeEntryView: View {
                     .tracking(-0.41)
                     .foregroundColor(AppColors.fontDefault)
                 if breakSupportEnabled, breakMinutesTotal > 0 {
-                    Text("(Breaks: \(Self.formatDuration(minutes: breakMinutesTotal)))")
+                    Text("(Break: \(Self.formatDuration(minutes: breakMinutesTotal)))")
                         .font(AppFonts.body())
                         .tracking(-0.41)
                         .foregroundColor(AppColors.fontSecondary)
