@@ -513,7 +513,9 @@ struct TimeTrackingHomeCard: View {
                 clockInDate: clockInDate,
                 isOnBreak: isOnBreak,
                 breakStartDate: session.breakStartDate,
-                breaksEnabled: enabled
+                breaksEnabled: enabled,
+                breakEmoji: isOnBreak ? session.breakEmoji : nil,
+                plannedBreakMinutes: isOnBreak ? session.plannedBreakMinutes : nil
             )
         }
         .sheet(isPresented: $showsCustomBreakSheet) {
@@ -898,7 +900,7 @@ struct TimeTrackingHomeCard: View {
     private var onBreakTitlePill: some View {
         if breakSupportUIVersion.usesEditableBreakEmojiLabel {
             HStack(spacing: 4) {
-                EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: 14)
+                EmojiText(emoji: session.breakEmoji ?? v5SelectedEmoji, size: 16)
                 Text("On break")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(AppColors.fontDefault)
@@ -2311,7 +2313,7 @@ struct TimeTrackingHomeCard: View {
     }
 }
 
-// MARK: - Time entry detail (Figma 15640-637684)
+// MARK: - Time entry detail (Figma 15858-455728)
 
 struct TimeEntryDetailView: View {
     let entry: TimeEntryDetail
@@ -2326,17 +2328,26 @@ struct TimeEntryDetailView: View {
         breakSupportEnabled && entry.hasBreaks
     }
 
-    private var nestBreaks: Bool {
-        showBreaks && breaksNestedInTimeEntry
-    }
-
-    private var showsBreakEmoji: Bool {
-        breakSupportEnabled && breakSupportUIVersion.showsBreakEmoji
+    private var timelineRows: [TimelineField] {
+        var rows = [TimelineField(id: "start", label: "Start at", value: entry.start)]
+        if showBreaks {
+            for (index, item) in entry.breaks.enumerated() {
+                rows.append(
+                    TimelineField(
+                        id: "break-\(index)-\(item.id)",
+                        label: "Break",
+                        value: item.rangeText
+                    )
+                )
+            }
+        }
+        rows.append(TimelineField(id: "end", label: "End at", value: entry.end))
+        return rows
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            TimeTrackingDrillInHeader(title: "Time entry", onBack: { dismiss() }) {
+            TimeTrackingDrillInHeader(title: "View time entry", onBack: { dismiss() }) {
                 Button("Edit") {
                     showsEditSheet = true
                 }
@@ -2348,14 +2359,7 @@ struct TimeEntryDetailView: View {
                 VStack(spacing: 36) {
                     VStack(alignment: .leading, spacing: 36) {
                         dateSection
-                        if nestBreaks {
-                            nestedPeriodSection
-                        } else {
-                            field(label: "Period", value: entry.periodText)
-                            if showBreaks {
-                                breaksSection
-                            }
-                        }
+                        periodTimelineSection
                         field(label: "Note", value: entry.noteText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -2396,134 +2400,89 @@ struct TimeEntryDetailView: View {
                 .font(AppFonts.footnote())
                 .tracking(-0.08)
                 .foregroundColor(AppColors.fontSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(AppColors.lightBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
-    /// Start → breaks → end as a timeline (+ total outside the rail).
-    /// Bullets sit on Start, Breaks (title), and End — evenly spaced along the rail.
-    private var nestedPeriodSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    /// Start at → Break → End at + total chip (Figma 15858:455728).
+    private var periodTimelineSection: some View {
+        let rows = timelineRows
+        return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 0) {
-                detailTimelineRow(isFirst: true, isLast: false) {
-                    field(label: "Start", value: entry.start)
-                        .padding(.bottom, 16)
-                }
-
-                detailTimelineRow(isFirst: false, isLast: false) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Breaks")
-                            .font(AppFonts.subheadline())
-                            .tracking(-0.24)
-                            .foregroundColor(AppColors.fontSecondary)
-
-                        ForEach(Array(entry.breaks.enumerated()), id: \.element.id) { index, item in
-                            HStack(alignment: .center, spacing: 8) {
-                                Text("\(index + 1)")
-                                    .font(AppFonts.body())
-                                    .tracking(-0.41)
-                                    .foregroundColor(AppColors.fontSecondary)
-                                    .frame(minWidth: 16, alignment: .leading)
-                                if showsBreakEmoji, let emoji = item.emoji, !emoji.isEmpty {
-                                    EmojiText(emoji: emoji, size: 18)
-                                }
-                                Text("\(item.start) – \(item.end) (\(item.duration))")
-                                    .font(AppFonts.body())
-                                    .tracking(-0.41)
-                                    .foregroundColor(AppColors.fontDefault)
-                                Spacer(minLength: 0)
-                            }
-                        }
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    let isLast = index == rows.count - 1
+                    detailTimelineRow(isFirst: index == 0, isLast: isLast) {
+                        timelineField(row)
+                            .padding(.bottom, isLast ? 0 : 24)
                     }
-                    .padding(.bottom, 16)
-                }
-
-                detailTimelineRow(isFirst: false, isLast: true) {
-                    field(label: "End", value: entry.end)
                 }
             }
 
-            field(label: "Total", value: nestedTotalText)
+            totalSummaryChip
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// e.g. `8h` or `8h (45m break)` when breaks are present.
-    private var nestedTotalText: String {
-        guard showBreaks else { return entry.duration }
-        return "\(entry.duration) (\(entry.breakHoursText) break)"
+    private func timelineField(_ row: TimelineField) -> some View {
+        field(label: row.label, value: row.value)
     }
 
-    /// Bullet on a continuous vertical rail (spacing lives inside `content`, not between rows).
-    /// Last row: line stops at the bullet center (does not run through End’s value).
+    private var totalSummaryChip: some View {
+        HStack(spacing: 4) {
+            Text("Total:")
+                .font(AppFonts.subheadline())
+                .tracking(-0.24)
+                .foregroundColor(AppColors.fontSecondary)
+            Text(entry.duration)
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(AppColors.fontDefault)
+            if showBreaks {
+                Text("(Breaks: \(entry.breakHoursText))")
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.fontSecondary)
+            }
+        }
+        .padding(8)
+        .background(AppColors.lightBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// 9pt nodes on a 2pt rail (Figma Frame 34917). Last row stops at the node.
     private func detailTimelineRow<Content: View>(
         isFirst: Bool,
         isLast: Bool,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 8) {
             ZStack(alignment: .top) {
                 if isLast {
-                    // Top → bullet center only (bullet top inset 5 + half of 8).
                     Rectangle()
-                        .fill(AppColors.separator)
-                        .frame(width: 2, height: 9)
+                        .fill(AppColors.iconInactive)
+                        .frame(width: 2, height: 8.5)
                 } else {
                     Rectangle()
-                        .fill(AppColors.separator)
+                        .fill(AppColors.iconInactive)
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
-                        .padding(.top, isFirst ? 9 : 0)
+                        .padding(.top, isFirst ? 13 : 0)
                 }
 
                 Circle()
                     .fill(AppColors.iconInactive)
-                    .frame(width: 8, height: 8)
-                    .padding(.top, 5)
+                    .frame(width: 9, height: 9)
+                    .padding(.top, 4)
             }
-            .frame(width: 8, alignment: .top)
+            .frame(width: 9, alignment: .top)
 
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var breaksSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Breaks")
-                .font(AppFonts.subheadline())
-                .tracking(-0.24)
-                .foregroundColor(AppColors.fontSecondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(entry.breaks.enumerated()), id: \.element.id) { index, item in
-                    HStack(alignment: .center, spacing: 8) {
-                        Text("\(index + 1)")
-                            .font(AppFonts.body())
-                            .tracking(-0.41)
-                            .foregroundColor(AppColors.fontSecondary)
-                            .frame(minWidth: 16, alignment: .leading)
-                        if showsBreakEmoji, let emoji = item.emoji, !emoji.isEmpty {
-                            EmojiText(emoji: emoji, size: 18)
-                        }
-                        Text("\(item.start) – \(item.end) (\(item.duration))")
-                            .font(AppFonts.body())
-                            .tracking(-0.41)
-                            .foregroundColor(AppColors.fontDefault)
-                        Spacer(minLength: 0)
-                    }
-                }
-                if entry.breaks.count > 1 {
-                    Text("\(entry.breakHoursText) in total")
-                        .font(AppFonts.caption1())
-                        .foregroundColor(AppColors.fontSecondary)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    private struct TimelineField: Identifiable {
+        let id: String
+        let label: String
+        let value: String
     }
 
     private func field(label: String, value: String) -> some View {
@@ -2542,7 +2501,7 @@ struct TimeEntryDetailView: View {
     }
 }
 
-// MARK: - Edit time entry (Figma 15640-637652 — Add entry layout, edit copy)
+// MARK: - Edit time entry (Figma 15858-456174)
 
 private struct EditableTimeEntryBreak: Identifiable {
     let id: UUID
@@ -2574,20 +2533,12 @@ struct EditTimeEntryView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
-    @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
-    @Environment(\.breaksNestedInTimeEntry) private var breaksNestedInTimeEntry
 
     @State private var selectedDate: Date
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var note: String
     @State private var breaks: [EditableTimeEntryBreak]
-    @State private var emojiEditBreakId: UUID?
-    @State private var isBreakEmojiKeyboardFocused = false
-
-    private var showsBreakEmoji: Bool {
-        breakSupportEnabled && breakSupportUIVersion.showsBreakEmoji
-    }
 
     init(entry: TimeEntryDetail, mode: Mode = .edit) {
         self.entry = entry
@@ -2627,7 +2578,7 @@ struct EditTimeEntryView: View {
     }
 
     private var primaryButtonTitle: String {
-        mode == .add ? "Add time entry" : "Save time entry"
+        mode == .add ? "Add time entry" : "Save changes"
     }
 
     /// Start → end span. Breaks are included in this total (shown separately on the right).
@@ -2650,58 +2601,21 @@ struct EditTimeEntryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 36) {
                     dateField
-                    if breakSupportEnabled && breaksNestedInTimeEntry {
+                    if breakSupportEnabled {
                         nestedStartEndBreaksEditor
                     } else {
                         startEndFields
-                        // Figma 15776:248126 base overlay + break options when support is on.
-                        if breakSupportEnabled {
-                            breaksEditor
-                        }
                     }
                     noteField
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 24)
-                .padding(.bottom, isBreakEmojiKeyboardFocused ? 24 : 120)
+                .padding(.bottom, 120)
             }
 
-            // Don't pin totals / save over the emoji keyboard.
-            if !isBreakEmojiKeyboardFocused {
-                footer
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            footer
         }
         .background(AppColors.surface)
-        .animation(.easeInOut(duration: 0.2), value: isBreakEmojiKeyboardFocused)
-        .background {
-            if showsBreakEmoji {
-                EmojiKeyboardField(
-                    emoji: breakEmojiKeyboardBinding,
-                    isFocused: $isBreakEmojiKeyboardFocused
-                )
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private var breakEmojiKeyboardBinding: Binding<String> {
-        Binding(
-            get: {
-                guard let id = emojiEditBreakId,
-                      let item = breaks.first(where: { $0.id == id }) else {
-                    return "☕"
-                }
-                return item.emoji ?? "☕"
-            },
-            set: { newValue in
-                guard let id = emojiEditBreakId,
-                      let index = breaks.firstIndex(where: { $0.id == id }) else { return }
-                breaks[index].emoji = newValue
-            }
-        )
     }
 
     private var header: some View {
@@ -2763,42 +2677,38 @@ struct EditTimeEntryView: View {
         }
     }
 
-    /// Start → break rows → End (toggle: Breaks inside start / end).
-    /// Bullets on Start, Breaks (title), and End — break rows sit under the Breaks bullet.
+    /// Start at → Break → End at (Figma 15858:456174).
+    /// No break yet: rail runs Start → End with “Add break” on the line (no extra bullet).
     private var nestedStartEndBreaksEditor: some View {
         VStack(alignment: .leading, spacing: 0) {
             editTimelineRow(isFirst: true, isLast: false) {
-                timeField(label: "Start at", selection: $startTime)
-                    .padding(.bottom, 20)
+                VStack(alignment: .leading, spacing: 24) {
+                    timeField(label: "Start at", selection: $startTime)
+                    if breaks.isEmpty {
+                        addBreakButton
+                    }
+                }
+                .padding(.bottom, 36)
             }
 
-            editTimelineRow(isFirst: false, isLast: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if !breaks.isEmpty {
-                        Text("Breaks")
-                            .font(AppFonts.footnote())
-                            .tracking(-0.08)
-                            .foregroundColor(AppColors.fontSecondary)
-                    }
+            if !breaks.isEmpty {
+                editTimelineRow(isFirst: false, isLast: false) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Break")
+                                .font(AppFonts.footnote())
+                                .tracking(-0.08)
+                                .foregroundColor(AppColors.fontDefault)
 
-                    ForEach(Array(breaks.enumerated()), id: \.element.id) { index, _ in
-                        breakRow(item: $breaks[index], number: index + 1)
-                    }
-
-                    Button {
-                        addBreak()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(breaks.isEmpty ? "Add break" : "Add another break")
-                                .font(AppFonts.subheadStrong())
+                            ForEach(Array(breaks.enumerated()), id: \.element.id) { index, _ in
+                                breakRow(item: $breaks[index], number: index + 1)
+                            }
                         }
-                        .foregroundColor(AppColors.primaryDark)
+
+                        addBreakButton
                     }
-                    .buttonStyle(.plain)
+                    .padding(.bottom, 36)
                 }
-                .padding(.bottom, 20)
             }
 
             editTimelineRow(isFirst: false, isLast: true) {
@@ -2807,34 +2717,42 @@ struct EditTimeEntryView: View {
         }
     }
 
-    /// Bullet on a continuous vertical rail (spacing lives inside `content`, not between rows).
-    /// Last row: line stops at the bullet center (does not run through End at’s picker).
+    private var addBreakButton: some View {
+        Button {
+            addBreak()
+        } label: {
+            addBreakLabel(title: breaks.isEmpty ? "Add break" : "Add another break")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(breaks.isEmpty ? "Add break" : "Add another break")
+    }
+
+    /// 9pt nodes on a 2pt rail (Figma Frame 34917). Last row stops at the node.
     private func editTimelineRow<Content: View>(
         isFirst: Bool,
         isLast: Bool,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 8) {
             ZStack(alignment: .top) {
                 if isLast {
-                    // Top → bullet center only (bullet top inset 4 + half of 8).
                     Rectangle()
-                        .fill(AppColors.separator)
-                        .frame(width: 2, height: 8)
+                        .fill(AppColors.iconInactive)
+                        .frame(width: 2, height: 8.5)
                 } else {
                     Rectangle()
-                        .fill(AppColors.separator)
+                        .fill(AppColors.iconInactive)
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
-                        .padding(.top, isFirst ? 8 : 0)
+                        .padding(.top, isFirst ? 13 : 0)
                 }
 
                 Circle()
                     .fill(AppColors.iconInactive)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 9, height: 9)
                     .padding(.top, 4)
             }
-            .frame(width: 8, alignment: .top)
+            .frame(width: 9, alignment: .top)
 
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -2855,51 +2773,10 @@ struct EditTimeEntryView: View {
         }
     }
 
-    private var breaksEditor: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if !breaks.isEmpty {
-                Text("Breaks")
-                    .font(AppFonts.footnote())
-                    .tracking(-0.08)
-                    .foregroundColor(AppColors.fontDefault)
-            }
-
-            if breaks.isEmpty {
-                Button {
-                    addBreak()
-                } label: {
-                    addBreakLabel(title: "Add break")
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add break")
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(breaks.enumerated()), id: \.element.id) { index, _ in
-                        editTimelineRow(
-                            isFirst: index == 0,
-                            isLast: index == breaks.count - 1
-                        ) {
-                            breakRow(item: $breaks[index], number: index + 1)
-                                .padding(.bottom, index == breaks.count - 1 ? 0 : 12)
-                        }
-                    }
-                }
-
-                Button {
-                    addBreak()
-                } label: {
-                    addBreakLabel(title: "Add another break")
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add another break")
-            }
-        }
-    }
-
     private func addBreakLabel(title: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Image(systemName: "plus")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 12, weight: .medium))
             Text(title)
                 .font(AppFonts.subheadStrong())
         }
@@ -2907,54 +2784,36 @@ struct EditTimeEntryView: View {
     }
 
     private func breakRow(item: Binding<EditableTimeEntryBreak>, number: Int) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            Text("\(number)")
-                .font(AppFonts.body())
-                .tracking(-0.41)
-                .foregroundColor(AppColors.fontSecondary)
-                .frame(minWidth: 16, alignment: .leading)
-                .accessibilityLabel("Break \(number)")
+        HStack(alignment: .center, spacing: 4) {
+            HStack(spacing: 4) {
+                DatePicker("", selection: item.start, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .tint(AppColors.fontDefault)
+                    .accessibilityLabel("Break \(number) start")
 
-            if showsBreakEmoji {
-                EmojiText(emoji: item.wrappedValue.emoji ?? "☕", size: 20)
-                    .frame(width: 36, height: 36)
-                    .background(AppColors.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .onTapGesture {
-                        emojiEditBreakId = item.wrappedValue.id
-                        isBreakEmojiKeyboardFocused = true
-                    }
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel("Choose break emoji")
+                Text("-")
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+
+                DatePicker("", selection: item.end, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .tint(AppColors.fontDefault)
+                    .accessibilityLabel("Break \(number) end")
             }
-
-            DatePicker("", selection: item.start, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-                .datePickerStyle(.compact)
-                .tint(AppColors.fontDefault)
-                .accessibilityLabel("Break start")
-
-            Text("-")
-                .font(AppFonts.body())
-                .foregroundColor(AppColors.iconDefault)
-
-            DatePicker("", selection: item.end, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-                .datePickerStyle(.compact)
-                .tint(AppColors.fontDefault)
-                .accessibilityLabel("Break end")
 
             Button {
                 removeBreak(id: item.wrappedValue.id)
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AppColors.dangerDefault)
-                    .frame(width: 40, height: 38)
+                    .foregroundColor(AppColors.iconDefault)
+                    .frame(width: 24, height: 34)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Remove break")
+            .padding(.leading, 20)
+            .accessibilityLabel("Remove break \(number)")
 
             Spacer(minLength: 0)
         }
@@ -2969,8 +2828,7 @@ struct EditTimeEntryView: View {
         breaks.append(
             EditableTimeEntryBreak(
                 start: start,
-                end: end,
-                emoji: showsBreakEmoji ? "☕" : nil
+                end: end
             )
         )
     }
@@ -2999,29 +2857,26 @@ struct EditTimeEntryView: View {
 
     private var footer: some View {
         VStack(spacing: 12) {
-            HStack(alignment: .lastTextBaseline, spacing: 3) {
+            HStack(spacing: 4) {
+                Text("Total:")
+                    .font(AppFonts.body())
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.fontSecondary)
                 Text(totalDurationText)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(AppFonts.headline())
                     .tracking(-0.41)
                     .foregroundColor(AppColors.fontDefault)
-                Text("in total")
-                    .font(.system(size: 15))
-                    .tracking(-0.24)
-                    .foregroundColor(AppColors.fontSecondary)
-
-                Spacer(minLength: 8)
-
                 if breakSupportEnabled, breakMinutesTotal > 0 {
-                    Text("\(Self.formatDuration(minutes: breakMinutesTotal)) break")
-                        .font(.system(size: 15))
-                        .tracking(-0.24)
+                    Text("(Breaks: \(Self.formatDuration(minutes: breakMinutesTotal)))")
+                        .font(AppFonts.body())
+                        .tracking(-0.41)
                         .foregroundColor(AppColors.fontSecondary)
                 }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppColors.informativeBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             Button {
                 saveEntry()

@@ -76,6 +76,11 @@
 		B1000000000000000000000F /* ClockInLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* ClockInLiveActivityManager.swift */; };
 		B10000000000000000000021 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* DesignTokens.swift */; };
 		B10000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* Assets.xcassets */; };
+		B20000000000000000000001 /* WidgetGlanceData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetGlanceData.swift */; };
+		B20000000000000000000003 /* WidgetGlanceData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* WidgetGlanceData.swift */; };
+		B20000000000000000000004 /* WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* WidgetDeepLink.swift */; };
+		B20000000000000000000006 /* WidgetDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000005 /* WidgetDeepLink.swift */; };
+		B20000000000000000000007 /* TodayGlanceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000008 /* TodayGlanceWidget.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -149,6 +154,10 @@
 		B10000000000000000000012 /* WorkableWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WorkableWidgets.entitlements; sourceTree = "<group>"; };
 		B10000000000000000000023 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000002 /* WidgetGlanceData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGlanceData.swift; sourceTree = "<group>"; };
+		B20000000000000000000005 /* WidgetDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDeepLink.swift; sourceTree = "<group>"; };
+		B20000000000000000000008 /* TodayGlanceWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayGlanceWidget.swift; sourceTree = "<group>"; };
+		B20000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -184,6 +193,7 @@
 			children = (
 				A10000000000000000000002 /* WorkableApp.swift */,
 				B10000000000000000000011 /* Workable.entitlements */,
+				B20000000000000000000009 /* Info.plist */,
 				A1000000000000000000001B /* Models */,
 				B10000000000000000000016 /* Services */,
 				B10000000000000000000017 /* Shared */,
@@ -317,6 +327,7 @@
 			children = (
 				B10000000000000000000004 /* WorkableWidgetsBundle.swift */,
 				B10000000000000000000006 /* ClockInLiveActivityWidget.swift */,
+				B20000000000000000000008 /* TodayGlanceWidget.swift */,
 				B10000000000000000000023 /* Assets.xcassets */,
 				B10000000000000000000012 /* WorkableWidgets.entitlements */,
 				B10000000000000000000013 /* Info.plist */,
@@ -338,6 +349,8 @@
 			children = (
 				B10000000000000000000008 /* ClockInActivityAttributes.swift */,
 				B1000000000000000000000A /* ClockInLiveActivityIntents.swift */,
+				B20000000000000000000002 /* WidgetGlanceData.swift */,
+				B20000000000000000000005 /* WidgetDeepLink.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -536,6 +549,8 @@
 				B1000000000000000000000C /* ClockInLiveActivityIntents.swift in Sources */,
 				B1000000000000000000000D /* ClockInSessionStore.swift in Sources */,
 				B1000000000000000000000F /* ClockInLiveActivityManager.swift in Sources */,
+				B20000000000000000000003 /* WidgetGlanceData.swift in Sources */,
+				B20000000000000000000006 /* WidgetDeepLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -548,6 +563,9 @@
 				B10000000000000000000007 /* ClockInActivityAttributes.swift in Sources */,
 				B10000000000000000000009 /* ClockInLiveActivityIntents.swift in Sources */,
 				B10000000000000000000021 /* DesignTokens.swift in Sources */,
+				B20000000000000000000001 /* WidgetGlanceData.swift in Sources */,
+				B20000000000000000000004 /* WidgetDeepLink.swift in Sources */,
+				B20000000000000000000007 /* TodayGlanceWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -681,6 +699,7 @@
 				DEVELOPMENT_TEAM = 52CWM4V3RY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Workable/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Workable;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
@@ -722,6 +741,7 @@
 				DEVELOPMENT_TEAM = 52CWM4V3RY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Workable/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Workable;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;

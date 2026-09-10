@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Calendar / List toggle and weekly chart shared by personal and employee time-tracking flows.
 /// Figma: 15616-17727 (Calendar), 15616-173383 (List).
-/// Session FAB: 15775-245174 (idle) · 15775-245205 (working) · 15775-245237 (on break).
+/// Session FAB: 15775-245174 (idle) · 15775-245205 (working) · 15849-268875 (on break).
 struct TimeTrackingWeekCalendarContent: View {
     @Binding var selectedSubTab: Int
     @Binding var showsAddTimeEntrySheet: Bool
@@ -38,7 +38,7 @@ struct TimeTrackingWeekCalendarContent: View {
     private static let holdingButtonSize: CGFloat = 90
     /// Clock in / out morph.
     private static let sessionTransition = Animation.spring(response: 0.52, dampingFraction: 0.88)
-    /// Working ↔ break — timer slides linearly into the stacked layout.
+    /// Working ↔ break — timer slides linearly into the single-row break pill.
     private static let breakTransition = Animation.linear(duration: 0.28)
 
     private let days = ["M", "T", "W", "T", "F", "S", "S"]
@@ -64,7 +64,7 @@ struct TimeTrackingWeekCalendarContent: View {
 
     private var scrollBottomInset: CGFloat {
         guard showsClockInFAB else { return 24 }
-        let controlHeight: CGFloat = session.isOnBreak ? 62 : Self.fabSize
+        let controlHeight: CGFloat = Self.fabSize
         return Self.fabBottomInset + controlHeight + 24
     }
 
@@ -498,20 +498,23 @@ struct TimeTrackingWeekCalendarContent: View {
     }
 
     /// Working / on-break session pill — shared timer identity so it slides on state change.
+    /// On break: emoji + `00m 01s` + End break (Figma 15849:268875).
     private var activeSessionPill: some View {
         let onBreak = session.isOnBreak && breakSupportEnabled
-        return HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: onBreak ? 4 : 0) {
-                if onBreak {
-                    onBreakStatusLabel
-                        .transition(.opacity)
+        return HStack(spacing: onBreak ? 8 : 16) {
+            if onBreak {
+                HStack(alignment: .center, spacing: 4) {
+                    onBreakEmojiPill
+                    sessionTimerLabels(
+                        primarySize: 17,
+                        secondarySize: 13,
+                        omitHoursWhenZero: true
+                    )
+                    .matchedGeometryEffect(id: "fabSessionTimer", in: sessionFABNamespace)
                 }
-
-                sessionTimerLabels(
-                    primarySize: onBreak ? 17 : 22,
-                    secondarySize: onBreak ? 13 : 16
-                )
-                .matchedGeometryEffect(id: "fabSessionTimer", in: sessionFABNamespace)
+            } else {
+                sessionTimerLabels(primarySize: 22, secondarySize: 16)
+                    .matchedGeometryEffect(id: "fabSessionTimer", in: sessionFABNamespace)
             }
 
             // Instant control swap — no animation on buttons.
@@ -521,18 +524,18 @@ struct TimeTrackingWeekCalendarContent: View {
                         endBreak()
                     } label: {
                         Text("End break")
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(AppFonts.headline())
                             .tracking(-0.41)
                             .foregroundColor(AppColors.primaryDark)
                             .padding(.horizontal, 16)
-                            .frame(height: 54)
+                            .frame(height: 52)
                             .background(AppColors.activeBackground)
                             .clipShape(Capsule(style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("End break")
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 4)
+                    .padding(.trailing, 2)
+                    .padding(.vertical, 2)
                 } else {
                     HStack(spacing: 16) {
                         if breakSupportEnabled {
@@ -556,6 +559,7 @@ struct TimeTrackingWeekCalendarContent: View {
         .padding(.leading, 24)
         .padding(.trailing, onBreak ? 0 : 4)
         .padding(.vertical, onBreak ? 0 : 4)
+        .frame(height: onBreak ? Self.fabSize : nil)
         // Capsule fill only — no clipShape, so stop/halo aren’t cut by the pill edge.
         .background {
             Capsule(style: .continuous)
@@ -565,40 +569,40 @@ struct TimeTrackingWeekCalendarContent: View {
         }
     }
 
+    /// Emoji-only status chip (Figma Label/Pill on 15849:268875).
     @ViewBuilder
-    private var onBreakStatusLabel: some View {
-        if breakSupportUIVersion.usesEditableBreakEmojiLabel {
-            HStack(spacing: 4) {
-                EmojiText(emoji: session.breakEmoji ?? breakEmojiDraft, size: 14)
-                Text("On break")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(AppColors.fontDefault)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .background(AppColors.background)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .onTapGesture {
-                if let emoji = session.breakEmoji, !emoji.isEmpty {
-                    breakEmojiDraft = emoji
-                }
-                isEmojiKeyboardFocused = true
-            }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("On break, edit emoji")
-        } else {
-            Text("On break")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColors.fontDefault)
+    private var onBreakEmojiPill: some View {
+        let emoji = session.breakEmoji
+            ?? (breakSupportUIVersion.usesEditableBreakEmojiLabel ? breakEmojiDraft : nil)
+        if let emoji, !emoji.isEmpty {
+            let pill = EmojiText(emoji: emoji, size: 16)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
                 .background(AppColors.background)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            if breakSupportUIVersion.usesEditableBreakEmojiLabel {
+                pill
+                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .onTapGesture {
+                        if let current = session.breakEmoji, !current.isEmpty {
+                            breakEmojiDraft = current
+                        }
+                        isEmojiKeyboardFocused = true
+                    }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Edit break emoji")
+            } else {
+                pill
+            }
         }
     }
 
-    private func sessionTimerLabels(primarySize: CGFloat, secondarySize: CGFloat) -> some View {
+    private func sessionTimerLabels(
+        primarySize: CGFloat,
+        secondarySize: CGFloat,
+        omitHoursWhenZero: Bool = false
+    ) -> some View {
         let anchor: Date = {
             if session.isOnBreak, let breakStart = session.breakStartDate {
                 return breakStart
@@ -611,9 +615,12 @@ struct TimeTrackingWeekCalendarContent: View {
             let hours = elapsed / 3600
             let minutes = (elapsed % 3600) / 60
             let seconds = elapsed % 60
+            let primaryText = omitHoursWhenZero && hours == 0
+                ? String(format: "%02dm", minutes)
+                : "\(hours)h \(String(format: "%02d", minutes))m"
 
             HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text("\(hours)h \(String(format: "%02d", minutes))m")
+                Text(primaryText)
                     .font(.system(size: primarySize, weight: .semibold))
                     .tracking(primarySize >= 20 ? 0.35 : -0.41)
                     .foregroundColor(AppColors.fontDefault)
@@ -859,14 +866,6 @@ struct TimeTrackingWeekCalendarContent: View {
                 Text(entry.duration)
                     .font(AppFonts.headline())
                     .foregroundColor(AppColors.fontDefault)
-            }
-
-            if breakSupportEnabled, entry.hasBreaks {
-                Text(entry.breakListSummary)
-                    .font(AppFonts.caption1())
-                    .foregroundColor(AppColors.fontSecondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
             }
         }
         .contentShape(Rectangle())

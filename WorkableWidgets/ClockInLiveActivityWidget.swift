@@ -7,75 +7,96 @@ import AppIntents
 struct ClockInLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ClockInActivityAttributes.self) { context in
-            ClockInLockScreenView(context: context)
+            if context.state.isBackAtWork {
+                BackAtWorkLockScreenView()
+            } else {
+                ClockInLockScreenView(context: context)
+            }
         } dynamicIsland: { context in
-            DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    Label {
-                        Text(context.state.isOnBreak ? "On break" : "Working")
-                    } icon: {
-                        Image(systemName: context.state.isOnBreak ? "play.fill" : "pause.fill")
+            if context.state.isBackAtWork {
+                return DynamicIsland {
+                    DynamicIslandExpandedRegion(.leading) {
+                        Text("You’re back at work")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppColors.fontDefault)
                     }
-                    .font(.caption.weight(.semibold))
+                    DynamicIslandExpandedRegion(.trailing) {
+                        liveActivityWorkableLogo(width: 29, height: 16)
+                    }
+                    DynamicIslandExpandedRegion(.bottom) {
+                        EmptyView()
+                    }
+                } compactLeading: {
+                    Text("Work")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppColors.fontDefault)
+                } compactTrailing: {
+                    liveActivityWorkableLogo(width: 22, height: 12)
+                } minimal: {
+                    liveActivityWorkableLogo(width: 18, height: 10)
+                }
+            }
+            let timerTint = context.state.isBreakOverLimit
+                ? AppColors.liveActivityWarning
+                : AppColors.fontDefault
+            return DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    HStack(spacing: 6) {
+                        if let emoji = context.state.breakEmoji, !emoji.isEmpty {
+                            Text(emoji)
+                                .font(.system(size: 16))
+                        } else {
+                            Image(systemName: "pause.fill")
+                                .font(.caption.weight(.semibold))
+                        }
+                        Text("On break")
+                            .font(.caption.weight(.semibold))
+                    }
                     .foregroundStyle(AppColors.fontDefault)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    liveActivitySystemTimer(
-                        start: Self.activeTimerStart(for: context.state),
-                        fontSize: 20
+                    liveActivitySplitTimer(
+                        start: context.state.activeTimerStart,
+                        tint: timerTint,
+                        style: .island
                     )
                     .multilineTextAlignment(.trailing)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 10) {
-                        if context.state.breaksEnabled {
-                            Button(intent: ToggleBreakLiveActivityIntent()) {
-                                liveActivityActionLabel(
-                                    title: context.state.isOnBreak ? "End break" : "Take a break",
-                                    systemImage: context.state.isOnBreak ? "play.fill" : "pause.fill"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .tint(AppColors.fontDefault)
-                        }
-
-                        // Match the home card: no clock-out while on break.
-                        if !context.state.isOnBreak {
-                            Button(intent: ClockOutLiveActivityIntent()) {
-                                liveActivityActionLabel(
-                                    title: "Clock out…",
-                                    systemImage: "stop.fill"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .tint(AppColors.fontDefault)
-                        }
+                    Button(intent: ToggleBreakLiveActivityIntent()) {
+                        liveActivityActionLabel(
+                            title: "End break",
+                            systemImage: "play.fill"
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .tint(AppColors.fontDefault)
                     .font(.subheadline.weight(.semibold))
                 }
             } compactLeading: {
-                Image(systemName: context.state.isOnBreak ? "pause.fill" : "play.fill")
-                    .foregroundStyle(AppColors.fontDefault)
+                if let emoji = context.state.breakEmoji, !emoji.isEmpty {
+                    Text(emoji)
+                        .font(.system(size: 14))
+                } else {
+                    Image(systemName: "pause.fill")
+                        .foregroundStyle(AppColors.fontDefault)
+                }
             } compactTrailing: {
-                liveActivitySystemTimer(
-                    start: Self.activeTimerStart(for: context.state),
-                    fontSize: 13
+                liveActivitySplitTimer(
+                    start: context.state.activeTimerStart,
+                    tint: timerTint,
+                    style: .compact
                 )
-                .frame(width: 64, alignment: .trailing)
-                .multilineTextAlignment(.trailing)
             } minimal: {
-                Image(systemName: context.state.isOnBreak ? "pause.fill" : "play.fill")
-                    .foregroundStyle(AppColors.fontDefault)
+                if let emoji = context.state.breakEmoji, !emoji.isEmpty {
+                    Text(emoji)
+                        .font(.system(size: 12))
+                } else {
+                    Image(systemName: "pause.fill")
+                        .foregroundStyle(AppColors.fontDefault)
+                }
             }
         }
-    }
-
-    /// Session elapsed while working; break elapsed while paused.
-    private static func activeTimerStart(for state: ClockInActivityAttributes.ContentState) -> Date {
-        if state.isOnBreak, let breakStart = state.breakStartDate {
-            return breakStart
-        }
-        return state.clockInDate
     }
 }
 
@@ -83,90 +104,185 @@ private struct ClockInLockScreenView: View {
     let context: ActivityViewContext<ClockInActivityAttributes>
 
     private var timerStart: Date {
-        if context.state.isOnBreak, let breakStart = context.state.breakStartDate {
-            return breakStart
-        }
-        return context.state.clockInDate
+        context.state.activeTimerStart
+    }
+
+    private var isBreakOverLimit: Bool {
+        context.state.isBreakOverLimit
+    }
+
+    private var timerTint: Color {
+        isBreakOverLimit ? AppColors.liveActivityWarning : .white
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(context.state.isOnBreak ? "On break" : "Time tracking")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppColors.fontSecondary)
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 4) {
+                        if let emoji = context.state.breakEmoji, !emoji.isEmpty {
+                            Text(emoji)
+                                .font(.system(size: 15))
+                        }
+                        Text("On break")
+                            .font(AppFonts.subheadline())
+                            .tracking(-0.24)
+                            .foregroundStyle(.white)
+                    }
 
-                    // System-driven timer — TimelineView / manual ticks don't update in Live Activities.
-                    liveActivitySystemTimer(start: timerStart, fontSize: 28)
+                    liveActivitySplitTimer(
+                        start: timerStart,
+                        tint: timerTint,
+                        style: .lockScreen
+                    )
                 }
 
                 Spacer(minLength: 8)
 
-                Image("logo-workable")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(Color(light: "00756A", dark: "FFFFFF"))
-                    .frame(width: 36, height: 25)
-                    .accessibilityHidden(true)
+                liveActivityWorkableLogo(width: 29, height: 16)
             }
 
-            HStack(spacing: 10) {
-                if context.state.breaksEnabled {
-                    Button(intent: ToggleBreakLiveActivityIntent()) {
-                        liveActivityChip(
-                            title: context.state.isOnBreak ? "End break" : "Take a break",
-                            systemImage: context.state.isOnBreak ? "play.fill" : "pause.fill",
-                            fill: AppColors.background,
-                            ink: AppColors.fontDefault
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
+            breakProgressBar
 
-                // Match the home card: no clock-out while on break.
-                if !context.state.isOnBreak {
-                    Button(intent: ClockOutLiveActivityIntent()) {
-                        liveActivityChip(
-                            title: "Clock out…",
-                            systemImage: "stop.fill",
-                            fill: AppColors.fontDefault,
-                            ink: AppColors.surface
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
+            Button(intent: ToggleBreakLiveActivityIntent()) {
+                liveActivityFigmaButton(title: "End break")
             }
+            .buttonStyle(.plain)
         }
         .padding(16)
-        .activityBackgroundTint(AppColors.surface.opacity(0.96))
+        .activityBackgroundTint(AppColors.primary700)
+    }
+
+    @ViewBuilder
+    private var breakProgressBar: some View {
+        if isBreakOverLimit {
+            Capsule()
+                .fill(AppColors.liveActivityWarning)
+                .frame(height: 6)
+        } else if let start = context.state.breakStartDate,
+                  let end = context.state.plannedBreakEndDate {
+            ProgressView(timerInterval: start...end, countsDown: false) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+                .progressViewStyle(.linear)
+                .tint(AppColors.liveActivityProgressFill)
+                .frame(height: 6)
+                .background(AppColors.liveActivityProgressTrack, in: Capsule())
+                .clipShape(Capsule())
+        } else {
+            Capsule()
+                .fill(AppColors.liveActivityProgressTrack)
+                .frame(height: 6)
+        }
     }
 }
 
-/// Live-updating stopwatch. Must use `Text(timerInterval:)` — Live Activities won't tick custom TimelineViews.
-private func liveActivitySystemTimer(start: Date, fontSize: CGFloat) -> some View {
-    Text(timerInterval: start...Date.distantFuture, countsDown: false)
-        .font(.system(size: fontSize, weight: .semibold))
-        .monospacedDigit()
-        .foregroundStyle(AppColors.fontDefault)
-        .lineLimit(1)
-        .minimumScaleFactor(0.7)
+/// Compact dismissal (Figma 15862:461663 / 15864:462092) — 3 seconds after End break.
+private struct BackAtWorkLockScreenView: View {
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            Text("You’re back at work")
+                .font(AppFonts.title3Strong())
+                .tracking(0.38)
+                .foregroundStyle(.white)
+            Spacer(minLength: 8)
+            liveActivityWorkableLogo(width: 29, height: 16)
+        }
+        .padding(16)
+        .activityBackgroundTint(AppColors.primary700)
+    }
 }
 
-/// Soft filled chip — pause/resume use neutral fill; clock-out stays dark.
-private func liveActivityChip(
-    title: String,
-    systemImage: String,
-    fill: Color,
-    ink: Color
+private func liveActivityWorkableLogo(width: CGFloat, height: CGFloat) -> some View {
+    Image("logo-workable")
+        .renderingMode(.template)
+        .resizable()
+        .scaledToFit()
+        .foregroundStyle(.white)
+        .frame(width: width, height: height)
+        .accessibilityHidden(true)
+}
+
+/// Live elapsed time. `Text(timerInterval:)` is the only ActivityKit-safe
+/// stopwatch — custom `DiscreteFormatStyle` / `TimeDataSource` leave the
+/// lock-screen activity on skeletons.
+///
+/// End the interval at 10 hours, not `distantFuture`. ActivityKit sizes the
+/// compact island from the worst-case duration string; a far-future end
+/// stretches the bar across the screen.
+private func liveActivitySplitTimer(
+    start: Date,
+    tint: Color,
+    style: LiveActivityTimerStyle
 ) -> some View {
-    Label(title, systemImage: systemImage)
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(ink)
+    Text(
+        timerInterval: start...start.addingTimeInterval(10 * 60 * 60),
+        countsDown: false,
+        showsHours: false
+    )
+        .font(style.minutesFont)
+        .monospacedDigit()
+        .foregroundStyle(tint)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .multilineTextAlignment(style.textAlignment)
+        .frame(width: style.fixedWidth, alignment: style.frameAlignment)
+        .frame(maxWidth: style.expandsToFullWidth ? .infinity : nil, alignment: .leading)
+        .accessibilityLabel("Elapsed time")
+}
+
+private enum LiveActivityTimerStyle {
+    case lockScreen
+    case island
+    case compact
+
+    var minutesFont: Font {
+        switch self {
+        case .lockScreen: return AppFonts.chunkyTitle()
+        case .island: return .system(size: 20, weight: .semibold)
+        case .compact: return .system(size: 13, weight: .semibold)
+        }
+    }
+
+    /// Compact island sizes from this view. Keep it to `mm:ss`, not hours.
+    var fixedWidth: CGFloat? {
+        switch self {
+        case .compact: return 42
+        case .island, .lockScreen: return nil
+        }
+    }
+
+    var textAlignment: TextAlignment {
+        switch self {
+        case .lockScreen: return .leading
+        case .island, .compact: return .trailing
+        }
+    }
+
+    var frameAlignment: Alignment {
+        switch self {
+        case .lockScreen: return .leading
+        case .island, .compact: return .trailing
+        }
+    }
+
+    var expandsToFullWidth: Bool {
+        self == .lockScreen
+    }
+}
+
+/// Full-width white capsule — Figma End break (15862:458985).
+private func liveActivityFigmaButton(title: String) -> some View {
+    Text(title)
+        .font(AppFonts.headline())
+        .tracking(-0.41)
+        .foregroundStyle(AppColors.liveActivityButtonInk)
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(fill, in: Capsule())
+        .background(.white, in: Capsule())
 }
 
 private func liveActivityActionLabel(title: String, systemImage: String) -> some View {

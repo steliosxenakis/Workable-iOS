@@ -149,8 +149,8 @@ struct TodayWidgetData {
         anomalyPills: {
             let eligible = TimeAttendanceMockData.employees.filter { !$0.hasScheduleIcon }
             return [
-                TodayAnomalyPill(label: "Missed clock-ins",         count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      style: .danger,  filters: [.noClockInNorOut]),
-                TodayAnomalyPill(label: "Exceeded work hours",      count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
+                TodayAnomalyPill(label: "Not clocked in",         count: eligible.filter { $0.anomalyType == .noClockInNorOut }.count,      style: .danger,  filters: [.noClockInNorOut]),
+                TodayAnomalyPill(label: "Clock-out overdue",      count: eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count, style: .warning, filters: [.exceededWorkSchedule]),
                 TodayAnomalyPill(label: "Worked less",              count: eligible.filter { $0.anomalyType == .workedLess }.count,            style: .danger,  filters: [.workedLess]),
                 TodayAnomalyPill(label: "On track",                  count: eligible.filter { $0.anomalyType == .onTrack }.count,              style: .success, filters: [.onTrack]),
                 TodayAnomalyPill(label: "Expected to work today",    count: eligible.count,                                                    style: .neutral, filters: []),
@@ -241,7 +241,7 @@ enum AttendanceNotifyStyle: String, CaseIterable, Identifiable {
     case fab = "FAB + swipe"
     /// Final — FAB opens filter-based notify; no per-employee select/deselect.
     case final = "Final"
-    /// Sheet — FAB opens “Notify employees with…” bottom sheet (category toggles).
+    /// Sheet — FAB opens “Choose who to notify” bottom sheet (category toggles).
     case sheet = "Sheet"
 
     var id: String { rawValue }
@@ -724,8 +724,8 @@ private struct AttendanceUIVersionPageSnippet: View {
             }
 
             HStack(spacing: 3) {
-                snippetFilterChip("Missed (1)", selected: true)
-                snippetFilterChip("Exceeded (2)", selected: false)
+                snippetFilterChip("Not clocked in (1)", selected: true)
+                snippetFilterChip("Worked more (2)", selected: false)
             }
         }
         .padding(.horizontal, 8)
@@ -860,7 +860,7 @@ private struct AttendanceUIVersionPageSnippet: View {
                 .padding(.vertical, 2)
                 .background(AppColors.dangerBackground)
                 .clipShape(Capsule())
-            Text("Missed clock-in")
+            Text("Not clocked in")
                 .font(.system(size: 6, weight: .medium))
                 .foregroundColor(AppColors.fontSecondary)
                 .padding(.horizontal, 4)
@@ -875,7 +875,7 @@ private struct AttendanceUIVersionPageSnippet: View {
             RoundedRectangle(cornerRadius: 1, style: .continuous)
                 .fill(AppColors.dangerDefault.opacity(0.85))
                 .frame(width: 5, height: 5)
-            Text("Missed clock-in")
+            Text("Not clocked in")
                 .font(.system(size: 5, weight: .regular))
                 .foregroundColor(AppColors.dangerDefault)
                 .lineLimit(1)
@@ -893,7 +893,7 @@ private struct AttendanceUIVersionPageSnippet: View {
 
     private var snippetProgressStatus: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("Missed clock-in")
+            Text("Not clocked in")
                 .font(.system(size: 6, weight: .semibold))
                 .foregroundColor(AppColors.dangerDefault)
                 .padding(.horizontal, 4)
@@ -2032,7 +2032,7 @@ struct TodayWidgetTimeline: View {
             nodes.append(TimelineNode(time: startTime, title: event.title, subtitle: "\(event.time) · \(event.subtitle)", kind: .event))
         }
         if data.issueCount > 0 {
-            nodes.append(TimelineNode(time: "—", title: "\(data.issueCount) attendance issues", subtitle: "Missed clock-ins & no attendance", kind: .anomaly))
+            nodes.append(TimelineNode(time: "—", title: "\(data.issueCount) attendance issues", subtitle: "Not clocked in & absent", kind: .anomaly))
         }
         nodes.append(TimelineNode(time: "16:00", title: "Shift ends", subtitle: nil, kind: .shift))
         for item in data.celebrations {

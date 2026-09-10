@@ -19,6 +19,28 @@ enum AppColors {
     // Brand — Primary / Teal
     static let primary          = Color(light: "00756A", dark: "4DD4AF")   // Primary ☀️500 ☽300
     static let primaryDark      = Color(light: "00665B", dark: "00B386")   // Primary ☀️500 ☽300
+    /// Lock Screen Live Activity card (Figma Primary/700 — 15862:458975).
+    static let primary700       = Color(light: "0A2824", dark: "0A2824")
+    /// Home-screen widget header / chip fill (Figma Primary/600 — 15870:541009).
+    static let primary600       = Color(light: "093732", dark: "093732")
+    /// Attendance-issues chip on the dark widget (Figma Warning/700).
+    static let warning700       = Color(light: "462E1D", dark: "462E1D")
+    /// Chip count/icon on the dark widget (Figma success-default ☀️400).
+    static let widgetChipAccent = Color(light: "009E6A", dark: "009E6A")
+    /// Today widget V2 (Figma Neutral/800).
+    static let widgetV2Background = Color(light: "040404", dark: "040404")
+    /// Mint glow ellipse on the V2 widget (Figma Ellipse 33).
+    static let widgetV2MintGlow = Color(light: "67D7A1", dark: "67D7A1")
+    /// Purple glow ellipse on the V2 widget (Figma Ellipse 32 / AI 200).
+    static let widgetV2PurpleGlow = Color(light: "D8ADFF", dark: "D8ADFF")
+    /// Widget timer seconds (Figma icon-inactive ☀️400 — 15871:545205).
+    static let widgetTimerSeconds = Color(light: "C8C7C7", dark: "C8C7C7")
+
+    /// Always-light tokens for the dark Live Activity card (does not follow system dark mode).
+    static let liveActivityProgressTrack = Color(light: "D3F7E3", dark: "D3F7E3") // active-background ☀️100
+    static let liveActivityProgressFill  = Color(light: "00665B", dark: "00665B") // Primary ☀️500
+    static let liveActivityWarning       = Color(light: "FFB420", dark: "FFB420") // warning-text ☀️300
+    static let liveActivityButtonInk     = Color(light: "323234", dark: "323234") // font-default ☀️700
 
     // Supplementary neutrals (non-Figma)
     static let volcanicAsh      = Color(light: "636D77", dark: "A0A8B0")
@@ -124,6 +146,14 @@ extension UIColor {
 // MARK: - Typography (SF Pro Text equivalents)
 enum AppFonts {
     static func headline() -> Font { .system(size: 17, weight: .semibold) }
+    /// Live Activity elapsed minutes (Figma iOS/Chunky Title).
+    static func chunkyTitle() -> Font { .system(size: 34, weight: .bold) }
+    /// Home-screen widget timer (Figma iOS/Title2 strong).
+    static func title2Strong() -> Font { .system(size: 22, weight: .semibold) }
+    /// Live Activity elapsed seconds (Figma iOS/Title3).
+    static func title3() -> Font { .system(size: 20, weight: .regular) }
+    /// “You’re back at work” Live Activity (Figma iOS/Title3 strong — 15864:462099).
+    static func title3Strong() -> Font { .system(size: 20, weight: .semibold) }
     static func body() -> Font { .system(size: 17, weight: .regular) }
     static func callout() -> Font { .system(size: 16, weight: .regular) }
     static func subheadline() -> Font { .system(size: 15, weight: .regular) }
@@ -146,13 +176,12 @@ struct EmojiText: View {
     var body: some View {
         let resolved = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
         let glyph = resolved.isEmpty ? "☕" : resolved
-        let side = size + 4
         Image(uiImage: EmojiImageCache.image(for: glyph, pointSize: size))
             .renderingMode(.original)
             .resizable()
-            .interpolation(.high)
+            .interpolation(.medium)
             .scaledToFit()
-            .frame(width: side, height: side)
+            .frame(width: size, height: size)
             .fixedSize()
             .accessibilityLabel(glyph)
     }
@@ -161,33 +190,33 @@ struct EmojiText: View {
 /// Rasterizes Apple Color Emoji once per (glyph, size) so tint never reaches text layout.
 enum EmojiImageCache {
     private static let cache = NSCache<NSString, UIImage>()
+    /// Bitmap strikes actually present in Apple Color Emoji. Other sizes scale
+    /// a nearby strike and look like grey/blurry squares (especially < 20pt).
+    private static let strikeSizes: [CGFloat] = [20, 32, 40, 48, 64, 96, 160]
 
     static func image(for emoji: String, pointSize: CGFloat) -> UIImage {
         let key = "\(emoji)|\(Int(pointSize * 100))" as NSString
         if let cached = cache.object(forKey: key) { return cached }
 
-        // Snapshot a UILabel — more reliable than NSString.draw with AppleColorEmoji,
-        // which can produce blank/“?” glyphs under SwiftUI tint environments.
-        let label = UILabel()
-        label.text = emoji
-        label.font = colorEmojiFont(ofSize: pointSize)
-        label.textAlignment = .center
-        label.backgroundColor = .clear
-        label.numberOfLines = 1
-        label.sizeToFit()
-
+        let strike = nearestStrike(for: max(pointSize, 32))
+        let font = colorEmojiFont(ofSize: strike)
+        let attributed = NSAttributedString(string: emoji, attributes: [.font: font])
+        let textSize = attributed.size()
         let canvas = CGSize(
-            width: max(ceil(label.bounds.width), ceil(pointSize) + 2),
-            height: max(ceil(label.bounds.height), ceil(pointSize) + 2)
+            width: max(ceil(textSize.width), strike),
+            height: max(ceil(textSize.height), strike)
         )
-        label.bounds = CGRect(origin: .zero, size: canvas)
 
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = false
-        format.scale = UITraitCollection.current.displayScale
+        format.scale = max(UITraitCollection.current.displayScale, 2)
         let renderer = UIGraphicsImageRenderer(size: canvas, format: format)
-        let image = renderer.image { context in
-            label.layer.render(in: context.cgContext)
+        let image = renderer.image { _ in
+            let origin = CGPoint(
+                x: (canvas.width - textSize.width) / 2,
+                y: (canvas.height - textSize.height) / 2
+            )
+            attributed.draw(at: origin)
         }
 
         cache.setObject(image, forKey: key)
@@ -195,10 +224,15 @@ enum EmojiImageCache {
     }
 
     static func colorEmojiFont(ofSize pointSize: CGFloat) -> UIFont {
-        // Prefer the system font: Core Text substitutes Apple Color Emoji at a
-        // supported strike size. Instantiating "AppleColorEmoji" directly at
-        // arbitrary point sizes often yields blank/“?” tofu glyphs.
-        .systemFont(ofSize: pointSize)
+        let strike = nearestStrike(for: pointSize)
+        if let font = UIFont(name: "AppleColorEmoji", size: strike) {
+            return font
+        }
+        return .systemFont(ofSize: strike)
+    }
+
+    private static func nearestStrike(for pointSize: CGFloat) -> CGFloat {
+        strikeSizes.first { $0 >= pointSize } ?? strikeSizes.last ?? 64
     }
 }
 

@@ -53,7 +53,7 @@ struct TimeAttendanceAnomaliesListView: View {
     @State private var selectedForNotification: Set<UUID> = []
     @State private var filtersBeforeFab: Set<AnomalyFilterCategory>?
     @State private var showsReminderToast = false
-    @State private var reminderToastMessage = "Notification sent."
+    @State private var reminderToastMessage = "Notification sent to 0 employees."
     @State private var showsResendReminderAlert = false
     @State private var pendingReminderTargets: Set<UUID> = []
     @State private var showsNotifySheet = false
@@ -173,7 +173,7 @@ struct TimeAttendanceAnomaliesListView: View {
 
     private func sendFilterReminders(
         to targets: Set<UUID>,
-        toastMessage: String = "Notification sent."
+        toastMessage: String? = nil
     ) {
         guard !targets.isEmpty else { return }
         let now = Date()
@@ -190,7 +190,7 @@ struct TimeAttendanceAnomaliesListView: View {
             selectedFilters.removeAll()
             filtersBeforeFab = nil
         }
-        reminderToastMessage = toastMessage
+        reminderToastMessage = toastMessage ?? Self.notificationSentMessage(count: targets.count)
         withAnimation(.easeInOut(duration: 0.2)) {
             showsReminderToast = true
         }
@@ -199,6 +199,11 @@ struct TimeAttendanceAnomaliesListView: View {
                 showsReminderToast = false
             }
         }
+    }
+
+    private static func notificationSentMessage(count: Int) -> String {
+        let noun = count == 1 ? "employee" : "employees"
+        return "Notification sent to \(count) \(noun)."
     }
 
     private var employees: [EmployeeAnomaly] {
@@ -1317,7 +1322,7 @@ private struct NotifyEmployeesSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("Notify employees with...")
+            Text("Choose who to notify")
                 .font(.system(size: 17, weight: .semibold))
                 .tracking(-0.43)
                 .foregroundColor(AppColors.fontDefault)

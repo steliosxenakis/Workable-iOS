@@ -4,15 +4,15 @@ import SwiftUI
 
 enum AnomalyType: String, CaseIterable, Identifiable {
     // Actionable (danger)
-    case noClockIn = "No attendance"
-    case noClockInNorOut = "Missed clock-in"
-    case missedClockOut = "Missed clock-out"
-    case exceededWorkSchedule = "Exceeding work hours"
+    case noClockIn = "Absent"
+    case noClockInNorOut = "Not clocked in"
+    case missedClockOut = "Incomplete entry"
+    case exceededWorkSchedule = "Clock-out overdue"
     case workedLess = "Worked less"
     // Non-actionable (warning)
-    case late = "Late arrival"
-    case exceededHours = "Exceeded work hours"
-    case unplanned = "Unplanned attendance"
+    case late = "Clocked in late"
+    case exceededHours = "Worked more"
+    case unplanned = "Not scheduled to work"
     /// Scheduled today; shift not started — not an anomaly.
     case scheduleNotStarted = "Schedule not started"
     case onTrack = "On track"
@@ -67,13 +67,13 @@ enum AnomalyType: String, CaseIterable, Identifiable {
 // MARK: - Filter Categories (drill-in list)
 
 enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
-    case noClockInNorOut = "Missed clock-ins"
-    case missedClockOut = "Missed clock-outs"
-    case exceededWorkSchedule = "Exceeding work hours"
-    case noClockIn = "No attendance"
-    case late = "Late arrival"
-    case exceededHours = "Exceeded work hours"
-    case unplanned = "Unplanned attendance"
+    case noClockInNorOut = "Not clocked in"
+    case missedClockOut = "Incomplete entry"
+    case exceededWorkSchedule = "Clock-out overdue"
+    case noClockIn = "Absent"
+    case late = "Clocked in late"
+    case exceededHours = "Worked more"
+    case unplanned = "Not scheduled to work"
     case workedLess = "Worked less"
     case onTrack = "On track"
 
@@ -99,17 +99,8 @@ enum AnomalyFilterCategory: String, CaseIterable, Identifiable {
     }
 
     /// Today issue pill copy — singular when `count == 1`.
-    func issuePillLabel(count: Int) -> String {
-        switch self {
-        case .noClockInNorOut:
-            return count == 1 ? "Missed clock-in" : rawValue
-        case .missedClockOut:
-            return count == 1 ? "Missed clock-out" : rawValue
-        case .exceededWorkSchedule:
-            return count == 1 ? "Exceeding work hour" : rawValue
-        case .noClockIn, .onTrack, .late, .exceededHours, .unplanned, .workedLess:
-            return rawValue
-        }
+    func issuePillLabel(count _: Int) -> String {
+        rawValue
     }
 }
 
@@ -241,13 +232,14 @@ struct TimeEntryDetail: Hashable {
     let duration: String
     var note: String? = nil
     var breaks: [TimeEntryBreak] = []
+    var workplace: String = "Remote"
 
     var periodText: String {
         "\(start) - \(end) (\(duration) in total)"
     }
 
     var scheduleBannerText: String {
-        "Day’s work schedule: \(scheduleRange)"
+        "Day’s work schedule: \(scheduleRange) | \(workplace)"
     }
 
     var noteText: String {
@@ -333,14 +325,16 @@ struct TimesheetListDay: Identifiable {
 enum TimeAttendanceMockData {
     static var summaryItems: [AnomalySummaryItem] {
         let eligible = employees.filter { !$0.hasScheduleIcon }
-        let missedClocks = eligible.filter { $0.anomalyType == .noClockIn || $0.anomalyType == .noClockInNorOut }.count
+        let notClockedIn = eligible.filter { $0.anomalyType == .noClockInNorOut }.count
+        let absent = eligible.filter { $0.anomalyType == .noClockIn }.count
         let exceeded = eligible.filter { $0.anomalyType == .exceededWorkSchedule }.count
         let unplanned = eligible.filter { $0.anomalyType == .unplanned }.count
         let late = eligible.filter { $0.anomalyType == .late }.count
         let exceededHours = eligible.filter { $0.anomalyType == .exceededHours }.count
         let onTrack = eligible.filter { $0.anomalyType == .onTrack }.count
         return [
-            .init(label: "No attendance", count: missedClocks, textColor: AppColors.dangerDefault, matchingFilters: [.noClockIn, .noClockInNorOut]),
+            .init(type: .noClockInNorOut, count: notClockedIn),
+            .init(type: .noClockIn, count: absent),
             .init(type: .exceededWorkSchedule, count: exceeded),
             .init(type: .unplanned, count: unplanned),
             .init(type: .late, count: late),
@@ -466,7 +460,7 @@ enum TimeAttendanceMockData {
         // Missed clock-out — Worked: 09:15 - Missing (Figma: Issue=Missed clock-out)
         .init(name: "Elordi, Xavier",                   role: "Account Executive",       avatarName: "avatar-michael", anomalyType: .missedClockOut,       hasScheduleIcon: false,  department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 5, scheduleTimeRange: "09:15 - Missing"),
         // Exceeded by 1h 30m + Late by 2m — Worked: 09:32 - 19:00 (Figma 390-15756)
-        .init(name: "Doe, Joanne",                     role: "Account Manager",         avatarName: "avatar-lucy",    anomalyType: .exceededHours,         hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 9.5, scheduleTimeRange: "09:32 - 19:00", secondaryIssueLabel: "Late by 2m"),
+        .init(name: "Doe, Joanne",                     role: "Account Manager",         avatarName: "avatar-lucy",    anomalyType: .exceededHours,         hasScheduleIcon: false, department: "Sales",       workplace: "London",    entity: "Workable UK",   scheduledHours: 8, workedHours: 9.5, scheduleTimeRange: "09:32 - 19:00", secondaryIssueLabel: "Late · 2m"),
         // Worked 15m less — Worked: 09:00 - 16:45 (Figma: Issue=Worked less)
         .init(name: "Alonso, Javier",                   role: "Solutions Architect",     avatarName: "avatar-jamal",   anomalyType: .workedLess,           hasScheduleIcon: false,  department: "Engineering", workplace: "Berlin",    entity: "Workable EU",   scheduledHours: 8, workedHours: 7.75, scheduleTimeRange: "09:00 - 16:45"),
         // Exceeded by 2h (multiple ranges) — Worked: 09:00 - 13:00, 15:00 - 21:00 (Figma: Issue=Exceeded, Multiple worked)
@@ -816,23 +810,68 @@ struct GlassSymbolButton: View {
     static let size: CGFloat = 40
     static let symbolPointSize: CGFloat = 18
 
-    let systemName: String
-    var fontSize: CGFloat = symbolPointSize
-    var fontWeight: Font.Weight = .medium
+    private enum Icon {
+        case system(name: String, size: CGFloat, weight: Font.Weight)
+        case asset(name: String, size: CGFloat)
+    }
+
+    private let icon: Icon
     var foregroundColor: Color = Color(hex: "1A1A1A")
     var accessibilityLabel: String
     let action: () -> Void
 
+    init(
+        systemName: String,
+        fontSize: CGFloat = symbolPointSize,
+        fontWeight: Font.Weight = .medium,
+        foregroundColor: Color = Color(hex: "1A1A1A"),
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.icon = .system(name: systemName, size: fontSize, weight: fontWeight)
+        self.foregroundColor = foregroundColor
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
+    init(
+        assetName: String,
+        iconSize: CGFloat = 16,
+        foregroundColor: Color = AppColors.primaryDark,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.icon = .asset(name: assetName, size: iconSize)
+        self.foregroundColor = foregroundColor
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: fontSize, weight: fontWeight))
-                .foregroundStyle(foregroundColor)
+            iconView
                 .frame(width: Self.size, height: Self.size)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        switch icon {
+        case .system(let name, let size, let weight):
+            Image(systemName: name)
+                .font(.system(size: size, weight: weight))
+                .foregroundStyle(foregroundColor)
+        case .asset(let name, let size):
+            Image(name)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .foregroundStyle(foregroundColor)
+        }
     }
 }
 
@@ -1552,7 +1591,7 @@ struct EmployeeAnomalyProgressStatus: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if showsAnomalyLabel {
-                Text(employee.anomalyType.rawValue)
+                Text(EmployeeAnomalyV7IssuePill.pillLabel(for: employee, anomalyType: employee.anomalyType))
                     .font(AppFonts.caption1Strong())
                     .foregroundColor(employee.anomalyType.pillStyle.badgeTextColor)
                     .padding(.horizontal, 8)
@@ -1758,19 +1797,10 @@ struct EmployeeAnomalyV5IssueBanner: View {
     }
 
     private var bannerLabel: String {
-        let base: String
         if isPastDate && employee.anomalyType == .exceededWorkSchedule {
-            base = AnomalyType.exceededHours.rawValue
-        } else {
-            base = employee.anomalyType.rawValue
+            return EmployeeAnomalyV7IssuePill.pillLabel(for: employee, anomalyType: .exceededHours)
         }
-        switch employee.anomalyType {
-        case .exceededWorkSchedule, .exceededHours, .workedLess:
-            let gap = hoursModel.gapDisplayText
-            return gap.isEmpty ? base : "\(base) (\(gap))"
-        default:
-            return base
-        }
+        return EmployeeAnomalyV7IssuePill.pillLabel(for: employee, anomalyType: employee.anomalyType)
     }
 
     var body: some View {
@@ -1818,25 +1848,10 @@ struct EmployeeAnomalyV6IssueBanner: View {
 
     private var issueLabel: String? {
         switch employee.anomalyType {
-        case .noClockIn:
-            return "No attendance"
-        case .noClockInNorOut:
-            return "Missed clock-in"
-        case .missedClockOut:
-            return "Missed clock-out"
-        case .exceededWorkSchedule, .exceededHours:
-            let gap = hoursModel.gapDisplayText
-            return gap.isEmpty ? employee.anomalyType.rawValue : "\(employee.anomalyType.rawValue) by \(gap.replacingOccurrences(of: "+", with: ""))"
-        case .workedLess:
-            let gap = hoursModel.gapMagnitudeDisplayText
-            return gap.isEmpty || gap == "0h" ? "Worked less" : "Worked \(gap) less"
-        case .late:
-            let dev = hoursModel.lateDeviationText.replacingOccurrences(of: "+", with: "")
-            return dev.isEmpty ? "Late arrival" : "Late by \(dev)"
-        case .unplanned:
-            return employee.anomalyType.rawValue
         case .onTrack, .scheduleNotStarted:
             return nil
+        default:
+            return EmployeeAnomalyV7IssuePill.pillLabel(for: employee, anomalyType: employee.anomalyType)
         }
     }
 
@@ -1928,24 +1943,32 @@ struct EmployeeAnomalyV7IssuePill: View {
             anomalyType: anomalyType
         )
         switch anomalyType {
-        case .noClockIn: return "No attendance"
-        case .noClockInNorOut: return "Missed clock-in"
-        case .missedClockOut: return "Missed clock-out"
+        case .noClockIn: return "Absent"
+        case .noClockInNorOut: return "Not clocked in"
+        case .missedClockOut: return "Incomplete entry"
         case .exceededWorkSchedule:
-            let gap = model.gapDisplayText.replacingOccurrences(of: "+", with: "")
-            return gap.isEmpty ? "Exceeding" : "Exceeding by \(gap)"
+            return indicator("Overdue", duration: model.gapDisplayText)
         case .exceededHours:
-            let gap = model.gapDisplayText.replacingOccurrences(of: "+", with: "")
-            return gap.isEmpty ? "Exceeded" : "Exceeded by \(gap)"
+            return indicator("Worked more", duration: model.gapDisplayText)
         case .late:
-            let dev = model.lateDeviationText.replacingOccurrences(of: "+", with: "")
-            return dev.isEmpty ? "Late arrival" : "Late by \(dev)"
-        case .unplanned: return "Unplanned"
+            return indicator("Late", duration: model.lateDeviationText)
+        case .unplanned: return "Not scheduled"
         case .workedLess:
-            let gap = model.gapMagnitudeDisplayText
-            return gap.isEmpty || gap == "0h" ? "Worked less" : "Worked \(gap) less"
+            return indicator("Worked less", duration: model.gapMagnitudeDisplayText)
         case .onTrack, .scheduleNotStarted: return ""
         }
+    }
+
+    private static func indicator(_ title: String, duration: String) -> String {
+        let gap = duration
+            .replacingOccurrences(of: "+", with: "")
+            .replacingOccurrences(of: "−", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if gap.isEmpty || gap == "0h" {
+            return title
+        }
+        return "\(title) · \(gap)"
     }
 }
 
@@ -2050,7 +2073,7 @@ struct EmployeeAnomalyStatusPills: View {
                 .accessibilityLabel(model.showsCapsule ? model.accessibilitySummary : employee.anomalyType.rawValue)
 
             case .late, .exceededHours, .unplanned:
-                Text(employee.anomalyType.rawValue)
+                Text(EmployeeAnomalyV7IssuePill.pillLabel(for: employee, anomalyType: employee.anomalyType))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(AppColors.warningDefault)
                     .multilineTextAlignment(.leading)

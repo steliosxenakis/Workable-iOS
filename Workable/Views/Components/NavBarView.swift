@@ -13,33 +13,24 @@ struct NavBarView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Title row: Back (16px icon) + Candidates + balance
+            // Title row: circular glass back + Candidates + balance
             HStack {
-                Button(action: onBack) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Back")
-                            .font(AppFonts.body())
-                    }
-                    .foregroundColor(AppColors.primaryDark)
-                }
-                
+                GlassSymbolButton(
+                    systemName: "chevron.left",
+                    accessibilityLabel: "Back",
+                    action: onBack
+                )
+
                 Spacer()
-                
+
                 Text(title)
                     .font(AppFonts.headline())
                     .foregroundColor(AppColors.fontDefault)
-                
+
                 Spacer()
-                
-                // Balance layout (invisible back button width)
-                HStack(spacing: 2) {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
-                }
-                .font(AppFonts.body())
-                .opacity(0)
+
+                Color.clear
+                    .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 18)

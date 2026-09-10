@@ -1,16 +1,11 @@
 import SwiftUI
 
-/// Figma 31619:217261 / share 31627:247644 — Agent chat transcript with CV attachment.
+/// Figma 31619:217261 — Agent chat transcript.
 struct AgentChatView: View {
     let candidateName: String
     let candidateAvatar: String
 
     @Environment(\.dismiss) private var dismiss
-    @State private var sharePDFURL: URL?
-    @State private var showsShareSheet = false
-
-    private let cvFileName = "adlawrencecv.pdf"
-    private let cvFileSizeLabel = "155 KB"
 
     private var messages: [ChatMessage] {
         [
@@ -30,8 +25,7 @@ struct AgentChatView: View {
                 isAgent: false,
                 senderName: candidateName,
                 timestamp: "9:39 Aug 16, 2026",
-                body: "Here’s my CV.",
-                attachmentName: cvFileName
+                body: "Here’s my CV. I can send an updated version if that’s helpful."
             ),
             ChatMessage(
                 id: "3",
@@ -54,6 +48,20 @@ struct AgentChatView: View {
                 timestamp: "9:30 Aug 16, 2026",
                 body: "Last question - are you open to hybrid work based in Athens?"
             ),
+            ChatMessage(
+                id: "6",
+                isAgent: false,
+                senderName: candidateName,
+                timestamp: "9:41 Aug 16, 2026",
+                body: "Yes, I’m open to hybrid work based in Athens."
+            ),
+            ChatMessage(
+                id: "7",
+                isAgent: true,
+                senderName: "Workable Agent",
+                timestamp: "9:42 Aug 16, 2026",
+                body: "That’s all I needed — thanks for your time. I’ll share this with the hiring team and someone will follow up if there’s a next step."
+            ),
         ]
     }
 
@@ -74,11 +82,6 @@ struct AgentChatView: View {
         }
         .background(AppColors.surface)
         .navigationBarHidden(true)
-        .sheet(isPresented: $showsShareSheet) {
-            if let sharePDFURL {
-                ActivityShareSheet(items: [sharePDFURL])
-            }
-        }
     }
 
     private var customNavBar: some View {
@@ -125,18 +128,12 @@ struct AgentChatView: View {
                     .foregroundColor(AppColors.fontSecondary)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(message.body)
-                    .font(AppFonts.body())
-                    .tracking(-0.41)
-                    .foregroundColor(AppColors.oxfordBlue)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let attachment = message.attachmentName {
-                    attachmentCard(fileName: attachment, sizeLabel: cvFileSizeLabel)
-                }
-            }
-            .padding(.leading, 38)
+            Text(message.body)
+                .font(AppFonts.body())
+                .tracking(-0.41)
+                .foregroundColor(AppColors.oxfordBlue)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 38)
         }
     }
 
@@ -157,68 +154,11 @@ struct AgentChatView: View {
         }
     }
 
-    private func attachmentCard(fileName: String, sizeLabel: String) -> some View {
-        Button { presentShareSheet() } label: {
-            HStack(spacing: 8) {
-                Text(fileName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(AppColors.primaryDark)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                Text(sizeLabel)
-                    .font(.system(size: 13, weight: .regular))
-                    .tracking(-0.08)
-                    .foregroundColor(AppColors.iconDefault)
-
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppColors.iconDefault)
-            }
-            .padding(16)
-            .background(AppColors.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(AppColors.iconInactive, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Share \(fileName)")
-    }
-
-    private func presentShareSheet() {
-        sharePDFURL = Self.ensureShareablePDF(named: cvFileName)
-        showsShareSheet = sharePDFURL != nil
-    }
-
-    private static func ensureShareablePDF(named fileName: String) -> URL? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        if !FileManager.default.fileExists(atPath: url.path) {
-            let placeholder = Data("%PDF-1.4\n% Workable prototype CV placeholder\n".utf8)
-            try? placeholder.write(to: url, options: .atomic)
-        }
-        return url
-    }
-
     private struct ChatMessage: Identifiable {
         let id: String
         let isAgent: Bool
         let senderName: String
         let timestamp: String
         let body: String
-        var attachmentName: String? = nil
     }
-}
-
-/// UIKit share sheet wrapper for prototype PDF sharing.
-private struct ActivityShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
