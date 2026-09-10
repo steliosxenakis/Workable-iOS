@@ -11,7 +11,7 @@ struct RootView: View {
     @AppStorage("settings.attendanceTwoIssuesCase") private var attendanceTwoIssuesCase = false
     @AppStorage("settings.redesign") private var redesignEnabled = false
     @AppStorage(AttendanceNotifyStyle.appStorageKey) private var notifyStyleRaw =
-        AttendanceNotifyStyle.sheet.rawValue
+        AttendanceNotifyStyle.final.rawValue
     @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = true
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersionRaw =
         BreakSupportUIVersion.defaultVersion.rawValue
@@ -22,7 +22,7 @@ struct RootView: View {
     }
 
     private var notifyStyle: AttendanceNotifyStyle {
-        AttendanceNotifyStyle(rawValue: notifyStyleRaw) ?? .sheet
+        AttendanceNotifyStyle(rawValue: notifyStyleRaw) ?? .final
     }
 
     private var breakSupportUIVersion: BreakSupportUIVersion {
@@ -89,6 +89,7 @@ private struct SettingsTabView: View {
     @AppStorage("settings.whatsAppEnabled") private var whatsAppEnabled = false
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
     @AppStorage("settings.hideAgentConfirmations") private var hideAgentConfirmations = false
     @AppStorage(BreakSupportUIVersion.enabledAppStorageKey) private var breakSupportEnabled = true
     @AppStorage(BreakSupportUIVersion.appStorageKey) private var breakSupportUIVersion =
@@ -224,6 +225,7 @@ private struct SettingsTabView: View {
                     Toggle("WhatsApp", isOn: $whatsAppEnabled)
                     Toggle("Surveys", isOn: $surveysEnabled)
                     Toggle("Time off", isOn: $timeOffEnabled)
+                    Toggle("Approvals", isOn: $approvalsEnabled)
                     Toggle("Hide agent confirmations", isOn: $hideAgentConfirmations)
                 }
             }
@@ -255,7 +257,7 @@ private struct AttendanceSettingsView: View {
     @AppStorage("settings.attendanceTwoIssuesCase") private var attendanceTwoIssuesCase = false
     @AppStorage("settings.showDirectReports") private var showDirectReports = true
     @AppStorage(AttendanceNotifyStyle.appStorageKey) private var notifyStyle =
-        AttendanceNotifyStyle.sheet.rawValue
+        AttendanceNotifyStyle.final.rawValue
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey

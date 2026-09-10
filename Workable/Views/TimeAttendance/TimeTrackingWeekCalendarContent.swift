@@ -24,6 +24,7 @@ struct TimeTrackingWeekCalendarContent: View {
     @State private var activeHoldAction: HoldAction?
     @State private var breakEmojiDraft = "☕"
     @State private var isEmojiKeyboardFocused = false
+    @State private var showsWorkScheduleSheet = false
 
     private enum HoldAction {
         case clockIn, clockOut
@@ -780,9 +781,13 @@ struct TimeTrackingWeekCalendarContent: View {
             holdProgress = 0
             if breakSupportUIVersion.usesEditableBreakEmojiLabel {
                 let emoji = breakEmojiDraft.isEmpty ? "☕" : breakEmojiDraft
-                session.startBreak(breaksEnabled: breakSupportEnabled, emoji: emoji)
+                session.startBreak(
+                    breaksEnabled: breakSupportEnabled,
+                    plannedMinutes: 30,
+                    emoji: emoji
+                )
             } else {
-                session.startBreak(breaksEnabled: breakSupportEnabled)
+                session.startBreak(breaksEnabled: breakSupportEnabled, plannedMinutes: 30)
             }
         }
     }
@@ -803,11 +808,41 @@ struct TimeTrackingWeekCalendarContent: View {
 
     private var listContent: some View {
         VStack(spacing: 24) {
+            workScheduleBanner
+
             ForEach(listDays) { day in
                 listDaySection(day)
             }
         }
         .padding(.horizontal, 16)
+        .sheet(isPresented: $showsWorkScheduleSheet) {
+            WorkScheduleView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+    }
+
+    /// "Today's work schedule" banner above the List view (Figma 15849-268785).
+    private var workScheduleBanner: some View {
+        Button {
+            showsWorkScheduleSheet = true
+        } label: {
+            HStack(spacing: 8) {
+                Text(TimeAttendanceMockData.todaysScheduleBannerText)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Image(systemName: "info.circle")
+                    .foregroundColor(AppColors.iconDefault)
+            }
+            .padding(16)
+            .background(AppColors.informativeBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            // Figma Dashboard 4050-88413 — Timesheet card shadow
+            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+        }
+        .buttonStyle(.plain)
     }
 
     private func listDaySection(_ day: TimesheetListDay) -> some View {
