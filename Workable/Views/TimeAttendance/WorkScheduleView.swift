@@ -3,12 +3,14 @@ import SwiftUI
 /// Weekly breakdown opened from the "Today's work schedule" banner on the Time tracking →
 /// List view (Figma 3609-84050). Approvals v2 (Settings → Approvals): each day row is
 /// tappable and opens the request-change form preselected/prefilled for that day
-/// (Figma Scopes 486-16581 / Playground 506-68166).
+/// (Figma Scopes 486-16581 / Playground 506-68166) — a general "Request schedule change"
+/// CTA stays available too, for a change that isn't tied to one of the listed days.
 struct WorkScheduleView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
 
     @State private var requestDay: WorkScheduleDay?
+    @State private var showsGeneralRequestSheet = false
     @State private var didSendRequest = false
 
     var body: some View {
@@ -35,6 +37,10 @@ struct WorkScheduleView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 32)
             }
+
+            if approvalsEnabled {
+                footer
+            }
         }
         .background(AppColors.surface)
         .sheet(item: $requestDay) { day in
@@ -43,6 +49,16 @@ struct WorkScheduleView: View {
                 shifts: day.shifts.map { EditableWorkScheduleShift(day: day.date(), start: $0.start, end: $0.end) },
                 onSend: {
                     requestDay = nil
+                    withAnimation { didSendRequest = true }
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showsGeneralRequestSheet) {
+            RequestScheduleChangeView(
+                onSend: {
+                    showsGeneralRequestSheet = false
                     withAnimation { didSendRequest = true }
                 }
             )
@@ -114,6 +130,29 @@ struct WorkScheduleView: View {
                 dayRowLabel(day, showsChevron: false)
             }
         }
+    }
+
+    /// General entry point, apart from the per-day rows above — for a change not tied to
+    /// one of the listed days (e.g. a brand-new date).
+    private var footer: some View {
+        Button {
+            didSendRequest = false
+            showsGeneralRequestSheet = true
+        } label: {
+            Text("Request schedule change")
+                .font(.system(size: 17, weight: .semibold))
+                .tracking(-0.41)
+                .foregroundColor(AppColors.fontDefault)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 17)
+                .background(AppColors.surfaceDarker)
+                .overlay(Capsule(style: .continuous).stroke(AppColors.iconInactive, lineWidth: 1))
+                .clipShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 20)
+        .background(AppColors.surface)
     }
 
     private func dayRowLabel(_ day: WorkScheduleDay, showsChevron: Bool) -> some View {
