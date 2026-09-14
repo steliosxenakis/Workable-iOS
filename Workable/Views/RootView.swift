@@ -98,6 +98,9 @@ private struct SettingsTabView: View {
     @AppStorage(WorkablePlan.appStorageKey) private var planRaw = WorkablePlan.defaultPlan.rawValue
     @AppStorage(WidgetGlanceUIVersion.appStorageKey) private var widgetGlanceUIVersion =
         WidgetGlanceUIVersion.defaultVersion.rawValue
+    @AppStorage(TodosSectionUIVersion.appStorageKey) private var todosUIVersionRaw =
+        TodosSectionUIVersion.defaultVersion.rawValue
+    @AppStorage("settings.todosRevampEnabled") private var todosRevampEnabled = false
 
     init(showsAttendanceIssuesUIKey: String) {
         self.showsAttendanceIssuesUIKey = showsAttendanceIssuesUIKey
@@ -218,6 +221,39 @@ private struct SettingsTabView: View {
                     Text("Today widget")
                 } footer: {
                     Text("V1 is the forest-green time-tracking widget. V2 uses a black card with mint and purple glow.")
+                }
+
+                Section {
+                    Toggle("To-dos revamp", isOn: $todosRevampEnabled)
+
+                    ForEach(TodosSectionUIVersion.allCases) { version in
+                        let selected = todosUIVersionRaw == version.rawValue
+                        Button {
+                            todosUIVersionRaw = version.rawValue
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(selected ? AppColors.primaryDark : AppColors.iconInactive)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(version.rawValue)
+                                        .font(AppFonts.subheadStrong())
+                                        .foregroundColor(AppColors.fontDefault)
+                                    Text(version.caption)
+                                        .font(AppFonts.caption1())
+                                        .foregroundColor(AppColors.fontSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!todosRevampEnabled)
+                        .opacity(todosRevampEnabled ? 1 : 0.55)
+                    }
+                } header: {
+                    Text("To-dos section (Home)")
+                } footer: {
+                    Text("Off shows the original flat scrolling row. On: V1 is a notification-style stack per category. V2 (Figma Dashboard 5281-28001) is one combined stack with Show more/less, plus category pills.")
                 }
 
                 Section {
