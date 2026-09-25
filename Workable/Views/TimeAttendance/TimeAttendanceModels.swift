@@ -332,14 +332,21 @@ struct WorkScheduleDay: Identifiable {
     let weekdayNumber: Int
     /// Ordered clock-in/out pairs, e.g. `[("09:00", "14:00"), ("15:00", "18:00")]`.
     let shifts: [(start: String, end: String)]
-    /// e.g. "8 hours"
+    /// e.g. "8h"
     let totalHoursText: String
+    /// e.g. "30m" — omitted from `totalText` when there's no break that day.
+    var breakText: String? = nil
+    let workplace: WorkplaceType
 
     var rangesText: String {
         shifts.map { "\($0.start) - \($0.end)" }.joined(separator: ", ")
     }
 
-    var totalText: String { "Total: \(totalHoursText)" }
+    /// e.g. "8h (Break: 30m) | On-site" (Figma 16267-279482).
+    var totalText: String {
+        let breakSuffix = breakText.map { " (Break: \($0))" } ?? ""
+        return "\(totalHoursText)\(breakSuffix) | \(workplace.rawValue)"
+    }
 
     /// This week's calendar date for `weekdayNumber`, relative to `referenceDate` (defaults to today).
     func date(referenceDate: Date = Date(), calendar: Calendar = .current) -> Date {
@@ -369,6 +376,125 @@ enum DayType: String, CaseIterable, Identifiable {
     case dayOff = "Day off"
 
     var id: String { rawValue }
+}
+
+/// Frequency dropdown for a recurring schedule-change request.
+enum RecurrenceFrequency: String, CaseIterable, Identifiable {
+    case weekly = "Weekly"
+    case everyTwoWeeks = "Every 2 weeks"
+    case everyThreeWeeks = "Every 3 weeks"
+    case monthly = "Monthly"
+
+    var id: String { rawValue }
+}
+
+/// Frequency dropdown on the V2 request form (Figma 16426-301502) — folds "doesn't repeat"
+/// into the same control instead of a separate recurring toggle-card.
+enum ScheduleChangeFrequency: String, CaseIterable, Identifiable {
+    case doesNotRepeat = "Doesn't repeat"
+    case weekly = "Weekly"
+    case everyTwoWeeks = "Every 2 weeks"
+    case everyThreeWeeks = "Every 3 weeks"
+    case monthly = "Monthly"
+
+    var id: String { rawValue }
+}
+
+/// Which "Request schedule change" form layout to show — settable in Settings → Schedule
+/// change request.
+enum ScheduleChangeRequestUIVersion: String, CaseIterable, Identifiable {
+    /// Fixed fields shown together: Date, Day type, Working hours, Workplace.
+    case v1 = "V1"
+    /// Toggle cards (Figma 16426-301502/301581/301619/301675): pick which parts of the day —
+    /// Type, Workplace, Work hours — the request is changing.
+    case v2 = "V2"
+    /// Same fields as V2, drawn as a grey outlined wireframe (no glass, no filled capsules).
+    case v3 = "V3"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.scheduleChangeRequestUIVersion"
+    static let defaultVersion = ScheduleChangeRequestUIVersion.v3
+
+    var caption: String {
+        switch self {
+        case .v1:
+            return "Date, Day type, Working hours and Workplace are always shown together."
+        case .v2:
+            return "Type / Workplace / Work hours are independent toggle cards — turn on only what's changing."
+        case .v3:
+            return "Same as V2, wireframe style — outlined boxes, dashed toggle cards, no glass."
+        }
+    }
+}
+
+/// V3-only role switch. Employee requests a change; Manager reviews it in Inbox.
+enum ScheduleChangeRequestPersona: String, CaseIterable, Identifiable {
+    case employee = "Employee"
+    case employeeWithoutTimeTracking = "Employee without Time tracking"
+    case manager = "Manager"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.scheduleChangeRequestPersona"
+    static let defaultPersona = ScheduleChangeRequestPersona.employee
+
+    var caption: String {
+        switch self {
+        case .employee:
+            return "Request a schedule change from Work schedule. Same employee flow as V2."
+        case .employeeWithoutTimeTracking:
+            return "Work schedule calendar only — no clock-in, logged hours, or add entry."
+        case .manager:
+            return "Incoming schedule-change requests appear in Inbox for review."
+        }
+    }
+
+    /// Calendar button next to Add entry — both personas see it once Approvals is on.
+    static func showsScheduleHeaderButton(approvalsEnabled: Bool) -> Bool {
+        approvalsEnabled
+    }
+
+    /// Form and Work schedule footer — hidden for the V3 manager persona.
+    static func showsEmployeeRequestUI(
+        approvalsEnabled: Bool,
+        versionRaw: String,
+        personaRaw: String
+    ) -> Bool {
+        guard approvalsEnabled else { return false }
+        let version = ScheduleChangeRequestUIVersion(rawValue: versionRaw) ?? .v1
+        guard version == .v3 else { return true }
+        switch ScheduleChangeRequestPersona(rawValue: personaRaw) {
+        case .employee, .employeeWithoutTimeTracking:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Inbox and Home to-dos — hidden for the V3 employee personas.
+    static func showsManagerInboxRequest(
+        approvalsEnabled: Bool,
+        versionRaw: String,
+        personaRaw: String
+    ) -> Bool {
+        guard approvalsEnabled else { return false }
+        let version = ScheduleChangeRequestUIVersion(rawValue: versionRaw) ?? .v1
+        guard version == .v3 else { return true }
+        return ScheduleChangeRequestPersona(rawValue: personaRaw) == .manager
+    }
+
+    /// No clock-in, worked hours, or time entries — schedule calendar only (Figma 16634-38522).
+    static func hidesTimeTracking(
+        approvalsEnabled: Bool,
+        versionRaw: String,
+        personaRaw: String
+    ) -> Bool {
+        guard approvalsEnabled else { return false }
+        let version = ScheduleChangeRequestUIVersion(rawValue: versionRaw) ?? .v1
+        guard version == .v3 else { return false }
+        return ScheduleChangeRequestPersona(rawValue: personaRaw) == .employeeWithoutTimeTracking
+    }
 }
 
 /// A single editable "Working hours" row on the request-change form. Editable/removable,
@@ -405,52 +531,55 @@ enum TimeAttendanceMockData {
     static let departments = ["Engineering", "Marketing", "Sales", "Operations"]
     static let entities = ["Workable Inc.", "Workable EU", "Workable UK"]
 
-    /// Shared week chart data for personal and employee time-tracking calendar views (Figma 15616-17727).
+    /// Shared week chart data for personal and employee time-tracking calendar views (Figma
+    /// 15616-17727). Scheduled hours mirror `workScheduleDays` below: 09:00–18:00 every day.
     static let defaultWeekHours: [DayHours] = [
         .init(
-            day: "M", scheduled: (8, 16), worked: (8, 16),
-            breaks: [(12, 12.5)],
+            day: "M", scheduled: (9, 18), worked: (9, 18),
+            breaks: [(13, 13.5)],
             timeEntry: .init(
                 dateLabel: "Monday, July 8, 2024",
-                scheduleRange: "09:00 - 17:00",
+                scheduleRange: "09:00 - 18:00",
                 start: "09:00",
-                end: "17:00",
+                end: "18:00",
                 duration: "8h",
-                breaks: [.init(start: "12:00", end: "12:30", duration: "30m", emoji: "☕")]
+                breaks: [.init(start: "13:00", end: "13:30", duration: "30m", emoji: "☕")]
             )
         ),
         .init(
-            day: "T", scheduled: (8, 16), worked: (8, 16),
-            breaks: [(10, 10.25), (13, 13.5)],
+            day: "T", scheduled: (9, 18), worked: (9, 18),
+            breaks: [(11, 11.25), (14, 14.5)],
             timeEntry: .init(
                 dateLabel: "Tuesday, July 9, 2024",
-                scheduleRange: "09:00 - 17:00",
+                scheduleRange: "09:00 - 18:00",
                 start: "09:00",
-                end: "17:00",
+                end: "18:00",
                 duration: "8h",
                 breaks: [
-                    .init(start: "10:00", end: "10:15", duration: "15m", emoji: "☕"),
-                    .init(start: "13:00", end: "13:30", duration: "30m", emoji: "🍽️"),
+                    .init(start: "11:00", end: "11:15", duration: "15m", emoji: "☕"),
+                    .init(start: "14:00", end: "14:30", duration: "30m", emoji: "🍽️"),
                 ]
             )
         ),
         .init(
-            day: "W", scheduled: (8, 16), worked: (8, 15.5),
-            timeEntry: .init(dateLabel: "Wednesday, July 10, 2024", scheduleRange: "09:00 - 17:00", start: "09:00", end: "16:30", duration: "7h 30m")
+            day: "W", scheduled: (9, 18), worked: (9, 17.5),
+            timeEntry: .init(dateLabel: "Wednesday, July 10, 2024", scheduleRange: "09:00 - 18:00", start: "09:00", end: "17:30", duration: "8h 30m")
         ),
-        .init(
-            day: "T", scheduled: (8, 16), worked: (8, 17),
-            breaks: [(12, 13)],
-            timeEntry: .init(
-                dateLabel: "Thursday, July 11, 2024",
-                scheduleRange: "09:00 - 17:00",
-                start: "09:00",
-                end: "18:00",
-                duration: "9h",
-                breaks: [.init(start: "12:00", end: "13:00", duration: "1h", emoji: "🍽️")]
-            )
-        ),
-        .init(day: "F", scheduled: (8, 16), worked: nil, hasAnomaly: true, anomalyHour: 8),
+        .init(day: "T", scheduled: (9, 18), worked: nil),
+        .init(day: "F", scheduled: (9, 18), worked: nil),
+        .init(day: "S", scheduled: nil, worked: nil),
+        .init(day: "S", scheduled: nil, worked: nil),
+    ]
+
+    /// Any week other than "this week" — nothing worked yet (or logged), so every weekday
+    /// just shows the scheduled block (same hours as `workScheduleDays`); tapping one opens
+    /// the Work schedule sheet.
+    static let scheduledOnlyWeekHours: [DayHours] = [
+        .init(day: "M", scheduled: (9, 18), worked: nil),
+        .init(day: "T", scheduled: (9, 18), worked: nil),
+        .init(day: "W", scheduled: (9, 18), worked: nil),
+        .init(day: "T", scheduled: (9, 18), worked: nil),
+        .init(day: "F", scheduled: (9, 18), worked: nil),
         .init(day: "S", scheduled: nil, worked: nil),
         .init(day: "S", scheduled: nil, worked: nil),
     ]
@@ -485,17 +614,55 @@ enum TimeAttendanceMockData {
     ]
 
     /// Banner shown above the Time tracking → List view (Figma 15849-268785).
-    static let todaysScheduleBannerText = "Today's work schedule: 08:00 - 16:00 | Remote"
+    static let todaysScheduleBannerText = "Today's work schedule: 09:00 - 18:00 | Remote"
 
     /// Weekly breakdown on the "Work schedule" sheet (Figma 3609-84050).
-    static let workScheduleName = "<Work schedule name>"
-    static let workScheduleSummary = "5 days, 40 hours"
+    static let workScheduleName = "Standard schedule"
+    static let workScheduleSummary = "5 days, 45 hours"
     static let workScheduleDays: [WorkScheduleDay] = [
-        .init(weekday: "Monday", weekdayNumber: 2, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
-        .init(weekday: "Tuesday", weekdayNumber: 3, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
-        .init(weekday: "Wednesday", weekdayNumber: 4, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
-        .init(weekday: "Thursday", weekdayNumber: 5, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
-        .init(weekday: "Friday", weekdayNumber: 6, shifts: [("09:00", "14:00"), ("15:00", "18:00")], totalHoursText: "8 hours"),
+        .init(
+            weekday: "Monday", weekdayNumber: 2, shifts: [("09:00", "18:00")],
+            totalHoursText: "8h", breakText: "30m", workplace: .onSite
+        ),
+        .init(
+            weekday: "Tuesday", weekdayNumber: 3, shifts: [("09:00", "18:00")],
+            totalHoursText: "8h", breakText: "30m", workplace: .onSite
+        ),
+        .init(
+            weekday: "Wednesday", weekdayNumber: 4, shifts: [("09:00", "18:00")],
+            totalHoursText: "8h", breakText: "30m", workplace: .onSite
+        ),
+        .init(
+            weekday: "Thursday", weekdayNumber: 5, shifts: [("09:00", "18:00")],
+            totalHoursText: "8h", breakText: "30m", workplace: .remote
+        ),
+        .init(
+            weekday: "Friday", weekdayNumber: 6, shifts: [("09:00", "18:00")],
+            totalHoursText: "8h", breakText: "30m", workplace: .remote
+        ),
+    ]
+
+    /// Already-resolved schedule change requests shown in "Work schedule changes" history
+    /// (Figma 16576-36356) — seeded once; a newly submitted request is prepended on top.
+    static let scheduleChangeHistorySeed: [PendingScheduleChangeRequest] = [
+        PendingScheduleChangeRequest(
+            weekdayNumber: 3,
+            dateLabel: "Tuesday, September 16, 2025",
+            oldRangesText: "09:00 - 14:00, 15:00 - 18:00",
+            oldTotalText: "8h (Break: 30m) | On-site",
+            newRangesText: "09:00 - 14:00, 15:00 - 18:00",
+            newTotalText: "8h (Break: 30m) | Remote",
+            isPending: false
+        ),
+        PendingScheduleChangeRequest(
+            weekdayNumber: 2,
+            dateLabel: "Monday, September 15, 2025",
+            oldRangesText: "09:00 - 14:00, 15:00 - 18:00",
+            oldTotalText: "8h (Break: 30m) | On-site",
+            newRangesText: "09:00 - 15:00, 16:00 - 18:00",
+            newTotalText: "8h (Break: 30m) | On-site",
+            isPending: false
+        ),
     ]
 
     static let loggedInUser = EmployeeAnomaly(
@@ -874,6 +1041,47 @@ private struct AnomalyFilterCheckmarkIcon: View {
             .font(.system(size: size, weight: .semibold))
             .symbolRenderingMode(.palette)
             .foregroundStyle(Color.white, AppColors.primaryDark)
+    }
+}
+
+/// Outlined 40×40 icon button used by the V3 schedule-change wireframes.
+struct WireframeSymbolButton: View {
+    let systemName: String
+    var accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(AppColors.fontDefault)
+                .frame(width: 40, height: 40)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .stroke(AppColors.separator, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+/// Outlined "Pending change ›" badge — wireframe counterpart of the filled warning capsule.
+struct WireframePendingChangeBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("Pending change")
+                .font(AppFonts.footnote())
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundColor(AppColors.fontDefault)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(AppColors.separator, lineWidth: 1)
+        )
     }
 }
 

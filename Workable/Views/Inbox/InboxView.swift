@@ -4,6 +4,11 @@ struct InboxView: View {
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
     @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
+    @ObservedObject private var pendingStore = PendingScheduleChangeStore.shared
 
     private var inboxItems: [InboxEntry] {
         var items: [InboxEntry] = []
@@ -11,8 +16,12 @@ struct InboxView: View {
             items.append(.timeOff(TimeOffInboxMockData.reviewRequest))
             items.append(.timeOff(TimeOffInboxMockData.cancelledRequest))
         }
-        if approvalsEnabled {
-            items.append(.scheduleChangeRequest(ScheduleChangeRequestMockData.pending))
+        if ScheduleChangeRequestPersona.showsManagerInboxRequest(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        ) {
+            items.append(contentsOf: pendingStore.managerInboxItems.map(InboxEntry.scheduleChangeRequest))
         }
         if surveysEnabled {
             items.append(contentsOf: SurveyMockData.items.map(InboxEntry.survey))

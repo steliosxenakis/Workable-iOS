@@ -88,7 +88,7 @@ struct ScheduleChangeField: Hashable {
 /// A pending "request schedule change" awaiting a manager's approval — the counterpart to
 /// the employee-side request built in `RequestScheduleChangeView`.
 struct ScheduleChangeRequestItem: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     let requesterName: String
     let requesterAvatar: String
     let timeAgo: String
@@ -97,6 +97,28 @@ struct ScheduleChangeRequestItem: Identifiable, Hashable {
     let note: String?
     let requestedOnText: String
     let isUnread: Bool
+
+    init(
+        id: UUID = UUID(),
+        requesterName: String,
+        requesterAvatar: String,
+        timeAgo: String,
+        dateRange: String,
+        changes: [ScheduleChangeField],
+        note: String?,
+        requestedOnText: String,
+        isUnread: Bool
+    ) {
+        self.id = id
+        self.requesterName = requesterName
+        self.requesterAvatar = requesterAvatar
+        self.timeAgo = timeAgo
+        self.dateRange = dateRange
+        self.changes = changes
+        self.note = note
+        self.requestedOnText = requestedOnText
+        self.isUnread = isUnread
+    }
 
     var title: String { "Review a schedule change request for \(requesterName)" }
     var category: String { "Work schedule" }

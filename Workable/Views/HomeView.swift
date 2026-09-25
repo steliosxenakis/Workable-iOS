@@ -162,7 +162,10 @@ struct HomeView: View {
                 .zIndex(10)
 
             todosSection
-                .padding(.bottom, 12)
+                // Extra room below — the stack "peek" cue pokes out (+ shadow) under the
+                // front card and needs space to actually read as a stack, not get clipped
+                // against the next section.
+                .padding(.bottom, 24)
 
             VStack(spacing: 12) {
                 if showsAttendanceIssuesUI {
@@ -198,7 +201,10 @@ struct HomeView: View {
                 .padding(.bottom, 20)
 
             todosSection
-                .padding(.bottom, 12)
+                // Extra room below — the stack "peek" cue pokes out (+ shadow) under the
+                // front card and needs space to actually read as a stack, not get clipped
+                // against the next section.
+                .padding(.bottom, 24)
 
             VStack(spacing: 12) {
                 redesignTodaySection
@@ -340,13 +346,21 @@ struct HomeView: View {
         }
     }
 
+    private var hidesTimeTracking: Bool {
+        ScheduleChangeRequestPersona.hidesTimeTracking(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
+    }
+
     private var redesignQuickActionPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 NavigationLink {
                     PersonalTimeTrackingView()
                 } label: {
-                    Text("Clock in")
+                    Text(hidesTimeTracking ? "Work schedule" : "Clock in")
                         .font(AppFonts.subheadStrong())
                         .foregroundColor(AppColors.fontDefault)
                         .padding(.horizontal, 18)
@@ -841,6 +855,11 @@ struct HomeView: View {
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
     @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
     @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
+    @ObservedObject private var pendingStore = PendingScheduleChangeStore.shared
     /// Gates the whole pills/stacks redesign — off shows the original flat scrolling row.
     @AppStorage("settings.todosRevampEnabled") private var todosRevampEnabled = false
     /// V1: only one per-category stack is expanded at a time — matches how notification
@@ -869,7 +888,12 @@ struct HomeView: View {
     }
 
     private var todoScheduleChangeRequests: [ScheduleChangeRequestItem] {
-        approvalsEnabled ? [ScheduleChangeRequestMockData.pending] : []
+        guard ScheduleChangeRequestPersona.showsManagerInboxRequest(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        ) else { return [] }
+        return pendingStore.managerInboxItems
     }
 
     /// Only categories that currently have at least one item get a stack.
@@ -1226,7 +1250,15 @@ struct HomeView: View {
                     let isSelected = selectedTodoCategoryV2 == category
                     Button {
                         withAnimation(.easeInOut(duration: 0.15)) {
-                            selectedTodoCategoryV2 = isSelected ? nil : category
+                            if isSelected {
+                                // Deselecting back to "everything" collapses again.
+                                selectedTodoCategoryV2 = nil
+                                isTodosExpandedV2 = false
+                            } else {
+                                // Picking a filter implies wanting to see its items right away.
+                                selectedTodoCategoryV2 = category
+                                isTodosExpandedV2 = true
+                            }
                         }
                     } label: {
                         Text(category.rawValue)

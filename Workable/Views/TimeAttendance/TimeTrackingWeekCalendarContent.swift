@@ -9,12 +9,42 @@ struct TimeTrackingWeekCalendarContent: View {
     var weekHours: [DayHours] = TimeAttendanceMockData.defaultWeekHours
     /// Floating clock-in control (Figma play FAB / session pill on calendar drill-in).
     var showsClockInFAB: Bool = true
+    /// Employee without time tracking (Figma 16634-38522) — scheduled hours only.
+    var hidesTimeTracking: Bool = false
 
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
     @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
     @Environment(\.breaksNestedInTimeEntry) private var breaksNestedInTimeEntry
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
     @ObservedObject private var session = ClockInSessionStore.shared
+    @ObservedObject private var pendingStore = PendingScheduleChangeStore.shared
+
+    private var canCreateScheduleRequest: Bool {
+        ScheduleChangeRequestPersona.showsEmployeeRequestUI(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
+    }
+
+    private var isManagerPersona: Bool {
+        ScheduleChangeRequestPersona.showsManagerInboxRequest(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
+    }
+
+    private var pendingApprovalItem: ScheduleChangeRequestItem {
+        pendingStore.current?.asInboxItem()
+            ?? pendingStore.managerInboxItems.first
+            ?? ScheduleChangeRequestMockData.pending
+    }
 
     @Namespace private var sessionFABNamespace
     @State private var isHolding = false
@@ -25,6 +55,11 @@ struct TimeTrackingWeekCalendarContent: View {
     @State private var breakEmojiDraft = "☕"
     @State private var isEmojiKeyboardFocused = false
     @State private var showsWorkScheduleSheet = false
+    @State private var showsRequestScheduleChangeSheet = false
+    @State private var requestChangeDate = ScheduleChangeFormField.tomorrow
+    /// 0 = this week, 1 = next week, -1 = last week, etc. Any week other than "this week"
+    /// falls back to a scheduled-only mock (nothing worked/logged yet for it).
+    @State private var weekOffset = 0
 
     private enum HoldAction {
         case clockIn, clockOut
@@ -43,13 +78,16 @@ struct TimeTrackingWeekCalendarContent: View {
     private static let breakTransition = Animation.linear(duration: 0.28)
 
     private let days = ["M", "T", "W", "T", "F", "S", "S"]
-    private let chartStartHour: Double = 8
-    private let chartEndHour: Double = 17
+    // Matches the work schedule's 09:00–18:00 (Mon–Thu) / 09:00–16:30 (Fri) range, with a
+    // 1-hour trailing buffer.
+    private let chartStartHour: Double = 9
+    private let chartEndHour: Double = 19
     private let pixelsPerHour: CGFloat = 33
     private let dayColumnWidth: CGFloat = 37
     private let workedBarWidth: CGFloat = 17
     private let timeGutterWidth: CGFloat = 52
-    private let scheduledFill = Color(hex: "C7E2FF").opacity(0.6)
+    private let scheduledFill = AppColors.separator
+    private let workedFill = AppColors.fontSecondary
 
     private var chartHeight: CGFloat {
         CGFloat(chartEndHour - chartStartHour) * pixelsPerHour
@@ -57,6 +95,64 @@ struct TimeTrackingWeekCalendarContent: View {
 
     private var timeSlots: [Int] {
         Array(stride(from: Int(chartStartHour), through: Int(chartEndHour), by: 1))
+    }
+
+    /// This week uses the real (mock) data passed in; any other week hasn't happened (or
+    /// hasn't been logged) yet, so it just shows what's scheduled. Worked entries after
+    /// today are hidden — those days have not been logged yet. Employees without time
+    /// tracking always see the scheduled week, never logged hours.
+    private var displayedWeekHours: [DayHours] {
+        let source: [DayHours]
+        if hidesTimeTracking || weekOffset != 0 {
+            source = TimeAttendanceMockData.scheduledOnlyWeekHours
+        } else {
+            source = weekHours
+        }
+        guard weekOffset == 0, !hidesTimeTracking else { return source }
+        return source.enumerated().map { index, day in
+            let weekdayNumber = ((index + 1) % 7) + 1
+            guard isFutureDay(dateForWeekdayNumber(weekdayNumber)) else { return day }
+            return DayHours(
+                day: day.day,
+                scheduled: day.scheduled,
+                worked: nil,
+                breaks: [],
+                hasAnomaly: false,
+                anomalyHour: nil,
+                timeEntry: nil
+            )
+        }
+    }
+
+    private var nowMarkerHour: Double {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        let hour = Double(components.hour ?? 0) + Double(components.minute ?? 0) / 60
+        return min(max(hour, chartStartHour), chartEndHour)
+    }
+
+    private var weekNavigationTitle: String {
+        switch weekOffset {
+        case 0: return "This week"
+        case 1: return "Next week"
+        case -1: return "Last week"
+        case let offset where offset > 1: return "\(offset) weeks from now"
+        default: return "\(-weekOffset) weeks ago"
+        }
+    }
+
+    private var scheduledTotalText: String {
+        totalText(for: displayedWeekHours.compactMap(\.scheduled))
+    }
+
+    private var workedTotalText: String {
+        totalText(for: displayedWeekHours.compactMap(\.worked))
+    }
+
+    private func totalText(for ranges: [(Double, Double)]) -> String {
+        let totalHours = ranges.reduce(0) { $0 + max(0, $1.1 - $1.0) }
+        let hours = Int(totalHours)
+        let minutes = Int((totalHours - Double(hours)) * 60)
+        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
     }
 
     private var buttonSize: CGFloat {
@@ -101,6 +197,16 @@ struct TimeTrackingWeekCalendarContent: View {
                 .environment(\.breakSupportEnabled, breakSupportEnabled)
                 .environment(\.breakSupportUIVersion, breakSupportUIVersion)
                 .environment(\.breaksNestedInTimeEntry, breaksNestedInTimeEntry)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showsWorkScheduleSheet) {
+            WorkScheduleView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showsRequestScheduleChangeSheet) {
+            ScheduleChangeRequestSheet(date: requestChangeDate)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
@@ -151,12 +257,12 @@ struct TimeTrackingWeekCalendarContent: View {
                 Text(title)
                     .font(AppFonts.subheadStrong())
             }
-            .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
+            .foregroundColor(AppColors.fontDefault)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? AppColors.activeBackground : AppColors.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(isSelected ? AppColors.fontDefault : AppColors.separator, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -189,15 +295,17 @@ struct TimeTrackingWeekCalendarContent: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 24)
-        .background(AppColors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        // Figma Dashboard 4050-88397 — TT Overview card shadow
-        .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(AppColors.separator, lineWidth: 1)
+        )
     }
 
     private var weekNavigation: some View {
         HStack {
-            Button {} label: {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { weekOffset -= 1 }
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(AppColors.fontDefault)
@@ -205,15 +313,17 @@ struct TimeTrackingWeekCalendarContent: View {
             }
             Spacer()
             HStack(spacing: 4) {
-                Text("This week")
+                Text(weekNavigationTitle)
                     .font(AppFonts.headline())
-                    .foregroundColor(AppColors.primaryDark)
+                    .foregroundColor(AppColors.fontDefault)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(AppColors.primaryDark)
+                    .foregroundColor(AppColors.fontDefault)
             }
             Spacer()
-            Button {} label: {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { weekOffset += 1 }
+            } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(AppColors.fontDefault)
@@ -225,23 +335,29 @@ struct TimeTrackingWeekCalendarContent: View {
     private var scheduleSummary: some View {
         HStack(spacing: 8) {
             summaryItem(
-                color: Color(hex: "C7E2FF"),
+                color: scheduledFill,
                 label: "Scheduled",
-                value: "40h"
+                value: scheduledTotalText
             )
-            summaryItem(
-                color: AppColors.informativeDefault,
-                label: "Worked",
-                value: "32h 30m"
-            )
+            if !hidesTimeTracking {
+                summaryItem(
+                    color: workedFill,
+                    label: "Worked",
+                    value: workedTotalText
+                )
+            }
             Spacer(minLength: 0)
         }
     }
 
     private func summaryItem(color: Color, label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(color)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .stroke(AppColors.fontSecondary, lineWidth: 1)
+                )
                 .frame(width: 10, height: 10)
                 .padding(.top, 3)
 
@@ -268,14 +384,28 @@ struct TimeTrackingWeekCalendarContent: View {
         HStack(spacing: 3) {
             Color.clear.frame(width: timeGutterWidth)
             ForEach(Array(days.enumerated()), id: \.offset) { index, day in
-                Text(day)
-                    .font(AppFonts.subheadStrong())
-                    .foregroundColor(index < 5 ? AppColors.fontSecondary : AppColors.iconInactive)
-                    .frame(width: dayColumnWidth)
-                    .padding(.vertical, 12)
+                let weekdayNumber = ((index + 1) % 7) + 1
+                VStack(spacing: 2) {
+                    Text(day)
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(index < 5 ? AppColors.fontSecondary : AppColors.iconInactive)
+                    // On-site vs remote for that scheduled day (Figma 16816-594680) — weekends
+                    // have no entry in `workScheduleDays`, so no icon shows.
+                    if let workplace = workplace(forWeekdayNumber: weekdayNumber) {
+                        Image(systemName: workplace == .onSite ? "building.2.fill" : "house.fill")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(AppColors.fontSecondary)
+                    }
+                }
+                .frame(width: dayColumnWidth)
+                .padding(.vertical, 12)
             }
             Spacer(minLength: 0)
         }
+    }
+
+    private func workplace(forWeekdayNumber weekdayNumber: Int) -> WorkplaceType? {
+        TimeAttendanceMockData.workScheduleDays.first { $0.weekdayNumber == weekdayNumber }?.workplace
     }
 
     private var chartCanvas: some View {
@@ -300,8 +430,9 @@ struct TimeTrackingWeekCalendarContent: View {
             // Day columns with scheduled / worked bars
             HStack(alignment: .top, spacing: 3) {
                 Color.clear.frame(width: timeGutterWidth, height: chartHeight)
-                ForEach(Array(weekHours.enumerated()), id: \.offset) { _, dayData in
-                    dayColumn(dayData)
+                ForEach(Array(displayedWeekHours.enumerated()), id: \.offset) { index, dayData in
+                    // M/T/W/T/F/S/S at index 0...6 → Calendar weekday numbers 2...7, 1.
+                    dayColumn(dayData, weekdayNumber: ((index + 1) % 7) + 1)
                 }
                 Spacer(minLength: 0)
             }
@@ -309,47 +440,113 @@ struct TimeTrackingWeekCalendarContent: View {
         .frame(height: chartHeight + 12, alignment: .top)
     }
 
+    private func dateForWeekdayNumber(_ weekdayNumber: Int) -> Date {
+        let calendar = Calendar.current
+        let reference = calendar.date(byAdding: .weekOfYear, value: weekOffset, to: Date()) ?? Date()
+        let weekStart = calendar.dateInterval(of: .weekOfYear, for: reference)?.start ?? reference
+        var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: weekStart)
+        components.weekday = weekdayNumber
+        return calendar.nextDate(
+            after: weekStart.addingTimeInterval(-1),
+            matching: components,
+            matchingPolicy: .nextTimePreservingSmallerComponents
+        ) ?? reference
+    }
+
+    private func isPastDay(_ date: Date) -> Bool {
+        Calendar.current.startOfDay(for: date) < Calendar.current.startOfDay(for: Date())
+    }
+
+    private func isFutureDay(_ date: Date) -> Bool {
+        Calendar.current.startOfDay(for: date) > Calendar.current.startOfDay(for: Date())
+    }
+
     @ViewBuilder
-    private func dayColumn(_ dayData: DayHours) -> some View {
+    private func dayColumn(_ dayData: DayHours, weekdayNumber: Int) -> some View {
+        let columnDate = dateForWeekdayNumber(weekdayNumber)
+        let isPending = pendingStore.current?.applies(to: columnDate) == true
+            && !isPastDay(columnDate)
         let column = ZStack(alignment: .top) {
-            if let scheduled = dayData.scheduled {
-                bar(
-                    from: scheduled.0,
-                    to: scheduled.1,
-                    width: dayColumnWidth,
-                    color: scheduledFill,
-                    cornerRadius: 0
-                )
+            if isPending, let request = pendingStore.current, request.newRangesText == "Day off" {
+                // Requested day off — no scheduled block.
+            } else if isPending, let ranges = pendingStore.current?.newHourRanges, !ranges.isEmpty {
+                ForEach(Array(ranges.enumerated()), id: \.offset) { _, range in
+                    pendingBar(from: range.start, to: range.end, width: dayColumnWidth)
+                }
+            } else if let scheduled = dayData.scheduled {
+                if isPending {
+                    pendingBar(from: scheduled.0, to: scheduled.1, width: dayColumnWidth)
+                } else {
+                    bar(
+                        from: scheduled.0,
+                        to: scheduled.1,
+                        width: dayColumnWidth,
+                        color: scheduledFill,
+                        cornerRadius: 0
+                    )
+                }
             }
 
-            if let worked = dayData.worked {
+            if !hidesTimeTracking, let worked = dayData.worked {
                 bar(
                     from: worked.0,
                     to: worked.1,
                     width: workedBarWidth,
-                    color: AppColors.informativeDefault,
+                    color: workedFill,
                     cornerRadius: 8
                 )
             }
 
             // Pause/break segments — fill Informative/200 + dashed top/bottom stroke
             // (Figma 15786:77791 / 15786:77709).
-            if breakSupportEnabled {
+            if !hidesTimeTracking, breakSupportEnabled {
                 ForEach(Array(dayData.breaks.enumerated()), id: \.offset) { _, interval in
                     breakBar(from: interval.0, to: interval.1)
                 }
             }
 
-            if dayData.hasAnomaly {
-                anomalyMarker(at: dayData.anomalyHour ?? chartStartHour)
+            if weekOffset == 0, Calendar.current.isDateInToday(columnDate) {
+                nowMarker(at: nowMarkerHour)
             }
         }
         .frame(width: dayColumnWidth, height: chartHeight, alignment: .top)
         .contentShape(Rectangle())
 
-        if let entry = resolvedEntry(from: dayData) {
+        if isPending {
+            NavigationLink {
+                ScheduleChangeRequestDetailView(
+                    item: pendingApprovalItem,
+                    mode: isManagerPersona ? .managerReview : .employeePending
+                )
+            } label: {
+                column
+            }
+            .buttonStyle(.plain)
+        } else if !hidesTimeTracking, let entry = resolvedEntry(from: dayData) {
             NavigationLink {
                 TimeEntryDetailView(entry: entry)
+            } label: {
+                column
+            }
+            .buttonStyle(.plain)
+        } else if canCreateScheduleRequest {
+            Button {
+                requestChangeDate = dateForWeekdayNumber(weekdayNumber)
+                showsRequestScheduleChangeSheet = true
+            } label: {
+                column
+            }
+            .buttonStyle(.plain)
+        } else if dayData.hasAnomaly {
+            Button {
+                showsAddTimeEntrySheet = true
+            } label: {
+                column
+            }
+            .buttonStyle(.plain)
+        } else if dayData.scheduled != nil {
+            Button {
+                showsWorkScheduleSheet = true
             } label: {
                 column
             }
@@ -379,6 +576,25 @@ struct TimeTrackingWeekCalendarContent: View {
         let height = CGFloat(max(0, end - start)) * pixelsPerHour
         return RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(color)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppColors.fontSecondary, lineWidth: 1)
+            )
+            .frame(width: width, height: height)
+            .offset(y: top)
+    }
+
+    /// Scheduled block for a day with a pending change request — dashed outline instead
+    /// of the solid scheduled fill.
+    private func pendingBar(from start: Double, to end: Double, width: CGFloat) -> some View {
+        let top = CGFloat(start - chartStartHour) * pixelsPerHour
+        let height = CGFloat(max(0, end - start)) * pixelsPerHour
+        return Rectangle()
+            .fill(AppColors.background)
+            .overlay(
+                Rectangle()
+                    .strokeBorder(AppColors.fontDefault, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            )
             .frame(width: width, height: height)
             .offset(y: top)
     }
@@ -388,7 +604,7 @@ struct TimeTrackingWeekCalendarContent: View {
         let top = CGFloat(start - chartStartHour) * pixelsPerHour
         let height = CGFloat(max(0, end - start)) * pixelsPerHour
         return Rectangle()
-            .fill(AppColors.informative200)
+            .fill(AppColors.background)
             .frame(width: workedBarWidth, height: height)
             .overlay(alignment: .top) { breakDashedEdge }
             .overlay(alignment: .bottom) { breakDashedEdge }
@@ -402,7 +618,7 @@ struct TimeTrackingWeekCalendarContent: View {
             path.addLine(to: CGPoint(x: size.width, y: 0.5))
             context.stroke(
                 path,
-                with: .color(AppColors.informativeBackground),
+                with: .color(AppColors.fontSecondary),
                 style: StrokeStyle(lineWidth: 1, dash: [2, 2])
             )
         }
@@ -410,14 +626,14 @@ struct TimeTrackingWeekCalendarContent: View {
         .allowsHitTesting(false)
     }
 
-    private func anomalyMarker(at hour: Double) -> some View {
+    private func nowMarker(at hour: Double) -> some View {
         let top = CGFloat(hour - chartStartHour) * pixelsPerHour
         return HStack(spacing: 0) {
             Circle()
-                .fill(AppColors.dangerDefault)
+                .fill(AppColors.fontDefault)
                 .frame(width: 8, height: 8)
             Rectangle()
-                .fill(AppColors.dangerDefault)
+                .fill(AppColors.fontDefault)
                 .frame(width: 34, height: 1.5)
         }
         .offset(x: 4, y: top - 4)
@@ -810,16 +1026,13 @@ struct TimeTrackingWeekCalendarContent: View {
         VStack(spacing: 24) {
             workScheduleBanner
 
-            ForEach(listDays) { day in
-                listDaySection(day)
+            if !hidesTimeTracking {
+                ForEach(listDays) { day in
+                    listDaySection(day)
+                }
             }
         }
         .padding(.horizontal, 16)
-        .sheet(isPresented: $showsWorkScheduleSheet) {
-            WorkScheduleView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-        }
     }
 
     /// "Today's work schedule" banner above the List view (Figma 15849-268785).
@@ -837,10 +1050,10 @@ struct TimeTrackingWeekCalendarContent: View {
                     .foregroundColor(AppColors.iconDefault)
             }
             .padding(16)
-            .background(AppColors.informativeBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            // Figma Dashboard 4050-88413 — Timesheet card shadow
-            .shadow(color: .black.opacity(0.07), radius: 7, y: 4)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(AppColors.separator, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }

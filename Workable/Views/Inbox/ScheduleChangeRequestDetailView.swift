@@ -1,10 +1,17 @@
 import SwiftUI
 
-/// Manager-side review of a pending "request schedule change" — the approval counterpart to
-/// the employee-side `RequestScheduleChangeView` (Figma Playground 511-224462). Grey/wireframe
-/// styling to match the rest of the Approvals flow.
+enum ScheduleChangeRequestDetailMode {
+    /// Approve / Decline in Inbox and from a manager's pending tap.
+    case managerReview
+    /// Same request detail for the employee, with Cancel instead of approve/reject.
+    case employeePending
+}
+
+/// Review of a pending "request schedule change". Managers approve/decline; employees
+/// see the same summary and can cancel (Figma Playground 511-224462).
 struct ScheduleChangeRequestDetailView: View {
     let item: ScheduleChangeRequestItem
+    var mode: ScheduleChangeRequestDetailMode = .managerReview
 
     @Environment(\.dismiss) private var dismiss
     @State private var decisionToast: String?
@@ -22,6 +29,8 @@ struct ScheduleChangeRequestDetailView: View {
                         if let note = item.note, !note.isEmpty {
                             noteSection(note)
                         }
+                        approversField
+                        rulesField
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 24)
@@ -84,13 +93,29 @@ struct ScheduleChangeRequestDetailView: View {
         .background(AppColors.surface)
     }
 
+    private var requesterEmployee: EmployeeAnomaly {
+        if item.requesterName == TimeAttendanceMockData.loggedInUser.name {
+            return TimeAttendanceMockData.loggedInUser
+        }
+        return TimeAttendanceMockData.employees.first { $0.name == item.requesterName }
+            ?? TimeAttendanceMockData.employees.first { $0.avatarName == item.requesterAvatar }
+            ?? TimeAttendanceMockData.employees.first { $0.name == "Milwaukee, Jordan" }
+            ?? TimeAttendanceMockData.loggedInUser
+    }
+
     private var senderHeader: some View {
         HStack(spacing: 8) {
-            Image(item.requesterAvatar)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
+            NavigationLink {
+                EmployeeTimeTrackingDetailView(employee: requesterEmployee)
+            } label: {
+                Image(item.requesterAvatar)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("View \(item.requesterName)'s attendance")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.requesterName)
@@ -192,40 +217,77 @@ struct ScheduleChangeRequestDetailView: View {
         }
     }
 
+    /// Who this routes to for approval — read-only.
+    private var approversField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Approvers")
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontDefault)
+
+            HStack(spacing: 8) {
+                Image("avatar-abdi")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Carty, Joe")
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+                    Text("Operations Engineer · Manager")
+                        .font(AppFonts.footnote())
+                        .foregroundColor(AppColors.fontSecondary)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background(AppColors.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppColors.separator, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
+    /// Policy rules that apply to this request — informational only.
+    private var rulesField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Rules")
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontDefault)
+
+            Text("All rules are ok")
+                .font(AppFonts.footnote())
+                .foregroundColor(AppColors.fontSecondary)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppColors.surfaceDarker)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AppColors.separator, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
     private var bottomActions: some View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(AppColors.separator)
                 .frame(height: 1)
 
-            HStack(spacing: 12) {
-                Button {
-                    showDecision("Declined")
-                } label: {
-                    Text("Decline")
-                        .font(AppFonts.headline())
-                        .foregroundColor(AppColors.fontDefault)
-                        .tracking(-0.41)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+            Group {
+                switch mode {
+                case .managerReview:
+                    managerActions
+                case .employeePending:
+                    employeeCancelAction
                 }
-                .buttonStyle(.plain)
-
-                Rectangle()
-                    .fill(AppColors.separator)
-                    .frame(width: 1, height: 24)
-
-                Button {
-                    showDecision("Approved")
-                } label: {
-                    Text("Approve")
-                        .font(AppFonts.headline())
-                        .foregroundColor(AppColors.fontDefault)
-                        .tracking(-0.41)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
 
@@ -235,6 +297,53 @@ struct ScheduleChangeRequestDetailView: View {
         }
         .padding(.bottom, 48)
         .background(AppColors.surface)
+    }
+
+    private var managerActions: some View {
+        HStack(spacing: 12) {
+            Button {
+                showDecision("Declined")
+            } label: {
+                Text("Decline")
+                    .font(AppFonts.headline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.plain)
+
+            Rectangle()
+                .fill(AppColors.separator)
+                .frame(width: 1, height: 24)
+
+            Button {
+                showDecision("Approved")
+            } label: {
+                Text("Approve")
+                    .font(AppFonts.headline())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var employeeCancelAction: some View {
+        Button {
+            PendingScheduleChangeStore.shared.cancel()
+            showDecision("Cancelled")
+        } label: {
+            Text("Cancel request")
+                .font(AppFonts.subheadStrong())
+                .foregroundColor(AppColors.fontSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 12)
     }
 
     /// Decision is prototype-only for now — just a toast, then back to the inbox.
