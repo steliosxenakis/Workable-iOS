@@ -8,6 +8,29 @@ private enum HomeDashboardLayout {
     static let transactionIconSize: CGFloat = 40
 }
 
+/// Two prototype variants for the Home "To-dos" section — switchable from Settings.
+enum TodosSectionUIVersion: String, CaseIterable, Identifiable {
+    /// One notification-style stack per category, each expands independently in place.
+    case v1 = "V1"
+    /// Figma Dashboard 5281-28001/28311: a single combined stack with a Show more/less
+    /// toggle, plus category pills to filter the expanded list.
+    case v2 = "V2"
+
+    var id: String { rawValue }
+
+    static let appStorageKey = "settings.todosSectionUIVersion"
+    static let defaultVersion: TodosSectionUIVersion = .v1
+
+    var caption: String {
+        switch self {
+        case .v1:
+            return "Per-category stacks (Schedule requests, Time off, …) — tap one to expand it on its own."
+        case .v2:
+            return "One combined stack with a Show more/less toggle and category pills to filter it."
+        }
+    }
+}
+
 struct HomeView: View {
 
     @Environment(\.redesign) private var redesign
@@ -15,11 +38,25 @@ struct HomeView: View {
     @AppStorage(WorkablePlan.appStorageKey) private var planRaw = WorkablePlan.defaultPlan.rawValue
     @AppStorage(WidgetGlanceUIVersion.appStorageKey) private var widgetGlanceUIVersion =
         WidgetGlanceUIVersion.defaultVersion.rawValue
+    @AppStorage(TodosSectionUIVersion.appStorageKey) private var todosUIVersionRaw =
+        TodosSectionUIVersion.defaultVersion.rawValue
 
     private enum DashboardRoute: Hashable {
         case directReports
         case job(JobItem)
         case surveyDetail(SurveyItem)
+        case scheduleChangeRequest(ScheduleChangeRequestItem)
+        case timeOffReview
+    }
+
+    /// To-dos category pills — lets approvals/time-off/etc. be filtered to and found together.
+    private enum TodoCategory: String, CaseIterable, Identifiable {
+        case scheduleRequests = "Schedule requests"
+        case timeOffRequests = "Time off requests"
+        case surveys = "Surveys"
+        case profileUpdates = "Profile updates"
+
+        var id: String { rawValue }
     }
 
     private let todayData = TodayWidgetData.mock
@@ -73,6 +110,10 @@ struct HomeView: View {
                     CandidatesBrowserView(jobTitle: job.title, jobSubtitle: job.details)
                 case .surveyDetail(let survey):
                     SurveyDetailView(survey: survey)
+                case .scheduleChangeRequest(let request):
+                    ScheduleChangeRequestDetailView(item: request)
+                case .timeOffReview:
+                    TimeOffRequestDetailView(item: TimeOffInboxMockData.reviewRequest)
                 }
             }
             .sheet(isPresented: $showsTimeOffTypeSheet) {
@@ -87,7 +128,7 @@ struct HomeView: View {
             // can mirror them.
             WidgetGlanceStore.save(
                 WidgetGlanceData(
-                    todosPendingCount: todoSurveyItems.count,
+                    todosPendingCount: todoSurveyItems.count + todoScheduleChangeRequests.count,
                     oneOnOnesCount: todayData.events.filter { $0.title.contains("Call") }.count,
                     interviewEventsCount: todayData.events.filter { $0.title.contains("Interview") }.count,
                     attendanceIssueCount: todayData.issueCount,
@@ -121,7 +162,10 @@ struct HomeView: View {
                 .zIndex(10)
 
             todosSection
-                .padding(.bottom, 12)
+                // Extra room below — the stack "peek" cue pokes out (+ shadow) under the
+                // front card and needs space to actually read as a stack, not get clipped
+                // against the next section.
+                .padding(.bottom, 24)
 
             VStack(spacing: 12) {
                 if showsAttendanceIssuesUI {
@@ -157,7 +201,10 @@ struct HomeView: View {
                 .padding(.bottom, 20)
 
             todosSection
-                .padding(.bottom, 12)
+                // Extra room below — the stack "peek" cue pokes out (+ shadow) under the
+                // front card and needs space to actually read as a stack, not get clipped
+                // against the next section.
+                .padding(.bottom, 24)
 
             VStack(spacing: 12) {
                 redesignTodaySection
@@ -299,13 +346,21 @@ struct HomeView: View {
         }
     }
 
+    private var hidesTimeTracking: Bool {
+        ScheduleChangeRequestPersona.hidesTimeTracking(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
+    }
+
     private var redesignQuickActionPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 NavigationLink {
                     PersonalTimeTrackingView()
                 } label: {
-                    Text("Clock in")
+                    Text(hidesTimeTracking ? "Work schedule" : "Clock in")
                         .font(AppFonts.subheadStrong())
                         .foregroundColor(AppColors.fontDefault)
                         .padding(.horizontal, 18)
@@ -798,12 +853,117 @@ struct HomeView: View {
     // MARK: - To-dos
 
     @AppStorage("settings.surveysEnabled") private var surveysEnabled = false
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
+    @AppStorage("settings.timeOffEnabled") private var timeOffEnabled = true
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
+    @ObservedObject private var pendingStore = PendingScheduleChangeStore.shared
+    /// Gates the whole pills/stacks redesign — off shows the original flat scrolling row.
+    @AppStorage("settings.todosRevampEnabled") private var todosRevampEnabled = false
+    /// V1: only one per-category stack is expanded at a time — matches how notification
+    /// groups behave.
+    @State private var expandedTodoCategory: TodoCategory?
+    /// V2: the single combined stack is either collapsed or expanded (Show more/less).
+    @State private var isTodosExpandedV2 = false
+    /// V2: pill filter over the combined list — nil means every category.
+    @State private var selectedTodoCategoryV2: TodoCategory?
+
+    private var todosUIVersion: TodosSectionUIVersion {
+        TodosSectionUIVersion(rawValue: todosUIVersionRaw) ?? .defaultVersion
+    }
+
+    /// One row inside an expanded stack — a normalized shape so every category (schedule
+    /// requests, time off, surveys, profile) can render/expand the same way.
+    private struct TodoCardModel: Identifiable {
+        let id: String
+        let title: String
+        let subtitle: String
+        let route: DashboardRoute?
+    }
 
     private var todoSurveyItems: [SurveyItem] {
         surveysEnabled ? SurveyMockData.items : []
     }
 
+    private var todoScheduleChangeRequests: [ScheduleChangeRequestItem] {
+        guard ScheduleChangeRequestPersona.showsManagerInboxRequest(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        ) else { return [] }
+        return pendingStore.managerInboxItems
+    }
+
+    /// Only categories that currently have at least one item get a stack.
+    private var availableTodoCategories: [TodoCategory] {
+        var categories: [TodoCategory] = []
+        if !todoScheduleChangeRequests.isEmpty { categories.append(.scheduleRequests) }
+        if timeOffEnabled { categories.append(.timeOffRequests) }
+        if !todoSurveyItems.isEmpty { categories.append(.surveys) }
+        categories.append(.profileUpdates)
+        return categories
+    }
+
+    private func todoCards(for category: TodoCategory) -> [TodoCardModel] {
+        switch category {
+        case .scheduleRequests:
+            return todoScheduleChangeRequests.map { request in
+                TodoCardModel(
+                    id: request.id.uuidString,
+                    title: "Review \(request.requesterName)'s schedule change request",
+                    subtitle: request.dateRange,
+                    route: .scheduleChangeRequest(request)
+                )
+            }
+        case .timeOffRequests:
+            guard timeOffEnabled else { return [] }
+            let timeOff = TimeOffInboxMockData.reviewRequest
+            return [
+                TodoCardModel(
+                    id: "timeOffReview",
+                    title: "Review a time-off request for \(timeOff.requesterName)",
+                    subtitle: timeOff.previewText,
+                    route: .timeOffReview
+                ),
+            ]
+        case .surveys:
+            return todoSurveyItems.map { item in
+                TodoCardModel(
+                    id: item.id.uuidString,
+                    title: item.isReminder ? "Reminder to complete \(item.surveyName)" : "Start \(item.surveyName)",
+                    subtitle: item.deadline != nil ? "Share your feedback by \(item.deadline!)." : "Share your feedback.",
+                    route: .surveyDetail(item)
+                )
+            }
+        case .profileUpdates:
+            return [
+                TodoCardModel(id: "profileUpdate", title: "Review your profile", subtitle: "Review updated profile.", route: nil),
+            ]
+        }
+    }
+
+    @ViewBuilder
     private var todosSection: some View {
+        if todosRevampEnabled {
+            switch todosUIVersion {
+            case .v1: todosSectionV1
+            case .v2: todosSectionV2
+            }
+        } else {
+            todosSectionClassic
+        }
+    }
+
+    // MARK: - To-dos classic (original flat scrolling row, pre-revamp)
+
+    /// Every available to-do, flattened across categories, in the same order the sections list.
+    private var allTodoItems: [TodoCardModel] {
+        availableTodoCategories.flatMap { todoCards(for: $0) }
+    }
+
+    private var todosSectionClassic: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("To-dos")
                 .font(.system(size: 22, weight: .semibold))
@@ -811,7 +971,7 @@ struct HomeView: View {
                 .foregroundColor(AppColors.fontDefault)
                 .padding(.horizontal, 16)
 
-            if todoSurveyItems.isEmpty {
+            if allTodoItems.isEmpty {
                 Text("All done for now.")
                     .font(AppFonts.subheadline())
                     .foregroundColor(AppColors.fontSecondary)
@@ -826,22 +986,312 @@ struct HomeView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 12) {
-                        ForEach(todoSurveyItems) { item in
-                            NavigationLink(value: DashboardRoute.surveyDetail(item)) {
-                                TodoSurveyCard(item: item)
+                        ForEach(allTodoItems) { item in
+                            if let route = item.route {
+                                NavigationLink(value: route) {
+                                    classicTodoCard(title: item.title, subtitle: item.subtitle)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                classicTodoCard(title: item.title, subtitle: item.subtitle)
                             }
-                            .buttonStyle(.plain)
                         }
-
-                        TodoGenericCard(
-                            title: "Review your profile",
-                            subtitle: "Review updated profile."
-                        )
                     }
                     .padding(.horizontal, 16)
                 }
             }
         }
+    }
+
+    private func classicTodoCard(title: String, subtitle: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(16)
+        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+        .frame(height: 100)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+        .appLightCardShadow()
+    }
+
+    // MARK: - To-dos V1 (per-category stacks)
+
+    private var todosSectionV1: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("To-dos")
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(0.35)
+                .foregroundColor(AppColors.fontDefault)
+                .padding(.horizontal, 16)
+
+            VStack(spacing: 12) {
+                ForEach(availableTodoCategories) { category in
+                    todoCategoryStack(category)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// One category's notification-style stack. A single item skips the expand step
+    /// entirely — nothing to reveal, so the row goes straight to its destination. Two or
+    /// more show a peeking card pile that expands vertically in place on tap.
+    @ViewBuilder
+    private func todoCategoryStack(_ category: TodoCategory) -> some View {
+        let items = todoCards(for: category)
+
+        if items.count <= 1 {
+            if let only = items.first {
+                todoItemRow(only)
+            }
+        } else {
+            expandableTodoCategoryStack(category, items: items)
+        }
+    }
+
+    private func expandableTodoCategoryStack(_ category: TodoCategory, items: [TodoCardModel]) -> some View {
+        let isExpanded = expandedTodoCategory == category
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+                    expandedTodoCategory = isExpanded ? nil : category
+                }
+            } label: {
+                ZStack(alignment: .bottom) {
+                    if !isExpanded {
+                        stackPeekLayer(inset: 14, yOffset: 10, opacity: 0.5)
+                        stackPeekLayer(inset: 7, yOffset: 5, opacity: 0.8)
+                    }
+                    todoStackHeader(category: category, items: items, isExpanded: isExpanded)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                VStack(spacing: 8) {
+                    ForEach(items) { item in
+                        todoItemRow(item)
+                    }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+    }
+
+    /// A card edge peeking out from underneath the front card — the "stack" cue. A visible
+    /// shadow (not just the opacity step) is what actually sells the depth against the page
+    /// background, which is otherwise too close in tone to the card fill.
+    private func stackPeekLayer(inset: CGFloat, yOffset: CGFloat, opacity: Double) -> some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(AppColors.surface)
+            .opacity(opacity)
+            .frame(height: 60)
+            .padding(.horizontal, inset)
+            .offset(y: yOffset)
+            .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
+    }
+
+    private func todoStackHeader(category: TodoCategory, items: [TodoCardModel], isExpanded: Bool) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(category.rawValue)
+                        .font(AppFonts.subheadStrong())
+                        .foregroundColor(AppColors.fontDefault)
+
+                    if items.count > 1 {
+                        Text("\(items.count)")
+                            .font(AppFonts.caption1Strong())
+                            .foregroundColor(AppColors.fontSecondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule(style: .continuous).fill(AppColors.surfaceDarker))
+                    }
+                }
+
+                Text(isExpanded ? "Tap to collapse" : (items.first?.title ?? "All done for now."))
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "chevron.down")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(AppColors.iconDefault)
+                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+        .appLightCardShadow()
+    }
+
+    private func todoRow(title: String, subtitle: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(AppFonts.body())
+                    .foregroundColor(AppColors.fontDefault)
+                    .tracking(-0.41)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                Text(subtitle)
+                    .font(AppFonts.subheadline())
+                    .foregroundColor(AppColors.fontSecondary)
+                    .tracking(-0.24)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppColors.surface)
+        .cornerRadius(16)
+        .appLightCardShadow()
+    }
+
+    /// A to-do row wrapped in navigation when it has a destination — no arrows anywhere;
+    /// the whole card is the tap target.
+    @ViewBuilder
+    private func todoItemRow(_ item: TodoCardModel) -> some View {
+        if let route = item.route {
+            NavigationLink(value: route) {
+                todoRow(title: item.title, subtitle: item.subtitle)
+            }
+            .buttonStyle(.plain)
+        } else {
+            todoRow(title: item.title, subtitle: item.subtitle)
+        }
+    }
+
+    // MARK: - To-dos V2 (Figma Dashboard 5281-28001/28311 — single combined stack + pills)
+
+    /// The combined list, narrowed by the selected pill (nil = every category).
+    private var filteredTodoItemsV2: [TodoCardModel] {
+        guard let selected = selectedTodoCategoryV2 else { return allTodoItems }
+        return todoCards(for: selected)
+    }
+
+    private var todosSectionV2: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("To-dos")
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(0.35)
+                .foregroundColor(AppColors.fontDefault)
+                .padding(.horizontal, 16)
+
+            if availableTodoCategories.count > 1 {
+                todoCategoryPillsV2
+            }
+
+            VStack(spacing: 8) {
+                if filteredTodoItemsV2.count <= 1 {
+                    // Nothing to expand — a single (or no) item skips straight to itself.
+                    if let only = filteredTodoItemsV2.first {
+                        todoItemRow(only)
+                    } else {
+                        todoRow(title: "All done for now.", subtitle: "Nothing pending right now.")
+                    }
+                } else if isTodosExpandedV2 {
+                    showLessButtonV2
+
+                    VStack(spacing: 8) {
+                        ForEach(filteredTodoItemsV2) { item in
+                            todoItemRow(item)
+                        }
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                } else {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { isTodosExpandedV2 = true }
+                    } label: {
+                        ZStack(alignment: .bottom) {
+                            stackPeekLayer(inset: 14, yOffset: 10, opacity: 0.5)
+                            stackPeekLayer(inset: 7, yOffset: 5, opacity: 0.8)
+                            if let first = filteredTodoItemsV2.first {
+                                todoRow(title: first.title, subtitle: first.subtitle)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// Tapping a pill again (or selecting a new one) toggles the filter — no standalone "All".
+    private var todoCategoryPillsV2: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(availableTodoCategories) { category in
+                    let isSelected = selectedTodoCategoryV2 == category
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            if isSelected {
+                                // Deselecting back to "everything" collapses again.
+                                selectedTodoCategoryV2 = nil
+                                isTodosExpandedV2 = false
+                            } else {
+                                // Picking a filter implies wanting to see its items right away.
+                                selectedTodoCategoryV2 = category
+                                isTodosExpandedV2 = true
+                            }
+                        }
+                    } label: {
+                        Text(category.rawValue)
+                            .font(AppFonts.subheadStrong())
+                            .foregroundColor(isSelected ? AppColors.primaryDark : AppColors.fontSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(isSelected ? AppColors.activeBackground : AppColors.surface)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private var showLessButtonV2: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { isTodosExpandedV2 = false }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Show less")
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(AppColors.primaryDark)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Today Simple Widget (no attendance)
@@ -1175,76 +1625,10 @@ private extension HomeView {
 }
 
 // MARK: - Todo Cards
-
-private struct TodoSurveyCard: View {
-    let item: SurveyItem
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.isReminder ? "Reminder to complete \(item.surveyName)" : "Start \(item.surveyName)")
-                    .font(AppFonts.body())
-                    .foregroundColor(AppColors.fontDefault)
-                    .tracking(-0.41)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                Text(item.deadline != nil ? "Share your feedback by \(item.deadline!)." : "Share your feedback.")
-                    .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontSecondary)
-                    .tracking(-0.24)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 12)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColors.iconDefault)
-        }
-        .padding(16)
-        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
-        .frame(height: 100)
-        .background(AppColors.surface)
-        .cornerRadius(16)
-        .appLightCardShadow()
-    }
-}
-
-private struct TodoGenericCard: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(AppFonts.body())
-                    .foregroundColor(AppColors.fontDefault)
-                    .tracking(-0.41)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-
-                Text(subtitle)
-                    .font(AppFonts.subheadline())
-                    .foregroundColor(AppColors.fontSecondary)
-                    .tracking(-0.24)
-            }
-
-            Spacer(minLength: 12)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(AppColors.iconDefault)
-        }
-        .padding(16)
-        .frame(width: UIScreen.main.bounds.width * 0.75, alignment: .leading)
-        .frame(height: 100)
-        .background(AppColors.surface)
-        .cornerRadius(16)
-        .appLightCardShadow()
-    }
-}
+//
+// Superseded by `todoRow(title:subtitle:)` inside the To-dos notification-stack UI
+// (see "MARK: - To-dos" above) — kept out of the build on purpose, nothing references
+// these anymore.
 
 #Preview {
     HomeView()

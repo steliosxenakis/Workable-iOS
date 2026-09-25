@@ -3,24 +3,52 @@ import SwiftUI
 /// Personal time-tracking drill-in (Figma nav 15616-620397).
 struct PersonalTimeTrackingView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
     @State private var selectedTab = 2
     @State private var selectedSubTab = 0
     @State private var showsAddTimeEntrySheet = false
+    @State private var showsRequestScheduleChangeSheet = false
+    @State private var showsScheduleHistory = false
 
     private var personName: String {
         TimeAttendanceMockData.loggedInUser.name
+    }
+
+    private var hidesTimeTracking: Bool {
+        ScheduleChangeRequestPersona.hidesTimeTracking(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
     }
 
     var body: some View {
         VStack(spacing: 0) {
             TimeTrackingDrillInHeader(
                 title: personName,
-                tabs: ["Information", "Time off", "Time tracking"],
+                tabs: ["Information", "Time off", "Attendance"],
                 selectedTab: $selectedTab,
                 onBack: { dismiss() }
             ) {
                 if selectedTab == 2 {
-                    timeTrackingAddEntryButton { showsAddTimeEntrySheet = true }
+                    timeTrackingHeaderActions(
+                        canRequestScheduleChange: ScheduleChangeRequestPersona.showsScheduleHeaderButton(
+                            approvalsEnabled: approvalsEnabled
+                        ),
+                        canCreateScheduleRequest: ScheduleChangeRequestPersona.showsEmployeeRequestUI(
+                            approvalsEnabled: approvalsEnabled,
+                            versionRaw: scheduleChangeUIVersionRaw,
+                            personaRaw: scheduleChangePersonaRaw
+                        ),
+                        canAddTimeEntry: !hidesTimeTracking,
+                        onAddEntry: { showsAddTimeEntrySheet = true },
+                        onRequestScheduleChange: { showsRequestScheduleChangeSheet = true },
+                        onViewScheduleChanges: { showsScheduleHistory = true }
+                    )
                 } else {
                     Color.clear
                         .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
@@ -34,7 +62,9 @@ struct PersonalTimeTrackingView: View {
                 case 2:
                     TimeTrackingWeekCalendarContent(
                         selectedSubTab: $selectedSubTab,
-                        showsAddTimeEntrySheet: $showsAddTimeEntrySheet
+                        showsAddTimeEntrySheet: $showsAddTimeEntrySheet,
+                        showsClockInFAB: !hidesTimeTracking,
+                        hidesTimeTracking: hidesTimeTracking
                     )
                 default: Spacer()
                 }
@@ -44,23 +74,76 @@ struct PersonalTimeTrackingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
+        .sheet(isPresented: $showsRequestScheduleChangeSheet) {
+            ScheduleChangeRequestSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+        .navigationDestination(isPresented: $showsScheduleHistory) {
+            ScheduleChangeHistoryView()
+        }
     }
 }
 
-/// Figma nav “Add entry” — surface capsule matching glass back button height.
-func timeTrackingAddEntryButton(action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-        Text("Add entry")
-            .font(AppFonts.subheadStrong())
-            .foregroundColor(AppColors.fontDefault)
-            .padding(.horizontal, 12)
-            .frame(height: GlassSymbolButton.size)
-            .background(AppColors.surface)
-            .clipShape(Capsule(style: .continuous))
-            .shadow(color: Color(hex: "333E49").opacity(0.1), radius: 2.5, x: 0, y: 2)
+/// Trailing header icon actions on the Time tracking tab: add a time entry, and — when
+/// Approvals is on — a menu for request / view schedule changes.
+@MainActor
+func timeTrackingHeaderActions(
+    canRequestScheduleChange: Bool,
+    canCreateScheduleRequest: Bool,
+    canAddTimeEntry: Bool = true,
+    onAddEntry: @escaping () -> Void,
+    onRequestScheduleChange: @escaping () -> Void,
+    onViewScheduleChanges: @escaping () -> Void
+) -> some View {
+    HStack(spacing: 8) {
+        if canRequestScheduleChange {
+            if canCreateScheduleRequest {
+                Menu {
+                    Button {
+                        onRequestScheduleChange()
+                    } label: {
+                        Label("Request schedule change", systemImage: "calendar.badge.clock")
+                    }
+
+                    Button {
+                        onViewScheduleChanges()
+                    } label: {
+                        Label("View all requests", systemImage: "clock.arrow.circlepath")
+                    }
+                } label: {
+                    TimeTrackingScheduleHeaderIcon()
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel("Schedule change")
+            } else {
+                Button(action: onViewScheduleChanges) {
+                    TimeTrackingScheduleHeaderIcon()
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .accessibilityLabel("View all requests")
+            }
+        }
+        if canAddTimeEntry {
+            GlassSymbolButton(
+                systemName: "plus",
+                fontWeight: .medium,
+                accessibilityLabel: "Add entry",
+                action: onAddEntry
+            )
+        }
     }
-    .buttonStyle(.plain)
-    .accessibilityLabel("Add entry")
+}
+
+private struct TimeTrackingScheduleHeaderIcon: View {
+    var body: some View {
+        Image(systemName: "calendar.badge.clock")
+            .font(.system(size: GlassSymbolButton.symbolPointSize, weight: .medium))
+            .foregroundStyle(Color(hex: "1A1A1A"))
+            .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+    }
 }
 
 // MARK: - Shared drill-in chrome (matches Attendance V6 nav actions)
@@ -184,8 +267,21 @@ struct TimeTrackingHomeCard: View {
     @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
     @Environment(\.scenePhase) private var scenePhase
 
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
+    @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var scheduleChangeUIVersionRaw =
+        ScheduleChangeRequestUIVersion.defaultVersion.rawValue
+    @AppStorage(ScheduleChangeRequestPersona.appStorageKey) private var scheduleChangePersonaRaw =
+        ScheduleChangeRequestPersona.defaultPersona.rawValue
     @ObservedObject private var session = ClockInSessionStore.shared
     @ObservedObject private var todayEntries = TodayTimeEntriesStore.shared
+
+    private var hidesTimeTracking: Bool {
+        ScheduleChangeRequestPersona.hidesTimeTracking(
+            approvalsEnabled: approvalsEnabled,
+            versionRaw: scheduleChangeUIVersionRaw,
+            personaRaw: scheduleChangePersonaRaw
+        )
+    }
 
     @Namespace private var sessionTitleNamespace
     @State private var holdProgress: CGFloat = 0
@@ -319,6 +415,48 @@ struct TimeTrackingHomeCard: View {
     }
 
     var body: some View {
+        if hidesTimeTracking {
+            scheduleOnlyHomeCard
+        } else {
+            clockInHomeCard
+        }
+    }
+
+    /// Figma 16634-38522 — employee without time tracking drills into the schedule calendar.
+    private var scheduleOnlyHomeCard: some View {
+        NavigationLink {
+            PersonalTimeTrackingView()
+        } label: {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Work schedule")
+                        .font(.system(size: 22, weight: .semibold))
+                        .tracking(0.35)
+                        .foregroundColor(AppColors.fontDefault)
+                    Text(TimeAttendanceMockData.workScheduleSummary)
+                        .font(AppFonts.subheadline())
+                        .foregroundColor(AppColors.fontSecondary)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(AppColors.iconDefault)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(AppColors.surface)
+                    .appTimeTrackingCardShadow()
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var clockInHomeCard: some View {
         VStack(spacing: 0) {
             Group {
                 if usesV3StatusLayout {
@@ -869,7 +1007,7 @@ struct TimeTrackingHomeCard: View {
                 }
             }
         } else {
-            Text("Time tracking")
+            Text("Clock in")
                 .font(.system(size: 22, weight: .semibold))
                 .tracking(0.35)
                 .foregroundColor(AppColors.fontDefault)
@@ -2280,9 +2418,13 @@ struct TimeTrackingHomeCard: View {
             holdProgress = 0
             if breakSupportUIVersion.usesEditableBreakEmojiLabel {
                 let emoji = v5SelectedEmoji.isEmpty ? "☕" : v5SelectedEmoji
-                session.startBreak(breaksEnabled: breakSupportEnabled, emoji: emoji)
+                session.startBreak(
+                    breaksEnabled: breakSupportEnabled,
+                    plannedMinutes: 30,
+                    emoji: emoji
+                )
             } else {
-                session.startBreak(breaksEnabled: breakSupportEnabled)
+                session.startBreak(breaksEnabled: breakSupportEnabled, plannedMinutes: 30)
             }
         }
     }
@@ -2322,7 +2464,9 @@ struct TimeEntryDetailView: View {
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
     @Environment(\.breakSupportUIVersion) private var breakSupportUIVersion
     @Environment(\.breaksNestedInTimeEntry) private var breaksNestedInTimeEntry
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
     @State private var showsEditSheet = false
+    @State private var showsWorkScheduleSheet = false
 
     private var showBreaks: Bool {
         breakSupportEnabled && entry.hasBreaks
@@ -2348,31 +2492,16 @@ struct TimeEntryDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             TimeTrackingDrillInHeader(title: "View time entry", onBack: { dismiss() }) {
-                Button("Edit") {
-                    showsEditSheet = true
-                }
-                .font(.system(size: 17, weight: .medium))
-                .buttonStyle(.glass)
+                overflowMenu
             }
 
             ScrollView {
-                VStack(spacing: 36) {
-                    VStack(alignment: .leading, spacing: 36) {
-                        dateSection
-                        periodTimelineSection
-                        field(label: "Note", value: entry.noteText)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        // Delete is prototype-only for now.
-                    } label: {
-                        Text("Delete entry")
-                            .font(AppFonts.subheadStrong())
-                            .foregroundColor(AppColors.dangerDefault)
-                    }
-                    .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 36) {
+                    dateSection
+                    periodTimelineSection
+                    field(label: "Note", value: entry.noteText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 24)
             }
@@ -2390,16 +2519,63 @@ struct TimeEntryDetailView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
+        .sheet(isPresented: $showsWorkScheduleSheet) {
+            WorkScheduleView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
+    }
+
+    /// Top-right kebab (Edit / Delete) — schedule-change actions live on Attendance.
+    private var overflowMenu: some View {
+        Menu {
+            Button {
+                showsEditSheet = true
+            } label: {
+                Label("Edit entry", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                // Delete is prototype-only for now.
+            } label: {
+                Label("Delete entry", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: GlassSymbolButton.symbolPointSize, weight: .medium))
+                .foregroundStyle(Color(hex: "1A1A1A"))
+                .frame(width: GlassSymbolButton.size, height: GlassSymbolButton.size)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("More actions")
     }
 
     private var dateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             field(label: "Date", value: entry.dateLabel)
 
-            Text(entry.scheduleBannerText)
-                .font(AppFonts.footnote())
-                .tracking(-0.08)
-                .foregroundColor(AppColors.fontSecondary)
+            if approvalsEnabled {
+                Button {
+                    showsWorkScheduleSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(entry.scheduleBannerText)
+                            .font(AppFonts.footnote())
+                            .tracking(-0.08)
+                            .foregroundColor(AppColors.fontSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(AppColors.iconInactive)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(entry.scheduleBannerText)
+                    .font(AppFonts.footnote())
+                    .tracking(-0.08)
+                    .foregroundColor(AppColors.fontSecondary)
+            }
         }
     }
 
@@ -2436,7 +2612,7 @@ struct TimeEntryDetailView: View {
                 .font(AppFonts.subheadStrong())
                 .foregroundColor(AppColors.fontDefault)
             if showBreaks {
-                Text("(Breaks: \(entry.breakHoursText))")
+                Text("(Break: \(entry.breakHoursText))")
                     .font(AppFonts.subheadline())
                     .tracking(-0.24)
                     .foregroundColor(AppColors.fontSecondary)
@@ -2533,12 +2709,14 @@ struct EditTimeEntryView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.breakSupportEnabled) private var breakSupportEnabled
+    @AppStorage("settings.approvalsEnabled") private var approvalsEnabled = false
 
     @State private var selectedDate: Date
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var note: String
     @State private var breaks: [EditableTimeEntryBreak]
+    @State private var showsWorkScheduleSheet = false
 
     init(entry: TimeEntryDetail, mode: Mode = .edit) {
         self.entry = entry
@@ -2565,9 +2743,9 @@ struct EditTimeEntryView: View {
         formatter.dateFormat = "EEEE, MMMM d, yyyy"
         let entry = TimeEntryDetail(
             dateLabel: formatter.string(from: today),
-            scheduleRange: "09:00 - 17:00",
+            scheduleRange: "09:00 - 18:00",
             start: "09:00",
-            end: "17:00",
+            end: "18:00",
             duration: "8h"
         )
         return EditTimeEntryView(entry: entry, mode: .add)
@@ -2616,6 +2794,11 @@ struct EditTimeEntryView: View {
             footer
         }
         .background(AppColors.surface)
+        .sheet(isPresented: $showsWorkScheduleSheet) {
+            WorkScheduleView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
     }
 
     private var header: some View {
@@ -2662,10 +2845,29 @@ struct EditTimeEntryView: View {
                 .datePickerStyle(.compact)
                 .tint(AppColors.fontDefault)
 
-            Text(entry.scheduleBannerText)
-                .font(AppFonts.footnote())
-                .tracking(-0.08)
-                .foregroundColor(AppColors.fontSecondary)
+            // Entry point only on "Add" — "Edit time entry" is for an existing, already
+            // scheduled day, so there's nothing to request a change against here.
+            if approvalsEnabled, mode == .add {
+                Button {
+                    showsWorkScheduleSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(entry.scheduleBannerText)
+                            .font(AppFonts.footnote())
+                            .tracking(-0.08)
+                            .foregroundColor(AppColors.fontSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(AppColors.iconInactive)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(entry.scheduleBannerText)
+                    .font(AppFonts.footnote())
+                    .tracking(-0.08)
+                    .foregroundColor(AppColors.fontSecondary)
+            }
         }
     }
 
@@ -2867,7 +3069,7 @@ struct EditTimeEntryView: View {
                     .tracking(-0.41)
                     .foregroundColor(AppColors.fontDefault)
                 if breakSupportEnabled, breakMinutesTotal > 0 {
-                    Text("(Breaks: \(Self.formatDuration(minutes: breakMinutesTotal)))")
+                    Text("(Break: \(Self.formatDuration(minutes: breakMinutesTotal)))")
                         .font(AppFonts.body())
                         .tracking(-0.41)
                         .foregroundColor(AppColors.fontSecondary)
