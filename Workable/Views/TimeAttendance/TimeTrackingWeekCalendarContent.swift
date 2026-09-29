@@ -23,6 +23,7 @@ struct TimeTrackingWeekCalendarContent: View {
         ScheduleChangeRequestPersona.defaultPersona.rawValue
     @ObservedObject private var session = ClockInSessionStore.shared
     @ObservedObject private var pendingStore = PendingScheduleChangeStore.shared
+    @ObservedObject private var quickWorkplaceStore = QuickWorkplaceOverrideStore.shared
 
     private var canCreateScheduleRequest: Bool {
         ScheduleChangeRequestPersona.showsEmployeeRequestUI(
@@ -40,12 +41,6 @@ struct TimeTrackingWeekCalendarContent: View {
         )
     }
 
-    private var pendingApprovalItem: ScheduleChangeRequestItem {
-        pendingStore.current?.asInboxItem()
-            ?? pendingStore.managerInboxItems.first
-            ?? ScheduleChangeRequestMockData.pending
-    }
-
     @Namespace private var sessionFABNamespace
     @State private var isHolding = false
     @State private var holdProgress: CGFloat = 0
@@ -57,6 +52,7 @@ struct TimeTrackingWeekCalendarContent: View {
     @State private var showsWorkScheduleSheet = false
     @State private var showsRequestScheduleChangeSheet = false
     @State private var requestChangeDate = ScheduleChangeFormField.tomorrow
+    @State private var showsWorkplaceChangeToast = false
     /// 0 = this week, 1 = next week, -1 = last week, etc. Any week other than "this week"
     /// falls back to a scheduled-only mock (nothing worked/logged yet for it).
     @State private var weekOffset = 0
@@ -192,6 +188,7 @@ struct TimeTrackingWeekCalendarContent: View {
                     .padding(.top, 18)
             }
         }
+        .scheduleRequestSentToast(isPresented: $showsWorkplaceChangeToast)
         .sheet(isPresented: $showsAddTimeEntrySheet) {
             EditTimeEntryView.addToday()
                 .environment(\.breakSupportEnabled, breakSupportEnabled)
@@ -206,9 +203,12 @@ struct TimeTrackingWeekCalendarContent: View {
                 .presentationDragIndicator(.hidden)
         }
         .sheet(isPresented: $showsRequestScheduleChangeSheet) {
-            ScheduleChangeRequestSheet(date: requestChangeDate)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+            ScheduleChangeRequestSheet(
+                date: requestChangeDate,
+                onSend: { triggerScheduleRequestSentToast($showsWorkplaceChangeToast) }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
         }
         .onAppear {
             session.syncFromExternalSources(breaksEnabled: breakSupportEnabled)
@@ -385,16 +385,14 @@ struct TimeTrackingWeekCalendarContent: View {
             Color.clear.frame(width: timeGutterWidth)
             ForEach(Array(days.enumerated()), id: \.offset) { index, day in
                 let weekdayNumber = ((index + 1) % 7) + 1
-                VStack(spacing: 2) {
+                VStack(spacing: 4) {
                     Text(day)
                         .font(AppFonts.subheadStrong())
                         .foregroundColor(index < 5 ? AppColors.fontSecondary : AppColors.iconInactive)
-                    // On-site vs remote for that scheduled day (Figma 16816-594680) — weekends
-                    // have no entry in `workScheduleDays`, so no icon shows.
-                    if let workplace = workplace(forWeekdayNumber: weekdayNumber) {
-                        Image(systemName: workplace == .onSite ? "building.2.fill" : "house.fill")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(AppColors.fontSecondary)
+                    // On-site vs remote (home/travel) for that scheduled day (Figma 16908-805551)
+                    // — weekends have no entry in `workScheduleDays`, so no icon shows.
+                    if let day = scheduleDay(forWeekdayNumber: weekdayNumber) {
+                        workplaceQuickChangeMenu(for: day)
                     }
                 }
                 .frame(width: dayColumnWidth)
@@ -404,8 +402,95 @@ struct TimeTrackingWeekCalendarContent: View {
         }
     }
 
-    private func workplace(forWeekdayNumber weekdayNumber: Int) -> WorkplaceType? {
-        TimeAttendanceMockData.workScheduleDays.first { $0.weekdayNumber == weekdayNumber }?.workplace
+    private enum QuickWorkplaceChoice: Hashable {
+        case onSite, home, travel
+    }
+
+    /// Boxed icon (Figma 16908-805551) — tapping it opens a native menu to switch that day's
+    /// workplace without opening the full "Request schedule change" form. `Toggle` rows (not a
+    /// label-based `Picker`, which rendered its items inline instead of collapsing into the
+    /// small boxed trigger) get the native checkmark on the selected row for free, and `Section`
+    /// groups Home/Travel under "Remote".
+    private func workplaceQuickChangeMenu(for day: WorkScheduleDay) -> some View {
+        let choice = quickWorkplaceStore.choice(for: day)
+        let selection = quickWorkplaceChoice(for: choice)
+        return Menu {
+            workplaceToggle(.onSite, title: "On-site", systemImage: "building.2.fill", selection: selection, day: day)
+            Section("Remote") {
+                workplaceToggle(.home, title: "Home", systemImage: "house.fill", selection: selection, day: day)
+                workplaceToggle(.travel, title: "Travel", systemImage: "airplane", selection: selection, day: day)
+            }
+        } label: {
+            Image(systemName: choice.systemImage)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(AppColors.fontSecondary)
+                .frame(width: 22, height: 20)
+                .background(AppColors.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(AppColors.separator, lineWidth: 1)
+                )
+        }
+        .accessibilityLabel("Change workplace for \(day.weekday)")
+    }
+
+    private func quickWorkplaceChoice(for choice: QuickWorkplaceOverrideStore.Choice) -> QuickWorkplaceChoice {
+        switch choice.workplace {
+        case .onSite: return .onSite
+        case .remote: return choice.remoteDetail == .travel ? .travel : .home
+        }
+    }
+
+    private func workplaceToggle(
+        _ value: QuickWorkplaceChoice,
+        title: String,
+        systemImage: String,
+        selection: QuickWorkplaceChoice,
+        day: WorkScheduleDay
+    ) -> some View {
+        Toggle(isOn: Binding(
+            get: { selection == value },
+            set: { isOn in
+                guard isOn else { return }
+                switch value {
+                case .onSite:
+                    applyQuickWorkplaceChange(day: day, workplace: .onSite, remoteDetail: nil)
+                case .home:
+                    applyQuickWorkplaceChange(day: day, workplace: .remote, remoteDetail: .home)
+                case .travel:
+                    applyQuickWorkplaceChange(day: day, workplace: .remote, remoteDetail: .travel)
+                }
+            }
+        )) {
+            Label(title, systemImage: systemImage)
+        }
+    }
+
+    /// Updates the calendar's own icon (`QuickWorkplaceOverrideStore`) and, so the Work Schedule
+    /// sheet shows the same crossed-out/pending treatment a full request produces, submits a
+    /// one-off `PendingScheduleChangeRequest` for this week's occurrence of `day`.
+    private func applyQuickWorkplaceChange(day: WorkScheduleDay, workplace: WorkplaceType, remoteDetail: RemoteWorkplaceDetail?) {
+        quickWorkplaceStore.set(weekdayNumber: day.weekdayNumber, workplace: workplace, remoteDetail: remoteDetail)
+
+        let date = day.date()
+        let breakSuffix = day.breakText.map { " (Break: \($0))" } ?? ""
+        pendingStore.submit(
+            PendingScheduleChangeRequest(
+                weekdayNumber: day.weekdayNumber,
+                dateLabel: ScheduleChangeFormField.fullDateFormatter.string(from: date),
+                oldRangesText: day.rangesText,
+                oldTotalText: day.totalText,
+                newRangesText: day.rangesText,
+                newTotalText: "\(day.totalHoursText)\(breakSuffix) | \(workplace.rawValue)",
+                dateSpans: [PendingScheduleDateSpan(start: date, end: date)]
+            )
+        )
+
+        triggerScheduleRequestSentToast($showsWorkplaceChangeToast)
+    }
+
+    private func scheduleDay(forWeekdayNumber weekdayNumber: Int) -> WorkScheduleDay? {
+        TimeAttendanceMockData.workScheduleDays.first { $0.weekdayNumber == weekdayNumber }
     }
 
     private var chartCanvas: some View {
@@ -464,12 +549,12 @@ struct TimeTrackingWeekCalendarContent: View {
     @ViewBuilder
     private func dayColumn(_ dayData: DayHours, weekdayNumber: Int) -> some View {
         let columnDate = dateForWeekdayNumber(weekdayNumber)
-        let isPending = pendingStore.current?.applies(to: columnDate) == true
-            && !isPastDay(columnDate)
+        let pendingRequest = isPastDay(columnDate) ? nil : pendingStore.pending(for: columnDate)
+        let isPending = pendingRequest != nil
         let column = ZStack(alignment: .top) {
-            if isPending, let request = pendingStore.current, request.newRangesText == "Day off" {
+            if isPending, let request = pendingRequest, request.newRangesText == "Day off" {
                 // Requested day off — no scheduled block.
-            } else if isPending, let ranges = pendingStore.current?.newHourRanges, !ranges.isEmpty {
+            } else if isPending, let ranges = pendingRequest?.newHourRanges, !ranges.isEmpty {
                 ForEach(Array(ranges.enumerated()), id: \.offset) { _, range in
                     pendingBar(from: range.start, to: range.end, width: dayColumnWidth)
                 }
@@ -512,10 +597,10 @@ struct TimeTrackingWeekCalendarContent: View {
         .frame(width: dayColumnWidth, height: chartHeight, alignment: .top)
         .contentShape(Rectangle())
 
-        if isPending {
+        if isPending, let pendingRequest {
             NavigationLink {
                 ScheduleChangeRequestDetailView(
-                    item: pendingApprovalItem,
+                    item: pendingRequest.asInboxItem(),
                     mode: isManagerPersona ? .managerReview : .employeePending
                 )
             } label: {

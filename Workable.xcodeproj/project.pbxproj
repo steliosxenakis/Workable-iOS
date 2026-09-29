@@ -69,6 +69,7 @@
 		A100000000000000000000B8 /* ScheduleChangeRequestV2View.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B9 /* ScheduleChangeRequestV2View.swift */; };
 		A100000000000000000000BA /* ScheduleChangeHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000BB /* ScheduleChangeHistoryView.swift */; };
 		A100000000000000000000BC /* ScheduleChangeRequestV3View.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000BD /* ScheduleChangeRequestV3View.swift */; };
+		A100000000000000000000BE /* ScheduleChangeRequestV4View.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000BF /* ScheduleChangeRequestV4View.swift */; };
 
 		B10000000000000000000001 /* WorkableWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* WorkableWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B10000000000000000000003 /* WorkableWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* WorkableWidgetsBundle.swift */; };
@@ -152,6 +153,7 @@
 		A100000000000000000000B9 /* ScheduleChangeRequestV2View.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeRequestV2View.swift; sourceTree = "<group>"; };
 		A100000000000000000000BB /* ScheduleChangeHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeHistoryView.swift; sourceTree = "<group>"; };
 		A100000000000000000000BD /* ScheduleChangeRequestV3View.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeRequestV3View.swift; sourceTree = "<group>"; };
+		A100000000000000000000BF /* ScheduleChangeRequestV4View.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleChangeRequestV4View.swift; sourceTree = "<group>"; };
 
 		B10000000000000000000002 /* WorkableWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkableWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000000000000000000004 /* WorkableWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkableWidgetsBundle.swift; sourceTree = "<group>"; };
@@ -290,6 +292,7 @@
 				A100000000000000000000B5 /* WorkScheduleView.swift */,
 				A100000000000000000000B9 /* ScheduleChangeRequestV2View.swift */,
 				A100000000000000000000BD /* ScheduleChangeRequestV3View.swift */,
+				A100000000000000000000BF /* ScheduleChangeRequestV4View.swift */,
 				A100000000000000000000BB /* ScheduleChangeHistoryView.swift */,
 				A10000000000000000000064 /* PersonalTimeTrackingView.swift */,
 				A10000000000000000000066 /* DirectReportsView.swift */,
@@ -564,6 +567,7 @@
 				A100000000000000000000B6 /* ScheduleChangeRequestDetailView.swift in Sources */,
 				A100000000000000000000B8 /* ScheduleChangeRequestV2View.swift in Sources */,
 				A100000000000000000000BC /* ScheduleChangeRequestV3View.swift in Sources */,
+				A100000000000000000000BE /* ScheduleChangeRequestV4View.swift in Sources */,
 				A100000000000000000000BA /* ScheduleChangeHistoryView.swift in Sources */,
 				B1000000000000000000000B /* ClockInActivityAttributes.swift in Sources */,
 				B1000000000000000000000C /* ClockInLiveActivityIntents.swift in Sources */,
