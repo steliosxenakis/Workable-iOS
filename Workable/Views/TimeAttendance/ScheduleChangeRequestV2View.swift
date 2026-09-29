@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Picks between V1 (`RequestScheduleChangeView`), V2 (`RequestScheduleChangeViewV2`), and
-/// V3 (`RequestScheduleChangeViewV3`) request-change form layouts, per Settings → Schedule
-/// change request. Every call site opens this instead of a specific version, so switching
-/// the setting updates every entry point.
+/// Picks between V1 (`RequestScheduleChangeView`), V2 (`RequestScheduleChangeViewV2`), V3
+/// (`RequestScheduleChangeViewV3`), and V4 (`RequestScheduleChangeViewV4`) request-change form
+/// layouts, per Settings → Schedule change request. Every call site opens this instead of a
+/// specific version, so switching the setting updates every entry point.
 struct ScheduleChangeRequestSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(ScheduleChangeRequestUIVersion.appStorageKey) private var uiVersionRaw =
@@ -13,6 +13,7 @@ struct ScheduleChangeRequestSheet: View {
     private let dayType: DayType
     private let shifts: [EditableWorkScheduleShift]?
     private let workplace: WorkplaceType
+    private let mode: ScheduleChangeRequestMode
     private let onSend: () -> Void
 
     private func handleSend() {
@@ -25,23 +26,39 @@ struct ScheduleChangeRequestSheet: View {
         dayType: DayType = .workday,
         shifts: [EditableWorkScheduleShift]? = nil,
         workplace: WorkplaceType = .onSite,
+        mode: ScheduleChangeRequestMode = .full,
         onSend: @escaping () -> Void = {}
     ) {
         self.date = date
         self.dayType = dayType
         self.shifts = shifts
         self.workplace = workplace
+        self.mode = mode
         self.onSend = onSend
     }
 
     var body: some View {
         switch ScheduleChangeRequestUIVersion(rawValue: uiVersionRaw) ?? .v1 {
         case .v1:
-            RequestScheduleChangeView(date: date, dayType: dayType, shifts: shifts, workplace: workplace, onSend: handleSend)
+            // V1's fixed-fields layout has no workplace-only mode — fall back to V3's
+            // minimal wireframe for that specific entry point instead of leaving it broken.
+            if mode == .workplaceOnly {
+                RequestScheduleChangeViewV3(date: date, workplace: workplace, mode: .workplaceOnly, onSend: handleSend)
+            } else {
+                RequestScheduleChangeView(date: date, dayType: dayType, shifts: shifts, workplace: workplace, onSend: handleSend)
+            }
         case .v2:
-            RequestScheduleChangeViewV2(date: date, dayType: dayType, shifts: shifts, workplace: workplace, onSend: handleSend)
+            RequestScheduleChangeViewV2(
+                date: date, dayType: dayType, shifts: shifts, workplace: workplace, mode: mode, onSend: handleSend
+            )
         case .v3:
-            RequestScheduleChangeViewV3(date: date, dayType: dayType, shifts: shifts, workplace: workplace, onSend: handleSend)
+            RequestScheduleChangeViewV3(
+                date: date, dayType: dayType, shifts: shifts, workplace: workplace, mode: mode, onSend: handleSend
+            )
+        case .v4:
+            RequestScheduleChangeViewV4(
+                date: date, dayType: dayType, shifts: shifts, workplace: workplace, mode: mode, onSend: handleSend
+            )
         }
     }
 }
@@ -62,20 +79,22 @@ struct RequestScheduleChangeViewV2: View {
     @Environment(\.dismiss) private var dismiss
 
     var onSend: () -> Void = {}
+    private let mode: ScheduleChangeRequestMode
 
     @State private var dateRanges: [ScheduleChangeDateRange]
     @State private var frequency: ScheduleChangeFrequency = .doesNotRepeat
     @State private var recurrenceEndDate: Date
 
-    @State private var changesType = false
     @State private var dayType: DayType
 
     @State private var changesWorkplace = false
     @State private var workplace: WorkplaceType
+    @State private var remoteDetail: RemoteWorkplaceDetail
 
     @State private var changesWorkHours = false
     @State private var shifts: [EditableWorkScheduleShift]
 
+    @State private var showsNotesOrFiles = false
     @State private var note = ""
 
     init(
@@ -83,15 +102,21 @@ struct RequestScheduleChangeViewV2: View {
         dayType: DayType = .workday,
         shifts: [EditableWorkScheduleShift]? = nil,
         workplace: WorkplaceType = .onSite,
+        remoteDetail: RemoteWorkplaceDetail = .home,
+        mode: ScheduleChangeRequestMode = .full,
         onSend: @escaping () -> Void = {}
     ) {
         self.onSend = onSend
+        self.mode = mode
         _dateRanges = State(initialValue: [ScheduleChangeDateRange(start: date, end: date)])
         _recurrenceEndDate = State(initialValue: Calendar.current.date(byAdding: .month, value: 1, to: date) ?? date)
         _dayType = State(initialValue: dayType)
         _shifts = State(initialValue: shifts ?? [EditableWorkScheduleShift(defaultsFor: date)])
         _workplace = State(initialValue: workplace)
+        _remoteDetail = State(initialValue: remoteDetail)
     }
+
+    private var isWorkplaceOnly: Bool { mode == .workplaceOnly }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -100,10 +125,18 @@ struct RequestScheduleChangeViewV2: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
                     dateField
-                    frequencyField
-                    requestTypeSection
-                    noteField
-                    attachFileField
+                    if isWorkplaceOnly {
+                        workplaceOnlySection
+                    } else {
+                        frequencyField
+                        requestTypeSection
+                        if showsNotesOrFiles {
+                            noteField
+                            attachFileField
+                        } else {
+                            addNotesOrFilesButton
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 24)
@@ -134,7 +167,7 @@ struct RequestScheduleChangeViewV2: View {
                 .frame(width: 85, alignment: .trailing)
         }
         .overlay {
-            Text("Schedule change")
+            Text(isWorkplaceOnly ? "Workplace change" : "Schedule change")
                 .font(.system(size: 17, weight: .semibold))
                 .tracking(-0.41)
                 .foregroundColor(AppColors.fontDefault)
@@ -221,26 +254,27 @@ struct RequestScheduleChangeViewV2: View {
 
     // MARK: - Frequency
 
+    /// Bare — no boxed field or "Frequency" header — since the picker's own selected value
+    /// ("Doesn't repeat" by default) already says what it is.
     private var frequencyField: some View {
         VStack(alignment: .leading, spacing: 16) {
-            ScheduleChangeFormField.boxedField(label: "Frequency") {
-                Picker("Frequency", selection: Binding(
-                    get: { frequency },
-                    set: { newValue in
-                        if newValue != .doesNotRepeat, frequency == .doesNotRepeat {
-                            let start = dateRanges.first?.start ?? Date()
-                            recurrenceEndDate = Calendar.current.date(byAdding: .month, value: 1, to: start) ?? start
-                        }
-                        withAnimation(.easeInOut(duration: 0.15)) { frequency = newValue }
+            Picker("Frequency", selection: Binding(
+                get: { frequency },
+                set: { newValue in
+                    if newValue != .doesNotRepeat, frequency == .doesNotRepeat {
+                        let start = dateRanges.first?.start ?? Date()
+                        recurrenceEndDate = Calendar.current.date(byAdding: .month, value: 1, to: start) ?? start
                     }
-                )) {
-                    ForEach(ScheduleChangeFrequency.allCases) { freq in
-                        Text(freq.rawValue).tag(freq)
-                    }
+                    withAnimation(.easeInOut(duration: 0.15)) { frequency = newValue }
                 }
-                .pickerStyle(.menu)
-                .tint(frequency == .doesNotRepeat ? AppColors.fontSecondary : AppColors.fontDefault)
+            )) {
+                ForEach(ScheduleChangeFrequency.allCases) { freq in
+                    Text(freq.rawValue).tag(freq)
+                }
             }
+            .pickerStyle(.menu)
+            .tint(frequency == .doesNotRepeat ? AppColors.fontSecondary : AppColors.fontDefault)
+            .labelsHidden()
 
             if frequency != .doesNotRepeat {
                 ScheduleChangeFormField.boxedField(label: "Ends on") {
@@ -267,17 +301,99 @@ struct RequestScheduleChangeViewV2: View {
                 .font(AppFonts.subheadStrong())
                 .foregroundColor(AppColors.fontDefault)
 
-            toggleCard(title: "Workplace (remote ↔ on-site)", isOn: $changesWorkplace) {
-                pillRow($workplace)
-            }
+            dayTypeTab
 
-            toggleCard(title: "Working hours", isOn: $changesWorkHours) {
-                workHoursContent
-            }
+            if dayType == .workday {
+                toggleCard(title: "Workplace (remote ↔ on-site)", isOn: $changesWorkplace) {
+                    workplaceOnlyContent
+                }
 
-            toggleCard(title: "Workday (workday ↔ day off)", isOn: $changesType) {
-                pillRow($dayType)
+                toggleCard(title: "Working hours", isOn: $changesWorkHours) {
+                    workHoursContent
+                }
             }
+        }
+    }
+
+    /// Always-visible tab (not a toggle card) — the request always sets one or the other, so
+    /// there's nothing to opt in/out of the way there is for Workplace/Working hours.
+    /// Full-width, evenly split — a "Workday / Day off" label would just repeat the pills'
+    /// own text.
+    private var dayTypeTab: some View {
+        HStack(spacing: 8) {
+            ForEach(DayType.allCases) { option in
+                let selected = option == dayType
+                Button {
+                    dayType = option
+                } label: {
+                    HStack(spacing: 4) {
+                        if selected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        Text(option.rawValue)
+                            .font(AppFonts.subheadStrong())
+                    }
+                    .foregroundColor(selected ? AppColors.fontDefault : AppColors.fontSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(selected ? AppColors.surface : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? AppColors.iconInactive : Color.clear, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Workplace pill row plus, only when Remote is selected, a second-level Home/Travel row.
+    private var workplaceOnlyContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            pillRow($workplace)
+            if workplace == .remote {
+                remoteDetailPillRow
+            }
+        }
+    }
+
+    /// Home/Travel sub-choice — only shown once Remote is selected (Figma 16816-594680's
+    /// calendar icons are the home/travel distinction this feeds).
+    private var remoteDetailPillRow: some View {
+        HStack(spacing: 8) {
+            ForEach(RemoteWorkplaceDetail.allCases) { option in
+                let selected = option == remoteDetail
+                Button {
+                    remoteDetail = option
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: option.systemImage)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(option.rawValue)
+                            .font(AppFonts.subheadStrong())
+                    }
+                    .foregroundColor(selected ? AppColors.fontDefault : AppColors.fontSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selected ? AppColors.surface : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? AppColors.iconInactive : Color.clear, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var workplaceOnlySection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ScheduleChangeFormField.requiredLabel("Workplace")
+            workplaceOnlyContent
         }
     }
 
@@ -414,6 +530,23 @@ struct RequestScheduleChangeViewV2: View {
 
     // MARK: - Note / Attach file / Footer
 
+    /// Tertiary — plain text, no background — reveals the Note/File fields on tap instead of
+    /// always showing two optional fields most requests don't need.
+    private var addNotesOrFilesButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) { showsNotesOrFiles = true }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                Text("Add notes or files")
+                    .font(AppFonts.subheadStrong())
+            }
+            .foregroundColor(AppColors.fontSecondary)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var noteField: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Note (Optional)")
@@ -475,9 +608,18 @@ struct RequestScheduleChangeViewV2: View {
         return TimeAttendanceMockData.workScheduleDays.first { $0.weekdayNumber == weekdayNumber }
     }
 
-    /// Nothing to send until at least one "What would you like to change?" card is on.
+    /// Whether the day currently on file is a workday or a day off — the baseline the always-
+    /// visible Workday/Day off tab is compared against.
+    private var baselineDayType: DayType {
+        originalDay != nil ? .workday : .dayOff
+    }
+
+    /// Nothing to send until something actually differs from the day on file.
     private var hasAnyChange: Bool {
-        changesType || changesWorkplace || changesWorkHours
+        if isWorkplaceOnly {
+            return workplace != (originalDay?.workplace ?? workplace)
+        }
+        return dayType != baselineDayType || changesWorkplace || changesWorkHours
     }
 
     /// Merges whichever cards are toggled on with `oldDay` for the untouched fields — shared by
@@ -487,8 +629,9 @@ struct RequestScheduleChangeViewV2: View {
     private func resultingSchedule(mergingWith oldDay: WorkScheduleDay?) -> (
         isDayOff: Bool, ranges: String, total: String, workplace: WorkplaceType, hourRanges: [PendingScheduleHourRange]
     ) {
-        let newWorkplace = changesWorkplace ? workplace : (oldDay?.workplace ?? workplace)
-        if changesType, dayType == .dayOff {
+        let changesWorkplaceEffective = isWorkplaceOnly ? true : changesWorkplace
+        let newWorkplace = changesWorkplaceEffective ? workplace : (oldDay?.workplace ?? workplace)
+        if !isWorkplaceOnly, dayType == .dayOff {
             return (true, "Day off", newWorkplace.rawValue, newWorkplace, [])
         }
         if let oldDay, !changesWorkHours {

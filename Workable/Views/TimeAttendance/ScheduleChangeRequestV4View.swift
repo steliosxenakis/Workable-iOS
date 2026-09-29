@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Wireframe restyle of V2: same Date / Frequency / toggle-card form, drawn as outlined
-/// boxes instead of glass chrome and filled capsules.
-struct RequestScheduleChangeViewV3: View {
+/// Real-UI counterpart of V3 — same layout (Date / Frequency / toggle-card "What would you like
+/// to change?" with an always-visible Workday/Day off tab and Remote → Home/Travel sub-pills),
+/// drawn with glass chrome and filled capsules instead of V3's wireframe boxes. A copy of V2's
+/// visual language, since V2 already matches V3's layout field-for-field.
+struct RequestScheduleChangeViewV4: View {
     @Environment(\.dismiss) private var dismiss
 
     var onSend: () -> Void = {}
@@ -77,41 +79,40 @@ struct RequestScheduleChangeViewV3: View {
 
     private var header: some View {
         HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppColors.fontDefault)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(AppColors.separator, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
+            GlassSymbolButton(
+                systemName: "xmark",
+                fontWeight: .medium,
+                accessibilityLabel: "Close",
+                action: { dismiss() }
+            )
             .frame(width: 85, alignment: .leading)
 
             Spacer(minLength: 0)
 
-            Color.clear.frame(width: 85, height: 1)
+            Text("Close")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(AppColors.primaryDark)
+                .opacity(0)
+                .frame(width: 85, alignment: .trailing)
         }
         .overlay {
             Text(isWorkplaceOnly ? "Workplace change" : "Schedule change")
-                .font(AppFonts.headline())
+                .font(.system(size: 17, weight: .semibold))
+                .tracking(-0.41)
                 .foregroundColor(AppColors.fontDefault)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 16)
         .background(AppColors.surface)
-        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .bottom)
+        .overlay(Rectangle().fill(Color(hex: "E1E6EB")).frame(height: 1), alignment: .bottom)
     }
 
     // MARK: - Date
 
     private var dateField: some View {
         VStack(alignment: .leading, spacing: 12) {
-            wireframeLabel("Date", required: true)
+            ScheduleChangeFormField.requiredLabel("Date")
 
             ForEach(Array(dateRanges.enumerated()), id: \.element.id) { index, _ in
                 dateRangeRow(item: $dateRanges[index], index: index)
@@ -128,12 +129,6 @@ struct RequestScheduleChangeViewV3: View {
                         .font(AppFonts.subheadStrong())
                 }
                 .foregroundColor(AppColors.fontDefault)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(AppColors.separator, lineWidth: 1)
-                )
             }
             .buttonStyle(.plain)
         }
@@ -141,9 +136,8 @@ struct RequestScheduleChangeViewV3: View {
 
     private func dateRangeRow(item: Binding<ScheduleChangeDateRange>, index: Int) -> some View {
         HStack(alignment: .center, spacing: 8) {
-            outlinedDateField(
+            ScheduleChangeFormField.compactDateField(
                 selection: startBinding(item),
-                after: nil,
                 accessibilityLabel: "Start date \(index + 1)"
             )
 
@@ -151,7 +145,7 @@ struct RequestScheduleChangeViewV3: View {
                 .font(AppFonts.body())
                 .foregroundColor(AppColors.fontDefault)
 
-            outlinedDateField(
+            ScheduleChangeFormField.compactDateField(
                 selection: item.end,
                 after: item.wrappedValue.start,
                 accessibilityLabel: "End date \(index + 1)"
@@ -162,13 +156,9 @@ struct RequestScheduleChangeViewV3: View {
                     dateRanges.remove(at: index)
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(AppColors.fontSecondary)
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(AppColors.separator, lineWidth: 1)
-                        )
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.iconDefault)
+                        .frame(width: 24, height: 34)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove date range \(index + 1)")
@@ -178,6 +168,7 @@ struct RequestScheduleChangeViewV3: View {
         }
     }
 
+    /// Start bumps end forward whenever it would otherwise land before start.
     private func startBinding(_ item: Binding<ScheduleChangeDateRange>) -> Binding<Date> {
         Binding(
             get: { item.wrappedValue.start },
@@ -192,7 +183,7 @@ struct RequestScheduleChangeViewV3: View {
 
     // MARK: - Frequency
 
-    /// Bare — no outlined box or "Frequency" header — since the picker's own selected value
+    /// Bare — no boxed field or "Frequency" header — since the picker's own selected value
     /// ("Doesn't repeat" by default) already says what it is.
     private var frequencyField: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -211,11 +202,11 @@ struct RequestScheduleChangeViewV3: View {
                 }
             }
             .pickerStyle(.menu)
-            .tint(AppColors.fontDefault)
+            .tint(frequency == .doesNotRepeat ? AppColors.fontSecondary : AppColors.fontDefault)
             .labelsHidden()
 
             if frequency != .doesNotRepeat {
-                outlinedBox(label: "Ends on") {
+                ScheduleChangeFormField.boxedField(label: "Ends on") {
                     DatePicker(
                         "",
                         selection: $recurrenceEndDate,
@@ -243,7 +234,7 @@ struct RequestScheduleChangeViewV3: View {
 
             if dayType == .workday {
                 toggleCard(title: "Workplace (remote ↔ on-site)", isOn: $changesWorkplace) {
-                    workplacePillContent
+                    workplaceOnlyContent
                 }
 
                 toggleCard(title: "Working hours", isOn: $changesWorkHours) {
@@ -254,8 +245,9 @@ struct RequestScheduleChangeViewV3: View {
     }
 
     /// Always-visible tab (not a toggle card) — the request always sets one or the other, so
-    /// there's nothing to opt in/out of the way there is for Workplace/Working hours. Full-width,
-    /// evenly split — a "Workday / Day off" label would just repeat the pills' own text.
+    /// there's nothing to opt in/out of the way there is for Workplace/Working hours.
+    /// Full-width, evenly split — a "Workday / Day off" label would just repeat the pills'
+    /// own text.
     private var dayTypeTab: some View {
         HStack(spacing: 8) {
             ForEach(DayType.allCases) { option in
@@ -265,20 +257,21 @@ struct RequestScheduleChangeViewV3: View {
                 } label: {
                     HStack(spacing: 4) {
                         if selected {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .medium))
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 13, weight: .semibold))
                         }
                         Text(option.rawValue)
                             .font(AppFonts.subheadStrong())
                     }
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(selected ? AppColors.fontDefault : AppColors.fontSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(AppColors.surface)
+                    .background(selected ? AppColors.surface : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(selected ? AppColors.fontDefault : AppColors.separator, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? AppColors.iconInactive : Color.clear, lineWidth: 1)
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -306,18 +299,19 @@ struct RequestScheduleChangeViewV3: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: option.systemImage)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 13, weight: .semibold))
                         Text(option.rawValue)
                             .font(AppFonts.subheadStrong())
                     }
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(selected ? AppColors.fontDefault : AppColors.fontSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(AppColors.surface)
+                    .background(selected ? AppColors.surface : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(selected ? AppColors.fontDefault : AppColors.separator, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? AppColors.iconInactive : Color.clear, lineWidth: 1)
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -325,15 +319,14 @@ struct RequestScheduleChangeViewV3: View {
         }
     }
 
-    private var workplacePillContent: some View { workplaceOnlyContent }
-
     private var workplaceOnlySection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            wireframeLabel("Workplace", required: true)
+            ScheduleChangeFormField.requiredLabel("Workplace")
             workplaceOnlyContent
         }
     }
 
+    /// A card with a title + toggle; when on, reveals `content` below it.
     private func toggleCard<Content: View>(
         title: String,
         isOn: Binding<Bool>,
@@ -352,7 +345,7 @@ struct RequestScheduleChangeViewV3: View {
                     set: { newValue in withAnimation(.easeInOut(duration: 0.2)) { isOn.wrappedValue = newValue } }
                 ))
                 .labelsHidden()
-                .tint(AppColors.fontSecondary)
+                .tint(AppColors.fontDefault)
             }
             .padding(16)
 
@@ -363,13 +356,17 @@ struct RequestScheduleChangeViewV3: View {
                     .transition(.opacity)
             }
         }
-        .background(AppColors.surface)
+        .background(AppColors.surfaceDarker)
         .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(AppColors.separator, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(AppColors.separator, lineWidth: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
+    /// A row of selectable pills for any plain string-backed enum (`DayType`, `WorkplaceType`)
+    /// — the selected pill gets a checkmark, mirroring the Figma "Workday / Day off" and
+    /// "On-site / Remote" pill groups.
     private func pillRow<T: CaseIterable & Identifiable & RawRepresentable & Equatable>(
         _ selection: Binding<T>
     ) -> some View where T.RawValue == String, T.AllCases: RandomAccessCollection {
@@ -381,20 +378,21 @@ struct RequestScheduleChangeViewV3: View {
                 } label: {
                     HStack(spacing: 4) {
                         if selected {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .medium))
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 13, weight: .semibold))
                         }
                         Text(option.rawValue)
                             .font(AppFonts.subheadStrong())
                     }
-                    .foregroundColor(AppColors.fontDefault)
+                    .foregroundColor(selected ? AppColors.fontDefault : AppColors.fontSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(AppColors.surface)
+                    .background(selected ? AppColors.surface : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(selected ? AppColors.fontDefault : AppColors.separator, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(selected ? AppColors.iconInactive : Color.clear, lineWidth: 1)
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -418,12 +416,6 @@ struct RequestScheduleChangeViewV3: View {
                         .font(AppFonts.subheadStrong())
                 }
                 .foregroundColor(AppColors.fontDefault)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .stroke(AppColors.separator, lineWidth: 1)
-                )
             }
             .buttonStyle(.plain)
         }
@@ -454,13 +446,9 @@ struct RequestScheduleChangeViewV3: View {
                     shifts.removeAll { $0.id == item.wrappedValue.id }
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(AppColors.fontSecondary)
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(AppColors.separator, lineWidth: 1)
-                        )
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.iconDefault)
+                        .frame(width: 24, height: 34)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove shift \(number)")
@@ -470,7 +458,7 @@ struct RequestScheduleChangeViewV3: View {
 
     // MARK: - Note / Attach file / Footer
 
-    /// Tertiary — plain text, no border — reveals the Note/File fields on tap instead of
+    /// Tertiary — plain text, no background — reveals the Note/File fields on tap instead of
     /// always showing two optional fields most requests don't need.
     private var addNotesOrFilesButton: some View {
         Button {
@@ -489,9 +477,15 @@ struct RequestScheduleChangeViewV3: View {
 
     private var noteField: some View {
         VStack(alignment: .leading, spacing: 4) {
-            wireframeLabel("Note (Optional)")
+            Text("Note (Optional)")
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontDefault)
 
             ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(AppColors.separator, lineWidth: 1)
+
                 if note.isEmpty {
                     Text("Add a note for your manager")
                         .font(AppFonts.body())
@@ -507,28 +501,27 @@ struct RequestScheduleChangeViewV3: View {
                     .padding(8)
             }
             .frame(height: 100)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(AppColors.separator, lineWidth: 1)
-            )
         }
     }
 
     private var attachFileField: some View {
         VStack(alignment: .leading, spacing: 4) {
-            wireframeLabel("File (Optional)")
+            Text("File (Optional)")
+                .font(AppFonts.footnote())
+                .tracking(-0.08)
+                .foregroundColor(AppColors.fontDefault)
 
             Button {
-                // Wireframe only — no real file picker wired up yet.
+                // No real file picker wired up yet.
             } label: {
                 Text("Upload a file")
                     .font(AppFonts.subheadStrong())
                     .foregroundColor(AppColors.fontDefault)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(AppColors.separator, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(AppColors.separator, style: StrokeStyle(lineWidth: 1, dash: [4]))
                     )
             }
             .buttonStyle(.plain)
@@ -579,8 +572,6 @@ struct RequestScheduleChangeViewV3: View {
         return (false, summary.ranges, summary.total, newWorkplace, ScheduleChangeFormField.hourRanges(from: shifts))
     }
 
-    /// Outlined, unfilled to stay consistent with V3's wireframe-box language (no colored fills
-    /// elsewhere in this version).
     private var summaryCard: some View {
         let resulting = resultingSchedule(mergingWith: originalDay)
         return VStack(alignment: .leading, spacing: 4) {
@@ -593,10 +584,8 @@ struct RequestScheduleChangeViewV3: View {
         .tracking(-0.41)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(AppColors.separator, lineWidth: 1)
-        )
+        .background(AppColors.informativeBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var footer: some View {
@@ -608,14 +597,13 @@ struct RequestScheduleChangeViewV3: View {
                 onSend()
             } label: {
                 Text("Send request")
-                    .font(AppFonts.headline())
-                    .foregroundColor(AppColors.fontDefault)
+                    .font(.system(size: 17, weight: .semibold))
+                    .tracking(-0.41)
+                    .foregroundColor(AppColors.surface)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .stroke(AppColors.fontDefault, lineWidth: 1)
-                    )
+                    .padding(.vertical, 17)
+                    .background(AppColors.fontDefault)
+                    .clipShape(Capsule(style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!hasAnyChange)
@@ -624,69 +612,10 @@ struct RequestScheduleChangeViewV3: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 20)
         .background(AppColors.surface)
-        .overlay(Rectangle().fill(AppColors.separator).frame(height: 1), alignment: .top)
     }
 
-    // MARK: - Wireframe primitives
-
-    private func wireframeLabel(_ title: String, required: Bool = false) -> some View {
-        HStack(spacing: 2) {
-            Text(title)
-                .font(AppFonts.footnote())
-                .tracking(-0.08)
-                .foregroundColor(AppColors.fontDefault)
-            if required {
-                Text("*")
-                    .font(AppFonts.footnote())
-                    .foregroundColor(AppColors.fontSecondary)
-            }
-        }
-    }
-
-    private func outlinedBox<Content: View>(
-        label: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            wireframeLabel(label)
-
-            HStack {
-                content()
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(AppColors.separator, lineWidth: 1)
-            )
-        }
-    }
-
-    private func outlinedDateField(
-        selection: Binding<Date>,
-        after minDate: Date?,
-        accessibilityLabel: String
-    ) -> some View {
-        Group {
-            if let minDate {
-                DatePicker("", selection: selection, in: minDate..., displayedComponents: .date)
-            } else {
-                DatePicker("", selection: selection, displayedComponents: .date)
-            }
-        }
-        .labelsHidden()
-        .datePickerStyle(.compact)
-        .tint(AppColors.fontDefault)
-        .accessibilityLabel(accessibilityLabel)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(AppColors.separator, lineWidth: 1)
-        )
-    }
-
+    /// Only the toggled-on cards represent an actual change — the others keep the existing
+    /// schedule's value in the "new" summary shown on the pending banner.
     private func submitPendingChange() {
         guard let start = dateRanges.first?.start else { return }
         let weekdayNumber = Calendar.current.component(.weekday, from: start)
@@ -710,6 +639,6 @@ struct RequestScheduleChangeViewV3: View {
     }
 }
 
-#Preview("Request schedule change V3") {
-    RequestScheduleChangeViewV3()
+#Preview("Request schedule change V4") {
+    RequestScheduleChangeViewV4()
 }

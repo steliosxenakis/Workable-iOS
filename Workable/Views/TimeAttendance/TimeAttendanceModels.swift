@@ -337,9 +337,19 @@ struct WorkScheduleDay: Identifiable {
     /// e.g. "30m" — omitted from `totalText` when there's no break that day.
     var breakText: String? = nil
     let workplace: WorkplaceType
+    /// Only meaningful when `workplace == .remote` — drives the calendar's home/travel icon.
+    var remoteDetail: RemoteWorkplaceDetail? = nil
 
     var rangesText: String {
         shifts.map { "\($0.start) - \($0.end)" }.joined(separator: ", ")
+    }
+
+    /// SF Symbol shown under this day in the attendance week calendar (Figma 16816-594680).
+    var workplaceIconName: String {
+        switch workplace {
+        case .onSite: return "building.2.fill"
+        case .remote: return remoteDetail == .travel ? "airplane" : "house.fill"
+        }
     }
 
     /// e.g. "8h (Break: 30m) | On-site" (Figma 16267-279482).
@@ -367,6 +377,53 @@ enum WorkplaceType: String, CaseIterable, Identifiable {
     case remote = "Remote"
 
     var id: String { rawValue }
+}
+
+/// Sub-choice shown only when `WorkplaceType.remote` is selected — mirrors the calendar's
+/// on-site/remote day icons (Figma 16816-594680), which distinguish working from home from
+/// travelling.
+enum RemoteWorkplaceDetail: String, CaseIterable, Identifiable {
+    case home = "Home"
+    case travel = "Travel"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .home: return "house.fill"
+        case .travel: return "airplane"
+        }
+    }
+}
+
+/// Backs the calendar's per-day workplace icon menu (Figma 16908-805551) — quick change
+/// without opening the full "Request schedule change" form. In-memory only, keyed by
+/// `WorkScheduleDay.weekdayNumber`; falls back to the mock schedule's own value.
+final class QuickWorkplaceOverrideStore: ObservableObject {
+    static let shared = QuickWorkplaceOverrideStore()
+    private init() {}
+
+    struct Choice {
+        let workplace: WorkplaceType
+        let remoteDetail: RemoteWorkplaceDetail?
+
+        var systemImage: String {
+            switch workplace {
+            case .onSite: return "building.2.fill"
+            case .remote: return remoteDetail == .travel ? "airplane" : "house.fill"
+            }
+        }
+    }
+
+    @Published private var overrides: [Int: Choice] = [:]
+
+    func choice(for day: WorkScheduleDay) -> Choice {
+        overrides[day.weekdayNumber] ?? Choice(workplace: day.workplace, remoteDetail: day.remoteDetail)
+    }
+
+    func set(weekdayNumber: Int, workplace: WorkplaceType, remoteDetail: RemoteWorkplaceDetail?) {
+        overrides[weekdayNumber] = Choice(workplace: workplace, remoteDetail: remoteDetail)
+    }
 }
 
 /// Whether the requested day is worked at all — mirrors the web "Day type" segmented field
@@ -410,6 +467,9 @@ enum ScheduleChangeRequestUIVersion: String, CaseIterable, Identifiable {
     case v2 = "V2"
     /// Same fields as V2, drawn as a grey outlined wireframe (no glass, no filled capsules).
     case v3 = "V3"
+    /// V3's current layout (Workday/Day off tab, Remote → Home/Travel, tertiary notes/files)
+    /// re-skinned with real UI chrome — a copy of V2's glass/filled visual language.
+    case v4 = "V4"
 
     var id: String { rawValue }
 
@@ -424,6 +484,22 @@ enum ScheduleChangeRequestUIVersion: String, CaseIterable, Identifiable {
             return "Type / Workplace / Work hours are independent toggle cards — turn on only what's changing."
         case .v3:
             return "Same as V2, wireframe style — outlined boxes, dashed toggle cards, no glass."
+        case .v4:
+            return "Same layout as V3 — Workday/Day off tab, Remote → Home/Travel — with real UI chrome instead of wireframe."
+        }
+    }
+}
+
+/// The two "Request..." entry points on the Work Schedule sheet's footer — `.full` is the
+/// existing multi-part form, `.workplaceOnly` is a stripped-down Date + Workplace-only form.
+enum ScheduleChangeRequestMode {
+    case full
+    case workplaceOnly
+
+    var title: String {
+        switch self {
+        case .full: return "Request schedule change"
+        case .workplaceOnly: return "Request workplace change"
         }
     }
 }
@@ -634,11 +710,11 @@ enum TimeAttendanceMockData {
         ),
         .init(
             weekday: "Thursday", weekdayNumber: 5, shifts: [("09:00", "18:00")],
-            totalHoursText: "8h", breakText: "30m", workplace: .remote
+            totalHoursText: "8h", breakText: "30m", workplace: .remote, remoteDetail: .home
         ),
         .init(
             weekday: "Friday", weekdayNumber: 6, shifts: [("09:00", "18:00")],
-            totalHoursText: "8h", breakText: "30m", workplace: .remote
+            totalHoursText: "8h", breakText: "30m", workplace: .remote, remoteDetail: .home
         ),
     ]
 

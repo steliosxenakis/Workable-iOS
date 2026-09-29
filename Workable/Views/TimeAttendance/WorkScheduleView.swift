@@ -82,10 +82,11 @@ struct PendingScheduleHourRange: Hashable {
     var end: Double
 }
 
-/// Every schedule-change request, most recent first — the single pending one (if any) plus
-/// past, already-resolved ones. Both request forms (V1/V2) submit into this; the Work schedule
-/// sheet, Attendance calendar, and "Work schedule changes" history all observe it. Only one
-/// request can be pending at a time in this wireframe's Approvals flow.
+/// Every schedule-change request, most recent first — any number of pending ones (one per day
+/// at most — a new request for a day already pending replaces that day's) plus past,
+/// already-resolved ones. Both request forms (V1/V2/V3) and the calendar's quick workplace-
+/// change menu submit into this; the Work schedule sheet, Attendance calendar, and "Work
+/// schedule changes" history all observe it.
 @MainActor
 final class PendingScheduleChangeStore: ObservableObject {
     static let shared = PendingScheduleChangeStore()
@@ -95,26 +96,47 @@ final class PendingScheduleChangeStore: ObservableObject {
 
     @Published private(set) var requests: [PendingScheduleChangeRequest]
 
+    /// All requests currently awaiting approval — a week can have several, one per day.
+    var pendingRequests: [PendingScheduleChangeRequest] {
+        requests.filter { $0.isPending }
+    }
+
+    /// The single pending request, if callers only care whether *any* exists (e.g. the manager
+    /// Inbox "just sent" fallback). Prefer `pending(for:)` or `pendingRequests` when a specific
+    /// day matters.
     var current: PendingScheduleChangeRequest? {
-        requests.first { $0.isPending }
+        pendingRequests.first
+    }
+
+    /// The pending request (if any) covering `date` — each day has at most one.
+    func pending(for date: Date, calendar: Calendar = .current) -> PendingScheduleChangeRequest? {
+        pendingRequests.first { $0.applies(to: date, calendar: calendar) }
     }
 
     func submit(_ request: PendingScheduleChangeRequest) {
-        requests.removeAll { $0.isPending }
+        // A new request for a day that already has one pending replaces it; pending requests
+        // for other days are left alone, so several can coexist across the week.
+        requests.removeAll { $0.isPending && overlaps($0, request) }
         requests.insert(request, at: 0)
     }
 
-    func cancel() {
-        requests.removeAll { $0.isPending }
+    private func overlaps(_ existing: PendingScheduleChangeRequest, _ new: PendingScheduleChangeRequest) -> Bool {
+        guard existing.weekdayNumber == new.weekdayNumber else { return false }
+        if existing.isRecurring || new.isRecurring { return true }
+        guard let existingDate = existing.requestedDate, let newDate = new.requestedDate else { return true }
+        return Calendar.current.isDate(existingDate, inSameDayAs: newDate)
     }
 
-    /// Manager Inbox / Home to-dos: the in-flight request if the employee just sent one,
-    /// otherwise the seeded approval mock.
+    func cancel(_ id: PendingScheduleChangeRequest.ID) {
+        requests.removeAll { $0.id == id }
+    }
+
+    /// Manager Inbox / Home to-dos: every in-flight request the employee(s) sent, otherwise the
+    /// seeded approval mock.
     var managerInboxItems: [ScheduleChangeRequestItem] {
-        if let current {
-            return [current.asInboxItem()]
-        }
-        return [ScheduleChangeRequestMockData.pending]
+        let pending = pendingRequests
+        guard !pending.isEmpty else { return [ScheduleChangeRequestMockData.pending] }
+        return pending.map { $0.asInboxItem() }
     }
 }
 
@@ -174,14 +196,9 @@ struct WorkScheduleView: View {
         )
     }
 
-    private var pendingApprovalItem: ScheduleChangeRequestItem {
-        pendingStore.current?.asInboxItem()
-            ?? pendingStore.managerInboxItems.first
-            ?? ScheduleChangeRequestMockData.pending
-    }
-
     @State private var showsGeneralRequestSheet = false
     @State private var didSendRequest = false
+    @State private var showsRequestSentToast = false
     var body: some View {
         NavigationStack {
         VStack(spacing: 0) {
@@ -214,11 +231,13 @@ struct WorkScheduleView: View {
         }
         .background(AppColors.surface)
         .navigationBarHidden(true)
+        .scheduleRequestSentToast(isPresented: $showsRequestSentToast)
         .sheet(isPresented: $showsGeneralRequestSheet) {
             ScheduleChangeRequestSheet(
                 onSend: {
                     showsGeneralRequestSheet = false
                     withAnimation { didSendRequest = true }
+                    triggerScheduleRequestSentToast($showsRequestSentToast)
                 }
             )
             .presentationDetents([.large])
@@ -294,10 +313,7 @@ struct WorkScheduleView: View {
     }
 
     private func dayRow(_ day: WorkScheduleDay) -> some View {
-        let pending = pendingStore.current.flatMap { request -> PendingScheduleChangeRequest? in
-            guard request.applies(to: day.date()) else { return nil }
-            return request
-        }
+        let pending = pendingStore.pending(for: day.date())
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
@@ -328,7 +344,7 @@ struct WorkScheduleView: View {
                             .font(AppFonts.footnote())
                             .foregroundColor(AppColors.fontSecondary)
 
-                        pendingChangeBadge
+                        pendingChangeBadge(for: pending)
                             .padding(.top, 4)
                     } else {
                         Text(day.rangesText)
@@ -346,11 +362,13 @@ struct WorkScheduleView: View {
         }
     }
 
-    /// "Pending change ›" opens the request detail — approve/reject for managers, cancel for employees.
-    private var pendingChangeBadge: some View {
+    /// "Pending change ›" opens this day's own request detail — approve/reject for managers,
+    /// cancel for employees. Each day's badge links to its own pending request now that several
+    /// can be pending across the week at once.
+    private func pendingChangeBadge(for pending: PendingScheduleChangeRequest) -> some View {
         NavigationLink {
             ScheduleChangeRequestDetailView(
-                item: pendingApprovalItem,
+                item: pending.asInboxItem(),
                 mode: isManagerPersona ? .managerReview : .employeePending
             )
         } label: {
@@ -360,11 +378,50 @@ struct WorkScheduleView: View {
     }
 }
 
+/// Every "Request schedule change" entry point — the full form and the calendar's quick
+/// workplace-change menu — shows this same transient confirmation, auto-dismissing after 2s.
+extension View {
+    func scheduleRequestSentToast(isPresented: Binding<Bool>) -> some View {
+        overlay {
+            if isPresented.wrappedValue {
+                Text(ScheduleChangeFormField.requestSentToastMessage)
+                    .font(AppFonts.subheadline())
+                    .tracking(-0.24)
+                    .foregroundColor(AppColors.surface)
+                    .padding(16)
+                    .background(AppColors.fontDefault)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
+/// Call from an `onSend` handler alongside `.scheduleRequestSentToast(isPresented:)`.
+@MainActor
+func triggerScheduleRequestSentToast(_ isPresented: Binding<Bool>) {
+    withAnimation(.easeInOut(duration: 0.2)) {
+        isPresented.wrappedValue = true
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            isPresented.wrappedValue = false
+        }
+    }
+}
+
 // MARK: - Request a schedule change (Figma Scopes 486-16581 / 506-67295 / Playground 506-68166)
 
 /// Shared field-building blocks used by the V1 (`RequestScheduleChangeView`), V2
 /// (`RequestScheduleChangeViewV2`), and V3 (`RequestScheduleChangeViewV3`) request forms.
 enum ScheduleChangeFormField {
+    /// Shown in the toast after any schedule/workplace change is sent — the full "Request
+    /// schedule change" form and the calendar's quick workplace-change menu both use this
+    /// exact copy so the confirmation reads the same everywhere.
+    static let requestSentToastMessage = "Schedule request sent."
+
     /// Default entry point (no specific day picked yet) opens on tomorrow, not today — a
     /// schedule change almost never applies to a day already in progress.
     static var tomorrow: Date {

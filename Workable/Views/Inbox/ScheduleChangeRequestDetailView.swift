@@ -333,7 +333,7 @@ struct ScheduleChangeRequestDetailView: View {
 
     private var employeeCancelAction: some View {
         Button {
-            PendingScheduleChangeStore.shared.cancel()
+            PendingScheduleChangeStore.shared.cancel(item.id)
             showDecision("Cancelled")
         } label: {
             Text("Cancel request")

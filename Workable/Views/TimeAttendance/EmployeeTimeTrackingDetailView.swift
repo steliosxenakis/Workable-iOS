@@ -14,6 +14,7 @@ struct EmployeeTimeTrackingDetailView: View {
     @State private var showsAddTimeEntrySheet = false
     @State private var showsRequestScheduleChangeSheet = false
     @State private var showsScheduleHistory = false
+    @State private var showsRequestSentToast = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -61,10 +62,13 @@ struct EmployeeTimeTrackingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
+        .scheduleRequestSentToast(isPresented: $showsRequestSentToast)
         .sheet(isPresented: $showsRequestScheduleChangeSheet) {
-            ScheduleChangeRequestSheet()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
+            ScheduleChangeRequestSheet(
+                onSend: { triggerScheduleRequestSentToast($showsRequestSentToast) }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
         }
         .navigationDestination(isPresented: $showsScheduleHistory) {
             ScheduleChangeHistoryView()
